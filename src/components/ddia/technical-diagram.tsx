@@ -1,22 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArchEdgeArrow, ArrowDefs, SysBox } from "@/components/ddia/diagram-primitives";
+import { sequenceDiagrams, SEQUENCE_DIAGRAM_IDS } from "@/components/ddia/sequence-diagrams";
 
 type TechnicalDiagramProps = {
   diagramId: string;
   caption?: string;
 };
-
-function ArrowDefs() {
-  return (
-    <defs>
-      <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-        <path d="M0,0 L8,4 L0,8 Z" fill="var(--primary)" />
-      </marker>
-      <marker id="arrow-muted" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-        <path d="M0,0 L8,4 L0,8 Z" fill="var(--muted-foreground)" />
-      </marker>
-    </defs>
-  );
-}
 
 function FaultTreeDiagram() {
   return (
@@ -363,16 +352,6 @@ function EventStreamDiagram() {
   );
 }
 
-function SysBox({ x, y, w, h, label, sub, highlight }: { x: number; y: number; w: number; h: number; label: string; sub?: string; highlight?: boolean }) {
-  return (
-    <g>
-      <rect x={x} y={y} width={w} height={h} rx="8" fill={highlight ? "var(--primary)" : "var(--muted)"} fillOpacity={highlight ? 0.15 : 1} stroke={highlight ? "var(--primary)" : "var(--border)"} strokeWidth={highlight ? 2 : 1} />
-      <text x={x + w / 2} y={y + (sub ? 22 : 28)} textAnchor="middle" className="fill-foreground text-xs font-medium">{label}</text>
-      {sub ? <text x={x + w / 2} y={y + 38} textAnchor="middle" className="fill-muted-foreground text-xs">{sub}</text> : null}
-    </g>
-  );
-}
-
 function SystemAirbnbDiagram() {
   return (
     <svg viewBox="0 0 720 300" className="h-auto w-full" role="img" aria-label="Airbnb system architecture">
@@ -407,13 +386,12 @@ function SystemWhatsappDiagram() {
       <SysBox x={40} y={50} w={90} h={44} label="Sender" sub="mobile" />
       <SysBox x={580} y={50} w={90} h={44} label="Receiver" sub="mobile" />
       <SysBox x={300} y={44} w={120} h={52} label="Chat Server" sub="Erlang/BEAM" highlight />
-      <line x1="130" y1="72" x2="300" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <text x="200" y="64" className="fill-muted-foreground text-xs">send</text>
+      <ArchEdgeArrow x1={130} y1={72} x2={300} y2={72} label="WebSocket" />
       <SysBox x={285} y={130} w={150} h={44} label="Message Store" sub="replicated" />
-      <line x1="360" y1="96" x2="360" y2="130" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <ArchEdgeArrow x1={360} y1={96} x2={360} y2={130} label="append" />
       <SysBox x={80} y={130} w={120} h={44} label="Push Gateway" sub="APNs / FCM" />
-      <line x1="285" y1="152" x2="200" y2="152" stroke="var(--muted-foreground)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
-      <line x1="435" y1="152" x2="580" y2="72" stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="4" markerEnd="url(#arrow)" />
+      <ArchEdgeArrow x1={285} y1={152} x2={200} y2={152} label="notify" dashed muted />
+      <ArchEdgeArrow x1={435} y1={152} x2={580} y2={72} label="deliver" dashed />
       <text x="520" y="110" className="fill-muted-foreground text-xs">offline push</text>
       <text x="360" y="210" textAnchor="middle" className="fill-muted-foreground text-xs">Online: WebSocket/long-poll delivery. Offline: push notification + sync on reconnect.</text>
       <text x="360" y="240" textAnchor="middle" className="fill-muted-foreground text-xs">End-to-end encryption happens on devices — servers route ciphertext</text>
@@ -489,21 +467,20 @@ function SystemYoutubeDiagram() {
       <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">YouTube — upload, transcode, CDN playback</text>
       <SysBox x={40} y={50} w={90} h={40} label="Creator" sub="upload" />
       <SysBox x={170} y={44} w={110} h={48} label="Upload API" sub="resumable" highlight />
-      <SysBox x={310} y={44} w={110} h={48} label="Object Store" sub="raw video" />
-      <SysBox x={450} y={44} w={110} h={48} label="Transcode" sub="job queue" highlight />
+      <SysBox x={310} y={44} w={110} h={48} label="Object Store" sub="S3/GCS" />
+      <SysBox x={450} y={44} w={110} h={48} label="Transcode" sub="Kafka workers" highlight />
       <SysBox x={590} y={44} w={100} h={48} label="Segments" sub="HLS/DASH" />
-      {[{ x: 130, t: 72 }, { x: 280, t: 68 }, { x: 420, t: 68 }, { x: 560, t: 68 }].map((a, i, arr) =>
-        i < arr.length - 1 ? (
-          <line key={a.x} x1={a.x + (i === 0 ? 60 : 110)} y1={a.t} x2={arr[i + 1].x} y2={arr[i + 1].t} stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-        ) : null,
-      )}
+      <ArchEdgeArrow x1={130} y1={72} x2={170} y2={72} label="multipart" />
+      <ArchEdgeArrow x1={280} y1={68} x2={310} y2={68} label="PUT raw" />
+      <ArchEdgeArrow x1={420} y1={68} x2={450} y2={68} label="event" dashed />
+      <ArchEdgeArrow x1={560} y1={68} x2={590} y2={68} label="write" />
       <SysBox x={80} y={150} w={100} h={40} label="Viewer" sub="player" />
-      <SysBox x={220} y={144} w={120} h={48} label="Metadata API" sub="cached" />
+      <SysBox x={220} y={144} w={120} h={48} label="Metadata API" sub="REST" />
       <SysBox x={380} y={144} w={120} h={48} label="CDN Edge" sub="segments" highlight />
       <SysBox x={540} y={144} w={120} h={48} label="Origin" sub="object store" />
-      <line x1="180" y1="170" x2="220" y2="168" stroke="var(--primary)" strokeWidth="1.5" markerEnd="url(#arrow)" />
-      <line x1="340" y1="168" x2="380" y2="168" stroke="var(--primary)" strokeWidth="1.5" markerEnd="url(#arrow)" />
-      <line x1="500" y1="168" x2="540" y2="168" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" markerEnd="url(#arrow-muted)" />
+      <ArchEdgeArrow x1={180} y1={170} x2={220} y2={168} label="GET /videos" />
+      <ArchEdgeArrow x1={340} y1={168} x2={380} y2={168} label="m3u8 + .ts" />
+      <ArchEdgeArrow x1={500} y1={168} x2={540} y2={168} label="cache miss" dashed muted />
       <text x="360" y="230" textAnchor="middle" className="fill-muted-foreground text-xs">Write path: async transcode pipeline. Read path: manifest + CDN bytes.</text>
       <text x="360" y="255" textAnchor="middle" className="fill-muted-foreground text-xs">View counts batched via stream processor — approximate OK</text>
     </svg>
@@ -520,10 +497,10 @@ function SystemReservationDiagram() {
       <SysBox x={320} y={44} w={110} h={52} label="Hold Svc" sub="inventory lock" highlight />
       <SysBox x={460} y={50} w={100} h={44} label="Stripe" sub="payment" />
       <SysBox x={580} y={44} w={110} h={52} label="Confirm" sub="saga" highlight />
-      <line x1="140" y1="72" x2="180" y2="72" stroke="var(--muted-foreground)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
-      <line x1="290" y1="72" x2="320" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <line x1="430" y1="72" x2="460" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <line x1="560" y1="72" x2="580" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <ArchEdgeArrow x1={140} y1={72} x2={180} y2={72} label="search" muted />
+      <ArchEdgeArrow x1={290} y1={72} x2={320} y2={72} label="hold" />
+      <ArchEdgeArrow x1={430} y1={72} x2={460} y2={72} label="charge" />
+      <ArchEdgeArrow x1={560} y1={72} x2={580} y2={72} label="confirm" />
       <SysBox x={200} y={150} w={130} h={48} label="PostgreSQL" sub="inventory OLTP" />
       <SysBox x={380} y={150} w={110} h={48} label="Kafka" sub="events" />
       <line x1="375" y1="96" x2="265" y2="150" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
@@ -544,10 +521,10 @@ function SystemVotingDiagram() {
       <SysBox x={360} y={50} w={110} h={44} label="Ballot Log" sub="append-only" />
       <SysBox x={500} y={50} w={120} h={44} label="Aggregator" sub="stream" />
       <SysBox x={600} y={130} w={100} h={44} label="Results" sub="cached" highlight />
-      <line x1="160" y1="72" x2="200" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <line x1="320" y1="72" x2="360" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <line x1="470" y1="72" x2="500" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <line x1="560" y1="94" x2="630" y2="130" stroke="var(--muted-foreground)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
+      <ArchEdgeArrow x1={160} y1={72} x2={200} y2={72} label="POST ballot" />
+      <ArchEdgeArrow x1={320} y1={72} x2={360} y2={72} label="append" />
+      <ArchEdgeArrow x1={470} y1={72} x2={500} y2={72} label="event" dashed />
+      <ArchEdgeArrow x1={560} y1={94} x2={630} y2={130} label="INCR" dashed muted />
       <text x="360" y="200" textAnchor="middle" className="fill-muted-foreground text-xs">Unique (election_id, voter_id) prevents double voting</text>
       <text x="360" y="225" textAnchor="middle" className="fill-muted-foreground text-xs">Audit trail immutable; tallies derived from log</text>
     </svg>
@@ -564,9 +541,9 @@ function SystemMultiplayerDiagram() {
       ))}
       <SysBox x={260} y={100} w={140} h={52} label="Game Server" sub="60 Hz tick" highlight />
       <SysBox x={280} y={44} w={120} h={44} label="Matchmaker" sub="skill + region" />
-      <line x1="360" y1="88" x2="330" y2="100" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <line x1="140" y1="84" x2="260" y2="120" stroke="var(--primary)" strokeWidth="1.5" markerEnd="url(#arrow)" />
-      <line x1="580" y1="84" x2="400" y2="120" stroke="var(--primary)" strokeWidth="1.5" markerEnd="url(#arrow)" />
+      <ArchEdgeArrow x1={360} y1={88} x2={330} y2={100} label="allocate" />
+      <ArchEdgeArrow x1={140} y1={84} x2={260} y2={120} label="UDP input" />
+      <ArchEdgeArrow x1={580} y1={84} x2={400} y2={120} label="UDP input" />
       <SysBox x={180} y={190} w={120} h={44} label="Agones/K8s" sub="pod per match" />
       <SysBox x={420} y={190} w={120} h={44} label="Telemetry" sub="Kafka" />
       <line x1="330" y1="152" x2="240" y2="190" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
@@ -585,9 +562,9 @@ function SystemPuzzleDiagram() {
       <SysBox x={220} y={44} w={120} h={52} label="Game API" sub="validate moves" highlight />
       <SysBox x={380} y={50} w={110} h={44} label="Move Log" sub="append" />
       <SysBox x={530} y={50} w={120} h={44} label="Board State" sub="versioned" />
-      <line x1="180" y1="72" x2="220" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <line x1="340" y1="72" x2="380" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <line x1="490" y1="72" x2="530" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <ArchEdgeArrow x1={180} y1={72} x2={220} y2={72} label="POST move" />
+      <ArchEdgeArrow x1={340} y1={72} x2={380} y2={72} label="append" />
+      <ArchEdgeArrow x1={490} y1={72} x2={530} y2={72} label="UPDATE v" />
       <SysBox x={260} y={150} w={120} h={48} label="Redis ZSET" sub="leaderboard" highlight />
       <SysBox x={420} y={150} w={120} h={48} label="Scheduler" sub="turn timer" />
       <line x1="430" y1="94" x2="320" y2="150" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
@@ -661,6 +638,7 @@ function SystemModernStackDiagram() {
 }
 
 const diagrams: Record<string, () => React.ReactNode> = {
+  ...sequenceDiagrams,
   "fault-tree": FaultTreeDiagram,
   "latency-percentiles": LatencyPercentilesDiagram,
   "leader-follower": LeaderFollowerDiagram,
@@ -709,7 +687,11 @@ export function TechnicalDiagram({ diagramId, caption }: TechnicalDiagramProps) 
     return null;
   }
 
-  const title = SYSTEM_DIAGRAMS.has(diagramId) ? "System diagram" : "Diagram";
+  const title = SEQUENCE_DIAGRAM_IDS.has(diagramId)
+    ? "Sequence diagram"
+    : SYSTEM_DIAGRAMS.has(diagramId)
+      ? "Architecture diagram"
+      : "Diagram";
 
   return (
     <Card className="my-6">

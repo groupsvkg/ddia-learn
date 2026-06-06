@@ -1,5 +1,5 @@
 import type { LessonSection } from "../src/types/content";
-import { rw, app, code, sys, TS } from "./lesson-snippets";
+import { rw, app, code, seq, sys, TS } from "./lesson-snippets";
 
 type L = Omit<LessonSection, "media"> & { media?: LessonSection["media"] };
 
@@ -49,7 +49,9 @@ export const systemDesignLessons: L[] = [
       },
       rw("Stripe's design reviews start with the user promise ('charge once, never double-charge') before picking Postgres vs DynamoDB. Netflix capacity plans assume regional failure. The framework is universal; the storage engines change."),
       app("Airbnb", "Before sharding listings search, the team nailed booking invariants: a night cannot be sold twice, payments must match reservations, and cancellations must release inventory. Those constraints drove PostgreSQL transactions and Kafka outbox patterns."),
+      sys("system-modern-stack", "Typical SaaS components and how data flows between specialized stores."),
       code("Requirements checklist as types", TS.systemDesignChecklist),
+      seq("seq-foundations-request", "End-to-end request path: CDN for static assets, API through cache to database."),
     ],
     ["requirements", "non-functional", "trade-offs", "scope", "failure modes"],
   ),
@@ -136,7 +138,8 @@ export const systemDesignLessons: L[] = [
       },
       rw("YouTube stores originals in durable object storage (GCS-style), serves via Google's CDN, and keeps metadata in sharded databases. Creators see processing state; viewers see p95 startup time under a few seconds on good networks."),
       app("YouTube", "A 2 GB upload cannot block a synchronous API thread. Resumable uploads land in object storage; a job queue fans out transcoding workers that write HLS/DASH segments back to the bucket."),
-      sys("system-youtube", "Separate upload/transcode pipeline from CDN playback path."),
+      sys("system-youtube", "Components and protocols: multipart upload, Kafka transcode jobs, CDN segment delivery."),
+      seq("seq-youtube-upload", "Time-ordered upload flow from creator through object storage to async transcoding."),
     ],
     ["video", "upload", "CDN", "transcoding", "metadata"],
   ),
@@ -175,6 +178,7 @@ export const systemDesignLessons: L[] = [
       },
       code("Upload job enqueue", TS.youtubeUploadPipeline),
       sys("system-youtube", "Upload → transcode queue → segmented storage → CDN playback."),
+      seq("seq-youtube-playback", "Viewer fetches metadata, then manifest and segments from CDN with origin fallback."),
     ],
     ["HLS", "transcoding", "object storage", "Kafka", "manifest"],
   ),
@@ -223,7 +227,8 @@ export const systemDesignLessons: L[] = [
         type: "paragraph",
         text: "Chat apps are connection-heavy. A user with one WebSocket can receive thousands of messages per day; the hard part is routing each message to the right connection set with minimal latency.",
       },
-      sys("system-whatsapp", "Sender → chat server → store → online delivery or push gateway."),
+      sys("system-whatsapp", "WebSocket routing, durable store, and push gateway for offline receivers."),
+      seq("seq-whatsapp-message", "Message send, persist, online delivery, or push notification when offline."),
       rw("WhatsApp famously runs Erlang/BEAM for massive connection counts. Message IDs are client-generated UUIDs so retries do not duplicate chats. Signal protocol handles E2E on devices."),
       app("WhatsApp", "When the receiver is offline, the server persists ciphertext and triggers APNs/FCM. On reconnect, the client syncs from its last acked sequence — no message loss without unbounded server memory."),
     ],
@@ -279,7 +284,7 @@ export const systemDesignLessons: L[] = [
         text: "Reservation systems are classic OLTP with brutal correctness requirements. A double-booked hotel room destroys trust faster than a slow search page.",
       },
       app("Airbnb", "Guests search Elasticsearch-backed listings but commit bookings through a transactional core that decrements night-level inventory in PostgreSQL with row-level locks or serializable isolation."),
-      sys("system-reservation", "Search index derived from inventory source of truth in OLTP."),
+      sys("system-reservation", "Elasticsearch for search; PostgreSQL inventory as source of truth."),
     ],
     ["booking", "inventory", "OLTP", "search", "holds"],
   ),
@@ -303,6 +308,7 @@ export const systemDesignLessons: L[] = [
         text: "Two users booking the last seat is a race. The fix is atomic decrement: one transaction wins, the other gets a clear 'sold out' error — not two confirmations.",
       },
       code("Atomic inventory decrement", TS.reservationLock),
+      seq("seq-reservation-failure", "When payment fails, the saga releases the inventory hold before returning an error."),
       rw("OpenTable and Ticketmaster use inventory partitions per venue/show time. Airbnb shards booking writes by listing ID. All share: single writer per inventory cell at commit time."),
       { type: "callout", title: "Hold vs confirm", text: "A hold reserves inventory temporarily; confirm converts hold to sale after payment. Never confirm without checking hold ownership.", variant: "warning" },
     ],
@@ -323,7 +329,8 @@ export const systemDesignLessons: L[] = [
       "Admin overrides need audit log separate from user-facing booking row.",
     ],
     [
-      sys("system-reservation", "Search → hold → pay → confirm, with saga compensation on failure."),
+      sys("system-reservation", "Labeled service interactions: search, hold, Stripe charge, Kafka events."),
+      seq("seq-reservation-booking", "Happy-path sequence from hold through payment to confirmed booking."),
       code("Booking saga with compensation", TS.bookingSaga),
       rw("Expedia and Booking.com pipelines mirror this: Elasticsearch for discovery, PostgreSQL for reservations, Stripe/Adyen for payments, Temporal or custom sagas for multi-step checkout."),
     ],
@@ -369,7 +376,8 @@ export const systemDesignLessons: L[] = [
       "Geo-distributed read replicas for results; single-region write primary for consistency.",
     ],
     [
-      sys("system-voting", "Eligible voter → ballot log → stream aggregate → results cache."),
+      sys("system-voting", "Ballot API, append-only log, stream aggregator, and cached results."),
+      seq("seq-voting-ballot", "Idempotent vote submission and async tally update to results cache."),
       code("Idempotent ballot submission", TS.votingBallot),
       app("Slack", "Workspace polls are low-stakes but still use one-vote-per-user keys stored in OLTP with unique indexes — the same pattern at national scale with harder identity proofing."),
     ],
@@ -414,7 +422,9 @@ export const systemDesignLessons: L[] = [
       "Agones on Kubernetes scales game server pods per match.",
     ],
     [
-      sys("system-multiplayer", "Matchmaker → game server tick loop → delta sync to clients."),
+      sys("system-multiplayer", "Matchmaker, Agones/K8s game pods, and UDP state sync."),
+      seq("seq-multiplayer-match", "Queue to matchmaker, pod allocation, then UDP connect to game server."),
+      seq("seq-multiplayer-tick", "Clients send inputs; server simulates and broadcasts state deltas."),
       code("Authoritative tick with input buffer", TS.gameServerTick),
       app("Fortnite", "Epic runs regional game server fleets; matchmaking minimizes RTT. Client sends inputs; server corrects position if client prediction diverges."),
     ],
@@ -480,7 +490,8 @@ export const systemDesignLessons: L[] = [
       "Tie-breakers defined upfront (time, fewer hints).",
     ],
     [
-      sys("system-puzzle", "Move log append → board projection → leaderboard aggregate."),
+      sys("system-puzzle", "Move log, versioned board, and Redis leaderboard aggregation."),
+      seq("seq-puzzle-turn", "Validated move with optimistic locking, event log, and score update."),
       code("Optimistic board version check", TS.puzzleBoardVersion),
       rw("Chess.com stores PGN move logs; lichess uses similar event-sourced game records. NYT Games leaderboard uses precomputed daily ranks to avoid scanning all players at read time."),
     ],
@@ -507,7 +518,9 @@ export const systemDesignLessons: L[] = [
         text: "A multistep checkout is not one database transaction — payment, inventory, shipping, and email span systems. Sagas make partial failure explicit instead of hoping for the best.",
       },
       code("Saga step with compensation", TS.bookingSaga),
-      sys("system-multistep-workflow", "Orchestrator invokes steps; failures trigger compensating actions in reverse order."),
+      sys("system-multistep-workflow", "Orchestrator coordinates inventory, payments, and shipping services."),
+      seq("seq-workflow-saga", "Forward saga steps from cart to shipment with durable orchestration."),
+      seq("seq-workflow-compensate", "Payment failure triggers compensating release of inventory hold."),
       rw("Temporal, AWS Step Functions, and Cadence power durable workflows at Uber, Netflix, and Stripe. Kafka-only choreography works until you need a human-readable workflow graph."),
     ],
     ["saga", "orchestration", "choreography", "Temporal", "compensation"],
@@ -593,7 +606,8 @@ export const systemDesignLessons: L[] = [
       "Offline edit queues flush on reconnect with merge.",
     ],
     [
-      sys("system-canva", "WebSocket collab server applies OT/CRDT; Postgres stores snapshots."),
+      sys("system-canva", "WebSocket collab server, Postgres metadata, S3 assets, Redis presence."),
+      seq("seq-collaboration-edit", "Edit operation broadcast and optional persistence to Postgres."),
       app("Figma", "Multiplayer editing uses a central server to order operations and broadcast deltas. CRDT research powers newer whiteboard features with less server coupling."),
       code("Yjs-style document update", TS.crdtUpdate),
     ],
@@ -659,7 +673,8 @@ export const systemDesignLessons: L[] = [
       "Analytics on funnel drop-off per step drives product iteration.",
     ],
     [
-      sys("system-multistep-form", "Client autosave → draft API → S3 files → async verification webhooks."),
+      sys("system-multistep-form", "Draft API, Postgres, S3 uploads, and async vendor verification."),
+      seq("seq-form-autosave", "Autosave draft, direct S3 upload, submit, and webhook-driven approval."),
       rw("TurboTax and government visa portals use identical patterns: session-less drafts in DB, step validators as pure functions, async steps wired to mainframe or vendor APIs."),
       code("Step validation handler", TS.formStepValidation),
     ],

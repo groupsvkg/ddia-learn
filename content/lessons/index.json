@@ -2388,10 +2388,20 @@
         "variant": "tip"
       },
       {
+        "type": "diagram",
+        "diagramId": "system-modern-stack",
+        "caption": "Typical SaaS components and how data flows between specialized stores."
+      },
+      {
         "type": "code",
         "language": "typescript",
         "code": "// Frame the problem before picking databases\ntype SystemDesignBrief = {\n  actors: (\"mobile\" | \"web\" | \"admin\" | \"partner\")[];\n  functional: string[]; // \"upload video\", \"send message\"\n  nonFunctional: {\n    p99LatencyMs?: number;\n    availability?: string; // \"99.9%\"\n    consistency: \"strong\" | \"eventual\" | \"per-feature\";\n  };\n  scaleToday: { dau: number; peakQps: number };\n  invariants: string[]; // \"no double booking\"\n};",
         "caption": "Requirements checklist as types"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-foundations-request",
+        "caption": "End-to-end request path: CDN for static assets, API through cache to database."
       }
     ],
     "relatedConcepts": [
@@ -2547,7 +2557,12 @@
       {
         "type": "diagram",
         "diagramId": "system-youtube",
-        "caption": "Separate upload/transcode pipeline from CDN playback path."
+        "caption": "Components and protocols: multipart upload, Kafka transcode jobs, CDN segment delivery."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-youtube-upload",
+        "caption": "Time-ordered upload flow from creator through object storage to async transcoding."
       }
     ],
     "relatedConcepts": [
@@ -2609,6 +2624,11 @@
         "type": "diagram",
         "diagramId": "system-youtube",
         "caption": "Upload → transcode queue → segmented storage → CDN playback."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-youtube-playback",
+        "caption": "Viewer fetches metadata, then manifest and segments from CDN with origin fallback."
       }
     ],
     "relatedConcepts": [
@@ -2687,7 +2707,12 @@
       {
         "type": "diagram",
         "diagramId": "system-whatsapp",
-        "caption": "Sender → chat server → store → online delivery or push gateway."
+        "caption": "WebSocket routing, durable store, and push gateway for offline receivers."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-whatsapp-message",
+        "caption": "Message send, persist, online delivery, or push notification when offline."
       },
       {
         "type": "callout",
@@ -2786,7 +2811,7 @@
       {
         "type": "diagram",
         "diagramId": "system-reservation",
-        "caption": "Search index derived from inventory source of truth in OLTP."
+        "caption": "Elasticsearch for search; PostgreSQL inventory as source of truth."
       }
     ],
     "relatedConcepts": [
@@ -2821,6 +2846,11 @@
         "language": "typescript",
         "code": "// Atomic inventory — prevent double booking\nawait prisma.$transaction(async (tx) => {\n  const slot = await tx.inventory.findUnique({\n    where: { listingId_date: { listingId, date } },\n  });\n  if (!slot || slot.available < 1) throw new Error(\"SOLD_OUT\");\n  await tx.inventory.update({\n    where: { listingId_date: { listingId, date }, version: slot.version },\n    data: { available: { decrement: 1 }, version: { increment: 1 } },\n  });\n});",
         "caption": "Atomic inventory decrement"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-reservation-failure",
+        "caption": "When payment fails, the saga releases the inventory hold before returning an error."
       },
       {
         "type": "callout",
@@ -2861,7 +2891,12 @@
       {
         "type": "diagram",
         "diagramId": "system-reservation",
-        "caption": "Search → hold → pay → confirm, with saga compensation on failure."
+        "caption": "Labeled service interactions: search, hold, Stripe charge, Kafka events."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-reservation-booking",
+        "caption": "Happy-path sequence from hold through payment to confirmed booking."
       },
       {
         "type": "code",
@@ -2942,7 +2977,12 @@
       {
         "type": "diagram",
         "diagramId": "system-voting",
-        "caption": "Eligible voter → ballot log → stream aggregate → results cache."
+        "caption": "Ballot API, append-only log, stream aggregator, and cached results."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-voting-ballot",
+        "caption": "Idempotent vote submission and async tally update to results cache."
       },
       {
         "type": "code",
@@ -3017,7 +3057,17 @@
       {
         "type": "diagram",
         "diagramId": "system-multiplayer",
-        "caption": "Matchmaker → game server tick loop → delta sync to clients."
+        "caption": "Matchmaker, Agones/K8s game pods, and UDP state sync."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-multiplayer-match",
+        "caption": "Queue to matchmaker, pod allocation, then UDP connect to game server."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-multiplayer-tick",
+        "caption": "Clients send inputs; server simulates and broadcasts state deltas."
       },
       {
         "type": "code",
@@ -3134,7 +3184,12 @@
       {
         "type": "diagram",
         "diagramId": "system-puzzle",
-        "caption": "Move log append → board projection → leaderboard aggregate."
+        "caption": "Move log, versioned board, and Redis leaderboard aggregation."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-puzzle-turn",
+        "caption": "Validated move with optimistic locking, event log, and score update."
       },
       {
         "type": "code",
@@ -3185,7 +3240,17 @@
       {
         "type": "diagram",
         "diagramId": "system-multistep-workflow",
-        "caption": "Orchestrator invokes steps; failures trigger compensating actions in reverse order."
+        "caption": "Orchestrator coordinates inventory, payments, and shipping services."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-workflow-saga",
+        "caption": "Forward saga steps from cart to shipment with durable orchestration."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-workflow-compensate",
+        "caption": "Payment failure triggers compensating release of inventory hold."
       },
       {
         "type": "callout",
@@ -3337,7 +3402,12 @@
       {
         "type": "diagram",
         "diagramId": "system-canva",
-        "caption": "WebSocket collab server applies OT/CRDT; Postgres stores snapshots."
+        "caption": "WebSocket collab server, Postgres metadata, S3 assets, Redis presence."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-collaboration-edit",
+        "caption": "Edit operation broadcast and optional persistence to Postgres."
       },
       {
         "type": "callout",
@@ -3453,7 +3523,12 @@
       {
         "type": "diagram",
         "diagramId": "system-multistep-form",
-        "caption": "Client autosave → draft API → S3 files → async verification webhooks."
+        "caption": "Draft API, Postgres, S3 uploads, and async vendor verification."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "seq-form-autosave",
+        "caption": "Autosave draft, direct S3 upload, submit, and webhook-driven approval."
       },
       {
         "type": "callout",

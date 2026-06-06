@@ -16,6 +16,10 @@ export function sys(diagramId: string, caption: string): ContentBlock {
   return { type: "diagram", diagramId, caption };
 }
 
+export function seq(diagramId: string, caption: string): ContentBlock {
+  return { type: "diagram", diagramId, caption };
+}
+
 export const TS = {
   latencyPercentiles: `// Track tail latency like Google SRE handbooks recommend
 const durations: number[] = [];
