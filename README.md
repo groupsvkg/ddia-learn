@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DDIA Learn
 
-## Getting Started
+An interactive study companion for *Designing Data-Intensive Applications* by Martin Kleppmann. Built with Next.js, shadcn/ui, and deployed to Cloudflare Workers via OpenNext.
 
-First, run the development server:
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
+bun run dev          # Next.js dev server (http://localhost:3000)
+bun run preview      # Cloudflare workerd preview (http://localhost:8787)
+bun run deploy       # Deploy to Cloudflare Workers
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Content
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Full curriculum scaffold: 12 chapters across 3 parts
+- Chapter 1 lessons are fully authored (4 sections)
+- Chapters 2–12 show "Coming Soon" placeholders
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Regenerate content assets
 
-## Learn More
+```bash
+bun run content:build   # Regenerate lessons index from source definitions
+bun run content:media   # Regenerate media manifest
+```
 
-To learn more about Next.js, take a look at the following resources:
+Grok Imagine images live in `public/media/`. Technical diagrams with exact labels are code-built SVG components.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Add shadcn components with:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+bunx shadcn@latest add <component>
+```
 
-## Deploy on Vercel
+## Deploy to Cloudflare
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+export CLOUDFLARE_API_TOKEN=your_token
+bun run deploy
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Disclaimer
+
+Inspired by DDIA by Martin Kleppmann. Independent study companion — not affiliated with O'Reilly Media.

@@ -1,0 +1,76 @@
+{
+  "id": "maintainability",
+  "chapterId": "ch01-reliable-scalable-maintainable",
+  "title": "Maintainability",
+  "summary": "Most of the lifetime cost of software is in maintenance — fixing bugs, adapting to new requirements, and keeping it running. Maintainability is about making that work productive.",
+  "keyTakeaways": [
+    "Operability: make it easy for operations teams to keep the system healthy.",
+    "Simplicity: manage complexity so new engineers can be productive quickly.",
+    "Evolvability: make change easy — requirements always change over a system's lifetime.",
+    "Good abstractions and clear interfaces reduce the cost of change.",
+    "Technical debt is inevitable; the goal is to keep it manageable."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Building a system is only the beginning. Over years, teams fix bugs, adapt to regulation, add features, and replace components. If the codebase is a tangled mess, every change is risky and slow. Maintainability is the quality that keeps the total cost of ownership reasonable."
+    },
+    {
+      "type": "heading",
+      "text": "Operability",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Operations teams need good visibility into system health: metrics, logs, traces, and clear runbooks for common failures. Good operability means routine tasks (deploys, scaling, config changes) are safe and boring — not heroic."
+    },
+    {
+      "type": "list",
+      "items": [
+        "Expose key metrics: latency, error rate, saturation, and business KPIs.",
+        "Provide clear documentation for deployment, rollback, and disaster recovery.",
+        "Automate repetitive tasks to reduce human error."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Simplicity",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Complexity slows everyone down. It comes from accidental complexity (poor abstractions, tangled dependencies) and essential complexity (the problem is genuinely hard). Good design minimizes accidental complexity by choosing the right abstractions and interfaces."
+    },
+    {
+      "type": "media",
+      "src": "/media/ch01/complexity-metaphor.png",
+      "alt": "Visual metaphor for managing system complexity",
+      "kind": "image",
+      "caption": "Simplicity is not about fewer features — it is about manageable complexity."
+    },
+    {
+      "type": "heading",
+      "text": "Evolvability",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Requirements change. A system that cannot adapt becomes a legacy burden. Evolvability means the architecture supports incremental change: you can swap a storage engine, add a new API version, or migrate data formats without a rewrite."
+    },
+    {
+      "type": "callout",
+      "title": "Agility vs maintainability",
+      "text": "Agile processes help teams deliver quickly, but without evolvable architecture, speed today becomes paralysis tomorrow. Design for change from the start.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "operability",
+    "technical debt",
+    "abstraction",
+    "evolvability"
+  ],
+  "media": {
+    "heroImage": "/media/ch01/complexity-metaphor.png"
+  }
+}

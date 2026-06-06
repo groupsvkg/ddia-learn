@@ -1,0 +1,1431 @@
+{
+  "thinking-about-data-systems": {
+    "id": "thinking-about-data-systems",
+    "chapterId": "ch01-reliable-scalable-maintainable",
+    "title": "Thinking About Data Systems",
+    "summary": "Most applications today are data-intensive rather than compute-intensive. Understanding what that means is the foundation for every design decision that follows.",
+    "keyTakeaways": [
+      "Data-intensive applications are usually limited by data volume, complexity, or speed — not CPU.",
+      "A \"data system\" is any system built from multiple components working together to store, process, or move data.",
+      "Reliability, scalability, and maintainability are not features you bolt on — they shape architecture from day one.",
+      "There is no one-size-fits-all tool; good engineers combine specialized components thoughtfully."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "When people talk about \"the cloud\" or \"big data,\" they often focus on raw compute power. In practice, most modern applications are data-intensive: the hard problems come from handling large volumes of data, complex data transformations, or rapid changes — not from crunching numbers on an idle CPU."
+      },
+      {
+        "type": "callout",
+        "title": "What makes an app data-intensive?",
+        "text": "Typical challenges include the database becoming a bottleneck, caching layers multiplying, search indexes to maintain, file storage at scale, analytics pipelines, and inter-service data exchange. The application exists to serve data to users and capture it back.",
+        "variant": "info"
+      },
+      {
+        "type": "heading",
+        "text": "Beyond a Single Database",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "We use the term data system broadly: not just a database, but any combination of components that store, process, or move data. A single product might use a relational database for transactions, a search index for full-text queries, a cache for hot reads, and a message queue for async work. Each tool has strengths and weaknesses."
+      },
+      {
+        "type": "list",
+        "items": [
+          "Storage engines optimize for different access patterns (point lookups vs scans vs analytics).",
+          "Query languages express intent differently (SQL joins vs document embedding vs graph traversal).",
+          "Consistency models range from strong ACID guarantees to eventual consistency with conflict resolution."
+        ]
+      },
+      {
+        "type": "media",
+        "src": "/media/ch01/data-systems-hero.png",
+        "alt": "Abstract illustration of interconnected data system components",
+        "kind": "image",
+        "caption": "A modern data-intensive application combines specialized components into a cohesive system."
+      },
+      {
+        "type": "heading",
+        "text": "The Three Pillars",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Every design choice in this book can be evaluated against three qualities: reliability (it works correctly, even when things go wrong), scalability (it keeps working as load grows), and maintainability (people can work on it productively over time). The rest of this chapter explores each pillar in depth."
+      }
+    ],
+    "relatedConcepts": [
+      "data-intensive application",
+      "reliability",
+      "scalability",
+      "maintainability"
+    ],
+    "media": {
+      "heroImage": "/media/ch01/data-systems-hero.png"
+    }
+  },
+  "reliability": {
+    "id": "reliability",
+    "chapterId": "ch01-reliable-scalable-maintainable",
+    "title": "Reliability",
+    "summary": "Reliability means the system continues to work correctly — performing the right function at the right time — even when faults occur. Faults are inevitable; failures are not.",
+    "keyTakeaways": [
+      "A fault is one component deviating from spec; a failure is when the system stops delivering its service.",
+      "Hardware faults (disks, power, network) are common and often correlated in cloud environments.",
+      "Software errors (bugs, cascading failures) are often worse because they can affect many users at once.",
+      "Human errors cause most outages — good design makes mistakes hard and recovery easy.",
+      "Fault-tolerance accepts that faults happen and builds systems that survive them."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Users expect systems to work. Reliability is about meeting that expectation even when the real world intrudes: a disk dies, a deploy introduces a bug, or an operator misconfigures a firewall rule. The goal is not perfection — it is building systems where individual faults do not cascade into user-visible failures."
+      },
+      {
+        "type": "callout",
+        "title": "Fault vs failure",
+        "text": "We can tolerate faults (a machine crashes) while preventing failures (the service goes down). Designing for fault-tolerance means assuming things will break and planning accordingly.",
+        "variant": "tip"
+      },
+      {
+        "type": "heading",
+        "text": "Hardware Faults",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Hard disks fail, RAM corrupts, power supplies die, and network links flap. In large fleets, failures are routine — not exceptional. Cloud platforms offer VMs with automatic restart, but that does not help if the data on disk is lost or if all replicas share the same power domain."
+      },
+      {
+        "type": "list",
+        "items": [
+          "Single-server redundancy (RAID, dual power supplies) reduces but does not eliminate risk.",
+          "Distributed systems replicate data across machines so one failure does not mean data loss.",
+          "Correlated failures (shared rack, region outage) require multi-zone or multi-region strategies."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Software Errors",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Software bugs can be subtle and long-dormant. A leap second, an edge case in input validation, or a race condition under load can trigger cascading failures across services. Unlike hardware, software faults often affect many machines simultaneously because they all run the same code."
+      },
+      {
+        "type": "heading",
+        "text": "Human Errors",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Studies of large outages consistently find human error near the root: a typo in a config, a migration run against production, a certificate that expired unnoticed. Good systems minimize opportunities for error and provide safety nets — staged rollouts, easy rollbacks, and thorough monitoring."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "fault-tree",
+        "caption": "Common fault categories and how fault-tolerance strategies address them."
+      },
+      {
+        "type": "callout",
+        "title": "How important is reliability?",
+        "text": "For many business-critical systems (payments, medical records, infrastructure), downtime has serious consequences. Even for less critical apps, unreliability erodes user trust quickly. The investment in reliability should match the cost of failure.",
+        "variant": "warning"
+      }
+    ],
+    "relatedConcepts": [
+      "fault tolerance",
+      "hardware fault",
+      "cascading failure",
+      "redundancy"
+    ],
+    "media": {
+      "diagrams": [
+        "fault-tree"
+      ]
+    }
+  },
+  "scalability": {
+    "id": "scalability",
+    "chapterId": "ch01-reliable-scalable-maintainable",
+    "title": "Scalability",
+    "summary": "Scalability is not a single number — it is how a system copes with increased load. The right strategy depends entirely on what \"load\" means for your application.",
+    "keyTakeaways": [
+      "Load must be described with concrete parameters: requests/sec, read/write ratio, cache hit rate, etc.",
+      "Performance is measured in throughput (records/sec) or response time (latency percentiles).",
+      "Percentile metrics (p95, p99) matter more than averages for user experience.",
+      "Scaling can be vertical (bigger machine) or horizontal (more machines) — each has trade-offs.",
+      "Elastic systems automatically add resources under load; manual scaling is simpler but slower."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Scalability describes how performance changes when load increases. A system that handles 10 users beautifully but collapses at 10,000 is not scalable. But \"scalable\" does not mean \"infinitely fast\" — it means you have a reasonable plan for growth."
+      },
+      {
+        "type": "heading",
+        "text": "Describing Load",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Load is not just \"number of users.\" For a social network, it might be posts per second and fan-out reads. For a search engine, it is queries per second and index size. Define the parameters that matter for your system and measure them."
+      },
+      {
+        "type": "callout",
+        "title": "Example: Twitter timelines",
+        "text": "Twitter once reported ~300k requests/sec for home timelines and ~6k tweets/sec for writes. The read/write ratio and fan-out pattern (push vs pull model) dominated architectural choices.",
+        "variant": "info"
+      },
+      {
+        "type": "heading",
+        "text": "Describing Performance",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Throughput tells you how much work a system handles per unit time. Response time (latency) tells you how long an individual request waits. Both matter, but for interactive applications, tail latency — the slowest 1% or 5% of requests — often determines whether users perceive the system as fast."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "latency-percentiles",
+        "caption": "Why average latency hides problems: a few slow requests dominate user perception."
+      },
+      {
+        "type": "heading",
+        "text": "Approaches for Coping with Load",
+        "level": 2
+      },
+      {
+        "type": "list",
+        "items": [
+          "Vertical scaling: upgrade CPU, RAM, or disk on one machine. Simple but has hard limits.",
+          "Horizontal scaling: distribute load across many machines. Requires partitioning and coordination.",
+          "Elastic scaling: automatically add/remove capacity. Great for variable load, harder to operate.",
+          "Tuning and optimization: sometimes a 10x improvement comes from a better algorithm, not more hardware."
+        ]
+      },
+      {
+        "type": "media",
+        "src": "/media/ch01/scaling-load.png",
+        "alt": "Conceptual illustration of traffic growing across distributed servers",
+        "kind": "image",
+        "caption": "Horizontal scaling spreads load, but introduces coordination challenges."
+      }
+    ],
+    "relatedConcepts": [
+      "throughput",
+      "latency",
+      "percentile",
+      "horizontal scaling",
+      "vertical scaling"
+    ],
+    "media": {
+      "heroImage": "/media/ch01/scaling-load.png",
+      "diagrams": [
+        "latency-percentiles"
+      ]
+    }
+  },
+  "maintainability": {
+    "id": "maintainability",
+    "chapterId": "ch01-reliable-scalable-maintainable",
+    "title": "Maintainability",
+    "summary": "Most of the lifetime cost of software is in maintenance — fixing bugs, adapting to new requirements, and keeping it running. Maintainability is about making that work productive.",
+    "keyTakeaways": [
+      "Operability: make it easy for operations teams to keep the system healthy.",
+      "Simplicity: manage complexity so new engineers can be productive quickly.",
+      "Evolvability: make change easy — requirements always change over a system's lifetime.",
+      "Good abstractions and clear interfaces reduce the cost of change.",
+      "Technical debt is inevitable; the goal is to keep it manageable."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Building a system is only the beginning. Over years, teams fix bugs, adapt to regulation, add features, and replace components. If the codebase is a tangled mess, every change is risky and slow. Maintainability is the quality that keeps the total cost of ownership reasonable."
+      },
+      {
+        "type": "heading",
+        "text": "Operability",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Operations teams need good visibility into system health: metrics, logs, traces, and clear runbooks for common failures. Good operability means routine tasks (deploys, scaling, config changes) are safe and boring — not heroic."
+      },
+      {
+        "type": "list",
+        "items": [
+          "Expose key metrics: latency, error rate, saturation, and business KPIs.",
+          "Provide clear documentation for deployment, rollback, and disaster recovery.",
+          "Automate repetitive tasks to reduce human error."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Simplicity",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Complexity slows everyone down. It comes from accidental complexity (poor abstractions, tangled dependencies) and essential complexity (the problem is genuinely hard). Good design minimizes accidental complexity by choosing the right abstractions and interfaces."
+      },
+      {
+        "type": "media",
+        "src": "/media/ch01/complexity-metaphor.png",
+        "alt": "Visual metaphor for managing system complexity",
+        "kind": "image",
+        "caption": "Simplicity is not about fewer features — it is about manageable complexity."
+      },
+      {
+        "type": "heading",
+        "text": "Evolvability",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Requirements change. A system that cannot adapt becomes a legacy burden. Evolvability means the architecture supports incremental change: you can swap a storage engine, add a new API version, or migrate data formats without a rewrite."
+      },
+      {
+        "type": "callout",
+        "title": "Agility vs maintainability",
+        "text": "Agile processes help teams deliver quickly, but without evolvable architecture, speed today becomes paralysis tomorrow. Design for change from the start.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "operability",
+      "technical debt",
+      "abstraction",
+      "evolvability"
+    ],
+    "media": {
+      "heroImage": "/media/ch01/complexity-metaphor.png"
+    }
+  },
+  "relational-vs-document": {
+    "id": "relational-vs-document",
+    "chapterId": "ch02-data-models-query-languages",
+    "title": "Relational Model Versus Document Model",
+    "summary": "The relational and document models represent data differently — and each shines for different access patterns.",
+    "keyTakeaways": [
+      "Relational databases normalize data into tables with foreign-key relationships.",
+      "Document databases embed related data together for locality of reference.",
+      "One-to-many and many-to-many relationships are easier in relational schemas.",
+      "Schema flexibility favors documents for rapidly evolving product data.",
+      "Neither model is universally superior — match the model to your query patterns."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "At the heart of every database is a data model: the abstraction it exposes to applications. For decades, the relational model dominated. The rise of web applications brought document databases back into focus, each arguing they better fit modern development."
+      },
+      {
+        "type": "heading",
+        "text": "The Object-Relational Mismatch",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Object-oriented code thinks in nested structures; relational tables are flat rows. ORMs bridge this gap but introduce impedance mismatch — awkward joins, N+1 queries, and schema migrations that fight your object model."
+      },
+      {
+        "type": "callout",
+        "title": "When documents win",
+        "text": "If your application mostly reads or writes whole records together (user profile + settings + preferences), embedding in a document avoids joins and maps naturally to JSON APIs.",
+        "variant": "tip"
+      },
+      {
+        "type": "list",
+        "items": [
+          "Relational: strong for ad-hoc queries, joins, and enforcing referential integrity.",
+          "Document: strong for hierarchical data, flexible schemas, and horizontal scaling.",
+          "Graph: strong when relationships are the primary query pattern (covered next)."
+        ]
+      }
+    ],
+    "relatedConcepts": [
+      "relational model",
+      "document model",
+      "normalization",
+      "impedance mismatch"
+    ],
+    "media": {}
+  },
+  "query-languages": {
+    "id": "query-languages",
+    "chapterId": "ch02-data-models-query-languages",
+    "title": "Query Languages for Data",
+    "summary": "Declarative query languages let you describe what you want; the engine figures out how to get it.",
+    "keyTakeaways": [
+      "SQL is the canonical declarative language — describe the result, not the algorithm.",
+      "MapReduce expresses batch computation as map and reduce phases over datasets.",
+      "Graph query languages (Cypher, SPARQL) traverse relationships declaratively.",
+      "Imperative code in application layers duplicates logic that belongs in the data layer.",
+      "Choosing a query language constrains which access patterns are efficient."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "A query language defines how applications read and transform data. Declarative languages like SQL separate the what from the how: you specify the desired result set, and the query optimizer chooses indexes, join order, and execution plan."
+      },
+      {
+        "type": "heading",
+        "text": "Declarative vs Imperative",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "Imperative code fetches rows and loops in application memory. Declarative queries push work to the database where indexes and statistics enable efficient execution. This separation is why SQL survived decades of hype cycles."
+      },
+      {
+        "type": "callout",
+        "title": "MapReduce",
+        "text": "MapReduce brought declarative batch processing to distributed files: map functions extract key-value pairs, shuffle groups by key, reduce aggregates. Modern engines (Spark, Flink) evolved beyond the strict two-phase model.",
+        "variant": "info"
+      }
+    ],
+    "relatedConcepts": [
+      "SQL",
+      "declarative query",
+      "MapReduce",
+      "query optimizer"
+    ],
+    "media": {}
+  },
+  "graph-like-data-models": {
+    "id": "graph-like-data-models",
+    "chapterId": "ch02-data-models-query-languages",
+    "title": "Graph-Like Data Models",
+    "summary": "When connections between entities matter more than the entities themselves, graph models are the natural fit.",
+    "keyTakeaways": [
+      "Property graphs store nodes, edges, and properties — ideal for social networks and recommendations.",
+      "Triple-stores represent facts as (subject, predicate, object) for semantic web data.",
+      "Graph traversals replace expensive multi-table joins in relational schemas.",
+      "Cypher and SPARQL express path queries declaratively.",
+      "Graph databases trade specialized traversal for weaker bulk analytics."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Many domains are inherently connected: social graphs, supply chains, knowledge bases, fraud detection. Representing these as relational tables with join tables works but makes traversal queries verbose and slow."
+      },
+      {
+        "type": "heading",
+        "text": "Property Graphs",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "In a property graph, vertices represent entities and edges represent relationships, both carrying key-value properties. Finding friends-of-friends or shortest paths becomes a native index traversal rather than a recursive SQL query."
+      },
+      {
+        "type": "list",
+        "items": [
+          "Cypher (Neo4j): pattern-matching syntax for graph traversal.",
+          "SPARQL: W3C standard for RDF triple-stores.",
+          "Datalog: logic-based queries with recursive rules."
+        ]
+      }
+    ],
+    "relatedConcepts": [
+      "property graph",
+      "triple-store",
+      "Cypher",
+      "SPARQL",
+      "graph traversal"
+    ],
+    "media": {}
+  },
+  "data-structures": {
+    "id": "data-structures",
+    "chapterId": "ch03-storage-and-retrieval",
+    "title": "Data Structures That Power Your Database",
+    "summary": "Under every database API lies a storage engine choosing between log-structured and B-tree designs.",
+    "keyTakeaways": [
+      "Hash indexes suit exact key lookups on memory-resident data.",
+      "SSTables and LSM-trees batch writes into sorted segments for high write throughput.",
+      "B-trees maintain sorted pages on disk for balanced read/write performance.",
+      "LSM-trees trade read amplification for write throughput; B-trees do the opposite.",
+      "Compaction in LSM-trees merges segments in the background."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Storage engines are the library components that databases use to store and retrieve bytes on disk. The two dominant families are log-structured merge (LSM) trees and B-trees — each optimizing for different workloads."
+      },
+      {
+        "type": "heading",
+        "text": "LSM-Trees vs B-Trees",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "B-trees update pages in place — predictable read latency, but random writes can be slow on spinning disks. LSM-trees append writes to a log, then compact sorted segments — excellent write throughput at the cost of occasional read amplification during compaction."
+      },
+      {
+        "type": "callout",
+        "title": "Real-world engines",
+        "text": "RocksDB and LevelDB use LSM-trees. PostgreSQL and MySQL InnoDB use B-trees. Choosing an engine is choosing a read/write trade-off.",
+        "variant": "info"
+      }
+    ],
+    "relatedConcepts": [
+      "LSM-tree",
+      "B-tree",
+      "SSTable",
+      "storage engine",
+      "compaction"
+    ],
+    "media": {}
+  },
+  "transaction-processing-or-analytics": {
+    "id": "transaction-processing-or-analytics",
+    "chapterId": "ch03-storage-and-retrieval",
+    "title": "Transaction Processing or Analytics?",
+    "summary": "OLTP and OLAP systems optimize for opposite access patterns — and mixing them hurts both.",
+    "keyTakeaways": [
+      "OLTP handles many small, fast transactions: inserts, updates, point lookups.",
+      "OLAP runs large aggregation scans over historical data.",
+      "Data warehouses use column-oriented storage and star/snowflake schemas.",
+      "ETL pipelines copy OLTP data into warehouses for analytics.",
+      "Trying to run analytics on OLTP databases overloads production traffic."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Transaction processing (OLTP) systems power live applications: checkout, account updates, messaging. Analytics (OLAP) systems answer business questions over months of history. Their hardware, schema, and storage layouts diverge completely."
+      },
+      {
+        "type": "heading",
+        "text": "Data Warehousing",
+        "level": 2
+      },
+      {
+        "type": "paragraph",
+        "text": "A data warehouse ingests copies of production data via ETL, denormalizes into star schemas (fact tables surrounded by dimension tables), and optimizes for scan-heavy aggregation — not millisecond point lookups."
+      }
+    ],
+    "relatedConcepts": [
+      "OLTP",
+      "OLAP",
+      "data warehouse",
+      "star schema",
+      "ETL"
+    ],
+    "media": {}
+  },
+  "column-oriented-storage": {
+    "id": "column-oriented-storage",
+    "chapterId": "ch03-storage-and-retrieval",
+    "title": "Column-Oriented Storage",
+    "summary": "Column stores excel at analytics by reading only the columns a query needs.",
+    "keyTakeaways": [
+      "Row-oriented storage reads entire rows even when you need one column.",
+      "Column-oriented storage stores each column contiguously on disk.",
+      "Column compression is far more effective due to similar values in a column.",
+      "Sort order in column storage enables efficient range scans and merges.",
+      "Materialized views and data cubes pre-aggregate common queries."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "In a row store, all fields of a record sit together — great for fetching a whole user profile. In a column store, all values for a given field sit together — great for SUM(revenue) across millions of rows."
+      },
+      {
+        "type": "list",
+        "items": [
+          "Read only columns referenced in SELECT — less I/O.",
+          "Run-length and dictionary encoding compress repetitive column data.",
+          "Vectorized execution processes columns in SIMD-friendly batches."
+        ]
+      }
+    ],
+    "relatedConcepts": [
+      "column store",
+      "column compression",
+      "materialized view",
+      "data cube"
+    ],
+    "media": {}
+  },
+  "formats-for-encoding": {
+    "id": "formats-for-encoding",
+    "chapterId": "ch04-encoding-and-evolution",
+    "title": "Formats for Encoding Data",
+    "summary": "How you encode data determines compatibility, schema evolution, and cross-language interoperability.",
+    "keyTakeaways": [
+      "JSON and XML are human-readable but verbose and weakly typed.",
+      "Thrift and Protocol Buffers use tagged field numbers for compact binary encoding.",
+      "Avro requires a schema for reading — enabling compact encoding without field tags.",
+      "Forward and backward compatibility let old and new code coexist during deploys.",
+      "Schema registries manage evolution in production systems."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Programs in memory represent data as objects and structs. To send data over a network or store it on disk, you must encode it as bytes. The encoding format determines size, speed, and — critically — whether schemas can evolve without breaking consumers."
+      },
+      {
+        "type": "callout",
+        "title": "Compatibility modes",
+        "text": "Forward compatibility: old code reads new data. Backward compatibility: new code reads old data. Field tags (Protobuf) and union schemas (Avro) enable both.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "JSON",
+      "Protocol Buffers",
+      "Avro",
+      "schema evolution",
+      "serialization"
+    ],
+    "media": {}
+  },
+  "modes-of-dataflow": {
+    "id": "modes-of-dataflow",
+    "chapterId": "ch04-encoding-and-evolution",
+    "title": "Modes of Dataflow",
+    "summary": "Data moves between processes via databases, service calls, and message queues — each with different trade-offs.",
+    "keyTakeaways": [
+      "Database-as-mediator: processes write and read shared tables asynchronously.",
+      "REST and RPC: synchronous request/response between services.",
+      "Message queues: asynchronous, buffered delivery with at-least-once semantics.",
+      "Event-driven architectures decouple producers and consumers in time.",
+      "The encoding format must be agreed upon across all participants."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "When one process needs to share data with another, the dataflow pattern matters. Writing to a shared database is the oldest integration pattern. RPC calls offer synchronous coupling. Message queues add buffering and decouple availability."
+      },
+      {
+        "type": "list",
+        "items": [
+          "Database: simple but creates tight schema coupling.",
+          "REST/RPC: real-time but requires both sides to be available.",
+          "Message queue: resilient to spikes but adds delivery guarantees complexity."
+        ]
+      }
+    ],
+    "relatedConcepts": [
+      "REST",
+      "RPC",
+      "message queue",
+      "event-driven",
+      "data integration"
+    ],
+    "media": {}
+  },
+  "leaders-and-followers": {
+    "id": "leaders-and-followers",
+    "chapterId": "ch05-replication",
+    "title": "Leaders and Followers",
+    "summary": "Leader-based replication funnels all writes through one node and copies them to followers.",
+    "keyTakeaways": [
+      "One replica is the leader; all writes go to it.",
+      "Followers replicate the leader's write log and serve read traffic.",
+      "Synchronous replication waits for follower ack before confirming writes.",
+      "Asynchronous replication is faster but risks data loss on leader failure.",
+      "New followers bootstrap by copying a snapshot then tailing the log."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Replication keeps copies of data on multiple machines for fault tolerance and read scaling. The simplest scheme designates one leader that accepts writes and broadcasts changes to follower replicas."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "leader-follower",
+        "caption": "Writes flow to the leader; followers replicate the log and serve reads."
+      }
+    ],
+    "relatedConcepts": [
+      "leader",
+      "follower",
+      "replication log",
+      "synchronous replication"
+    ],
+    "media": {}
+  },
+  "replication-lag": {
+    "id": "replication-lag",
+    "chapterId": "ch05-replication",
+    "title": "Problems with Replication Lag",
+    "summary": "Asynchronous followers may lag behind the leader, creating stale reads and subtle consistency bugs.",
+    "keyTakeaways": [
+      "Read-your-own-writes: users must see their own recent changes.",
+      "Monotonic reads: users never see time go backward across requests.",
+      "Consistent prefix reads: causal order of writes is preserved.",
+      "Replication lag is normal — applications must explicitly handle it.",
+      "Sticky sessions route a user to one replica to improve consistency."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "When followers lag seconds behind the leader, users experience anomalies: posting a comment and not seeing it, or seeing newer data followed by older data. These are not failures — they are consequences of eventual consistency."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "replication-lag",
+        "caption": "A write reaches the leader immediately but followers may serve stale data for seconds."
+      },
+      {
+        "type": "callout",
+        "title": "Fixes",
+        "text": "Read from leader after writes, use sticky sessions, or wait for follower catch-up before serving reads.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "replication lag",
+      "read-your-own-writes",
+      "monotonic reads",
+      "eventual consistency"
+    ],
+    "media": {}
+  },
+  "multi-leader-replication": {
+    "id": "multi-leader-replication",
+    "chapterId": "ch05-replication",
+    "title": "Multi-Leader Replication",
+    "summary": "Multiple leaders accept writes in different datacenters — but conflict resolution becomes necessary.",
+    "keyTakeaways": [
+      "Each datacenter has a local leader for low-latency writes.",
+      "Leaders replicate to each other asynchronously.",
+      "Concurrent writes to the same record on different leaders create conflicts.",
+      "Conflict resolution: last-write-wins, custom merge, or conflict-free replicated data types.",
+      "Multi-leader suits multi-datacenter deployments with offline tolerance."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Single-leader replication means cross-datacenter writes traverse WAN latency. Multi-leader allows each site to write locally, then replicate. The cost is write conflicts when two leaders modify the same data concurrently."
+      }
+    ],
+    "relatedConcepts": [
+      "multi-leader",
+      "write conflict",
+      "CRDT",
+      "last-write-wins"
+    ],
+    "media": {}
+  },
+  "leaderless-replication": {
+    "id": "leaderless-replication",
+    "chapterId": "ch05-replication",
+    "title": "Leaderless Replication",
+    "summary": "Dynamo-style systems let any replica accept writes and use quorums to detect inconsistency.",
+    "keyTakeaways": [
+      "Clients write to multiple replicas in parallel (W replicas).",
+      "Reads contact R replicas and pick the most recent version by version number.",
+      "Quorum condition W + R > N ensures overlap between read and write sets.",
+      "Sloppy quorums and hinted handoff maintain availability during partitions.",
+      "Version vectors detect concurrent writes that need merging."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Leaderless replication (pioneered by Dynamo) removes the single-leader bottleneck. Any node can accept writes. On read, the client queries multiple replicas and reconciles versions. Quorum rules balance consistency against availability."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "quorum-read-write",
+        "caption": "With N=3, W=2, R=2: writes and reads overlap on at least one node."
+      }
+    ],
+    "relatedConcepts": [
+      "quorum",
+      "leaderless",
+      "Dynamo",
+      "version vector",
+      "sloppy quorum"
+    ],
+    "media": {}
+  },
+  "partitioning-key-value": {
+    "id": "partitioning-key-value",
+    "chapterId": "ch06-partitioning",
+    "title": "Partitioning of Key-Value Data",
+    "summary": "Partitioning splits a dataset across nodes so each machine handles a manageable subset.",
+    "keyTakeaways": [
+      "Partitioning by key range assigns contiguous key ranges to nodes — risk of hot spots.",
+      "Hash partitioning distributes keys evenly but loses range-scan efficiency.",
+      "Skewed workloads need composite keys or random suffixes to spread hot keys.",
+      "Partitioning is almost always combined with replication for fault tolerance.",
+      "The partition function is hard to change after deployment."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "A single machine cannot hold all data forever. Partitioning (sharding) divides the key space so each node owns a subset. The partition scheme determines load balance and query efficiency."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "hash-partitioning",
+        "caption": "Hash of key mod N distributes records across partitions."
+      }
+    ],
+    "relatedConcepts": [
+      "partitioning",
+      "sharding",
+      "key range",
+      "hash partitioning",
+      "hot spot"
+    ],
+    "media": {}
+  },
+  "secondary-indexes": {
+    "id": "secondary-indexes",
+    "chapterId": "ch06-partitioning",
+    "title": "Partitioning and Secondary Indexes",
+    "summary": "Secondary indexes on partitioned data require either local indexes per partition or a global index.",
+    "keyTakeaways": [
+      "Partitioned by document: each partition maintains its own secondary indexes.",
+      "Partitioned by term: the index itself is partitioned by the indexed value.",
+      "Global indexes enable efficient lookups but add coordination overhead.",
+      "Secondary index queries may scatter-gather across all partitions.",
+      "Index maintenance on writes adds latency to every insert and update."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Primary key partitioning is straightforward — route by key hash. Secondary indexes (search by email, filter by date) complicate routing because the indexed value may live on a different partition than the record."
+      }
+    ],
+    "relatedConcepts": [
+      "secondary index",
+      "scatter-gather",
+      "global index",
+      "local index"
+    ],
+    "media": {}
+  },
+  "rebalancing": {
+    "id": "rebalancing",
+    "chapterId": "ch06-partitioning",
+    "title": "Rebalancing Partitions",
+    "summary": "When nodes join or leave the cluster, partitions must move — without excessive downtime.",
+    "keyTakeaways": [
+      "Hash mod N breaks when N changes — most keys remap to new nodes.",
+      "Consistent hashing minimizes key movement when nodes are added or removed.",
+      "Fixed number of partitions with virtual nodes simplifies rebalancing.",
+      "Automatic rebalancing risks cascading failures; manual triggers are safer.",
+      "Rebalancing should move minimal data at bounded throughput."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Adding a machine should improve capacity, not invalidate your entire partition map. Naive hash mod N remaps almost every key when N changes. Better schemes use fixed partitions or consistent hashing to limit data movement."
+      }
+    ],
+    "relatedConcepts": [
+      "rebalancing",
+      "consistent hashing",
+      "virtual node",
+      "fixed partitions"
+    ],
+    "media": {}
+  },
+  "request-routing": {
+    "id": "request-routing",
+    "chapterId": "ch06-partitioning",
+    "title": "Request Routing",
+    "summary": "Clients must find the right partition for each request — via routing tier, gateway, or aware clients.",
+    "keyTakeaways": [
+      "Naive approach: send all requests to a routing tier that forwards to the right node.",
+      "Gateway: stateless proxy that knows the partition map.",
+      "Partition-aware clients cache the routing table and connect directly.",
+      "The partition map must update when rebalancing occurs.",
+      "ZooKeeper, gossip protocols, or config services distribute routing metadata."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Given a key, which node owns it? A routing layer answers this question. Centralized gateways are simple but can bottleneck. Smart clients avoid the hop but must handle map updates."
+      }
+    ],
+    "relatedConcepts": [
+      "request routing",
+      "partition map",
+      "gateway",
+      "ZooKeeper"
+    ],
+    "media": {}
+  },
+  "slippery-concept": {
+    "id": "slippery-concept",
+    "chapterId": "ch07-transactions",
+    "title": "The Slippery Concept of a Transaction",
+    "summary": "Transactions group operations into atomic units — but the guarantees vary widely across systems.",
+    "keyTakeaways": [
+      "ACID: Atomicity, Consistency, Isolation, Durability — the classic transaction contract.",
+      "Atomicity: all-or-nothing — partial failures roll back.",
+      "Consistency: invariants hold (often enforced by application logic, not the DB).",
+      "Isolation: concurrent transactions do not interfere.",
+      "Durability: committed data survives crashes.",
+      "Single-object vs multi-object transactions have very different costs."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "A transaction is a logical unit of work that succeeds or fails as a whole. ACID properties define the promise, but real systems implement them with varying strictness — especially in distributed settings."
+      },
+      {
+        "type": "callout",
+        "title": "Consistency in ACID",
+        "text": "Unlike the other three properties, consistency depends on application-defined invariants (e.g., account balance >= 0). The database provides tools; the application defines the rules.",
+        "variant": "info"
+      }
+    ],
+    "relatedConcepts": [
+      "ACID",
+      "atomicity",
+      "transaction",
+      "durability"
+    ],
+    "media": {}
+  },
+  "weak-isolation": {
+    "id": "weak-isolation",
+    "chapterId": "ch07-transactions",
+    "title": "Weak Isolation Levels",
+    "summary": "Most databases default to weak isolation for performance — accepting anomalies most apps never notice.",
+    "keyTakeaways": [
+      "Read committed: no dirty reads; each query sees only committed data.",
+      "Snapshot isolation: each transaction sees a consistent point-in-time snapshot.",
+      "Repeatable read prevents non-repeatable reads within a transaction.",
+      "Write skew: two transactions read overlapping data and write disjoint rows.",
+      "Phantoms: new rows appear in a re-executed range query."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Serial execution of transactions is safe but slow. Weak isolation levels allow concurrency by permitting certain anomalies. Understanding which anomalies your application can tolerate is essential."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "isolation-levels",
+        "caption": "Stronger isolation prevents more anomalies but reduces concurrency."
+      }
+    ],
+    "relatedConcepts": [
+      "read committed",
+      "snapshot isolation",
+      "write skew",
+      "phantom read"
+    ],
+    "media": {}
+  },
+  "serializability": {
+    "id": "serializability",
+    "chapterId": "ch07-transactions",
+    "title": "Serializability",
+    "summary": "The strongest isolation guarantee: transactions execute as if they ran one at a time.",
+    "keyTakeaways": [
+      "Actual serial execution: run transactions on a single thread — simple but limited throughput.",
+      "Two-phase locking (2PL): readers and writers acquire locks; risk of deadlocks.",
+      "Serializable Snapshot Isolation (SSI): optimistic detection of conflicts at commit.",
+      "Serializability prevents all anomalies but costs latency and throughput.",
+      "Distributed serializability requires coordination across partitions."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Serializable isolation is the gold standard: the result is identical to some serial execution order. Achieving it without sacrificing all concurrency is one of database engineering's hardest problems."
+      }
+    ],
+    "relatedConcepts": [
+      "serializability",
+      "two-phase locking",
+      "SSI",
+      "deadlock"
+    ],
+    "media": {}
+  },
+  "faults-and-partial-failures": {
+    "id": "faults-and-partial-failures",
+    "chapterId": "ch08-trouble-with-distributed-systems",
+    "title": "Faults and Partial Failures",
+    "summary": "In distributed systems, only part of the system can fail — making failures harder to reason about.",
+    "keyTakeaways": [
+      "Single-machine systems fail entirely; distributed systems have partial failures.",
+      "Cloud datacenters have better redundancy than single machines but shared failure domains.",
+      "Supercomputers assume reliable components; cloud systems assume failure is routine.",
+      "You cannot assume a remote node is alive without evidence.",
+      "Design for the case where any node, link, or rack can fail independently."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "On one machine, a crash stops everything — easy to detect. In a distributed system, one node may crash while others continue. A network link may drop while processes on both ends are healthy. This ambiguity makes distributed failure modes uniquely subtle."
+      }
+    ],
+    "relatedConcepts": [
+      "partial failure",
+      "fault tolerance",
+      "cloud computing",
+      "failure domain"
+    ],
+    "media": {}
+  },
+  "unreliable-networks": {
+    "id": "unreliable-networks",
+    "chapterId": "ch08-trouble-with-distributed-systems",
+    "title": "Unreliable Networks",
+    "summary": "Network packets get lost, delayed, and reordered — and you often cannot tell which happened.",
+    "keyTakeaways": [
+      "TCP provides reliable delivery within a connection but cannot detect peer crashes.",
+      "Timeouts are the only way to detect failure — but choosing the right timeout is hard.",
+      "Network partitions split the cluster into islands that cannot communicate.",
+      "Synchronous networks (e.g., internal datacenter) are more predictable than the public internet.",
+      "You must design for messages that never arrive or arrive twice."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "The network is not reliable. Packets drop, switches fail, and congestion causes unbounded delays. Distributed protocols must handle lost messages, duplicate messages, and the inability to distinguish slow responses from dead nodes."
+      },
+      {
+        "type": "callout",
+        "title": "The two generals problem",
+        "text": "Two armies must agree to attack simultaneously via messengers who may be captured. Proves that consensus is impossible with unreliable communication.",
+        "variant": "warning"
+      }
+    ],
+    "relatedConcepts": [
+      "network partition",
+      "timeout",
+      "TCP",
+      "message loss"
+    ],
+    "media": {}
+  },
+  "unreliable-clocks": {
+    "id": "unreliable-clocks",
+    "chapterId": "ch08-trouble-with-distributed-systems",
+    "title": "Unreliable Clocks",
+    "summary": "Clocks drift, jump backward after NTP sync, and are meaningless across machines without careful use.",
+    "keyTakeaways": [
+      "Time-of-day clocks (NTP) synchronize to UTC but can jump backward.",
+      "Monotonic clocks measure elapsed time and never go backward — good for timeouts.",
+      "Clock skew between machines makes event ordering by timestamp unreliable.",
+      "Logical clocks (Lamport, vector clocks) track causality without wall-clock time.",
+      "Never use wall-clock timestamps alone for ordering in distributed systems."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Applications use clocks for timeouts, deadlines, and event ordering. But NTP adjustments can jump time backward, quartz drift causes skew, and leap seconds create surprises. Relying on synchronized wall clocks for correctness is dangerous."
+      }
+    ],
+    "relatedConcepts": [
+      "NTP",
+      "clock skew",
+      "monotonic clock",
+      "Lamport clock",
+      "vector clock"
+    ],
+    "media": {}
+  },
+  "knowledge-truth-lies": {
+    "id": "knowledge-truth-lies",
+    "chapterId": "ch08-trouble-with-distributed-systems",
+    "title": "Knowledge, Truth, and Lies",
+    "summary": "In a distributed system, nodes operate with incomplete information — and must make decisions anyway.",
+    "keyTakeaways": [
+      "The majority quorum defines what is true in leaderless systems.",
+      "Byzantine faults: nodes that deliberately lie or behave arbitrarily.",
+      "System models (crash-stop vs Byzantine) define what failures to tolerate.",
+      "Fencing tokens prevent stale leaders from corrupting shared resources.",
+      "Truth is a agreement among nodes — not an absolute property."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "A node cannot know global system state — it only knows what it has observed. Decisions based on partial knowledge (is the leader dead? did my write succeed?) are inherently uncertain. Protocols define rules for reaching sufficient agreement to act."
+      }
+    ],
+    "relatedConcepts": [
+      "Byzantine fault",
+      "quorum",
+      "fencing token",
+      "system model"
+    ],
+    "media": {}
+  },
+  "consistency-guarantees": {
+    "id": "consistency-guarantees",
+    "chapterId": "ch09-consistency-and-consensus",
+    "title": "Consistency Guarantees",
+    "summary": "Consistency models define what reads can return after writes — from eventual to linearizable.",
+    "keyTakeaways": [
+      "Eventual consistency: replicas converge if no new writes occur.",
+      "Causal consistency preserves cause-and-effect ordering.",
+      "Linearizability: every operation appears instantaneous at some point between start and end.",
+      "Stronger guarantees cost latency and availability during partitions.",
+      "Choose the weakest consistency model that satisfies your application invariants."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "When data is replicated, reads may not reflect the latest write. Consistency models formalize what clients can expect. The spectrum runs from eventual (replicas converge eventually) to linearizable (behaves like a single copy)."
+      }
+    ],
+    "relatedConcepts": [
+      "eventual consistency",
+      "causal consistency",
+      "linearizability",
+      "consistency model"
+    ],
+    "media": {}
+  },
+  "linearizability": {
+    "id": "linearizability",
+    "chapterId": "ch09-consistency-and-consensus",
+    "title": "Linearizability",
+    "summary": "Linearizability makes a replicated system behave as if there were only one copy of the data.",
+    "keyTakeaways": [
+      "Every operation appears to take effect atomically at some instant.",
+      "Once a write completes, all subsequent reads see it.",
+      "Compare-and-set and distributed locks require linearizability.",
+      "Implementing linearizability requires coordination — often a single leader.",
+      "The CAP theorem: during a partition, choose consistency or availability."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Linearizability (also called strong consistency or atomic consistency) is the strongest single-object guarantee. It makes concurrent operations appear to execute in some sequential order that respects real-time ordering."
+      },
+      {
+        "type": "callout",
+        "title": "Cost",
+        "text": "Linearizability requires consensus on every operation — adding latency and reducing availability during network partitions.",
+        "variant": "warning"
+      }
+    ],
+    "relatedConcepts": [
+      "linearizability",
+      "CAP theorem",
+      "compare-and-set",
+      "strong consistency"
+    ],
+    "media": {}
+  },
+  "ordering-guarantees": {
+    "id": "ordering-guarantees",
+    "chapterId": "ch09-consistency-and-consensus",
+    "title": "Ordering Guarantees",
+    "summary": "Ordering events is fundamental to consistency, causality, and replication.",
+    "keyTakeaways": [
+      "Causality: if A caused B, every node must see A before B.",
+      "Sequence numbers assign a total order within one leader.",
+      "Total order broadcast delivers the same messages in the same order to all nodes.",
+      "Lamport timestamps provide partial ordering without a central sequencer.",
+      "Consistent ordering simplifies replication and conflict resolution."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "If event B depends on event A, all observers must process A before B. Establishing global order in a distributed system requires either a single sequencer (leader) or logical clocks that track causality."
+      }
+    ],
+    "relatedConcepts": [
+      "causality",
+      "total order broadcast",
+      "Lamport timestamp",
+      "sequence number"
+    ],
+    "media": {}
+  },
+  "distributed-consensus": {
+    "id": "distributed-consensus",
+    "chapterId": "ch09-consistency-and-consensus",
+    "title": "Distributed Transactions and Consensus",
+    "summary": "Consensus protocols let nodes agree on a value despite failures — powering distributed transactions.",
+    "keyTakeaways": [
+      "Two-phase commit (2PC) coordinates atomic commit across participants.",
+      "2PC blocks if the coordinator fails after prepare.",
+      "Fault-tolerant consensus (Raft, Paxos, Zab) elects a leader and replicates a log.",
+      "Consensus is required for leader election, atomic commit, and membership changes.",
+      "Coordination services (ZooKeeper, etcd) provide consensus as a service."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Getting multiple nodes to agree on a single value — who is leader, whether to commit, what the next log entry is — is the consensus problem. Algorithms like Raft make this practical for production systems."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "two-phase-commit",
+        "caption": "Coordinator asks participants to prepare, then commits or aborts."
+      }
+    ],
+    "relatedConcepts": [
+      "consensus",
+      "two-phase commit",
+      "Raft",
+      "Paxos",
+      "ZooKeeper"
+    ],
+    "media": {}
+  },
+  "unix-tools": {
+    "id": "unix-tools",
+    "chapterId": "ch10-batch-processing",
+    "title": "Batch Processing with Unix Tools",
+    "summary": "The Unix philosophy — composable tools over monolithic programs — scales to big data.",
+    "keyTakeaways": [
+      "Small tools do one thing well and compose via pipes.",
+      "stdin/stdout as a uniform interface decouples producers and consumers.",
+      "Log analysis with awk, grep, and sort handles surprisingly large datasets.",
+      "Immutability of input files enables retry and recomputation.",
+      "The same patterns underpin Hadoop, Spark, and modern data pipelines."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Long before Hadoop, Unix pipelines processed data by chaining simple programs: extract fields with awk, filter with grep, aggregate with sort. Each tool is stateless, reads stdin, writes stdout — a pattern that scales to terabytes when parallelized."
+      }
+    ],
+    "relatedConcepts": [
+      "Unix philosophy",
+      "batch processing",
+      "pipeline",
+      "immutability"
+    ],
+    "media": {}
+  },
+  "mapreduce": {
+    "id": "mapreduce",
+    "chapterId": "ch10-batch-processing",
+    "title": "MapReduce and Distributed Filesystems",
+    "summary": "MapReduce brought Unix-style batch processing to clusters with automatic parallelization and fault tolerance.",
+    "keyTakeaways": [
+      "Input files are split across cluster nodes; each runs a map function.",
+      "Shuffle sorts and groups intermediate key-value pairs by key.",
+      "Reduce functions aggregate all values for each key.",
+      "Failed map/reduce tasks are automatically retried on other nodes.",
+      "HDFS stores large immutable files replicated across the cluster."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "MapReduce wraps the Unix pipeline in a fault-tolerant distributed runtime. Map tasks extract data in parallel; shuffle groups by key; reduce tasks aggregate. The runtime handles scheduling, retries, and data locality."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "mapreduce-pipeline",
+        "caption": "Map → Shuffle → Reduce over a distributed filesystem."
+      }
+    ],
+    "relatedConcepts": [
+      "MapReduce",
+      "HDFS",
+      "shuffle",
+      "reduce",
+      "batch job"
+    ],
+    "media": {}
+  },
+  "beyond-mapreduce": {
+    "id": "beyond-mapreduce",
+    "chapterId": "ch10-batch-processing",
+    "title": "Beyond MapReduce",
+    "summary": "Modern batch engines add iterative processing, higher-level APIs, and faster in-memory execution.",
+    "keyTakeaways": [
+      "Materializing intermediate state to disk (MapReduce) is slow for iterative algorithms.",
+      "Spark keeps data in memory across stages for faster iteration.",
+      "High-level APIs (Spark SQL, DataFrames) decouple logic from execution.",
+      "Graph processing (Pregel) uses message-passing between vertices.",
+      "Batch and stream processing are converging into unified engines."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "MapReduce's rigid map-shuffle-reduce cycle forces disk writes between every stage. Modern engines materialize less, push computation to data, and expose declarative APIs — while retaining fault tolerance through lineage graphs."
+      }
+    ],
+    "relatedConcepts": [
+      "Spark",
+      "iterative processing",
+      "DataFrame",
+      "Pregel",
+      "dataflow engine"
+    ],
+    "media": {}
+  },
+  "transmitting-event-streams": {
+    "id": "transmitting-event-streams",
+    "chapterId": "ch11-stream-processing",
+    "title": "Transmitting Event Streams",
+    "summary": "Event streams deliver records continuously — via message brokers, partitioned logs, or direct sockets.",
+    "keyTakeaways": [
+      "Message brokers (RabbitMQ) route messages to consumers with optional persistence.",
+      "Partitioned logs (Kafka) retain messages for replay and multiple consumer groups.",
+      "Producers append; consumers track their offset in the log.",
+      "Backpressure and buffering handle speed mismatches between producers and consumers.",
+      "Exactly-once delivery requires idempotent consumers or transactional writes."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Unlike request-response, event streams deliver a sequence of records over time. Message brokers decouple producers and consumers. Partitioned logs add durability and replay — consumers can re-read history at their own pace."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "event-stream",
+        "caption": "Producers append to a partitioned log; consumer groups read at independent offsets."
+      }
+    ],
+    "relatedConcepts": [
+      "message broker",
+      "Kafka",
+      "partitioned log",
+      "consumer group",
+      "offset"
+    ],
+    "media": {}
+  },
+  "databases-and-streams": {
+    "id": "databases-and-streams",
+    "chapterId": "ch11-stream-processing",
+    "title": "Databases and Streams",
+    "summary": "Databases and streams are two views of the same data — and keeping them in sync is the integration challenge.",
+    "keyTakeaways": [
+      "Change Data Capture (CDC) streams database writes to downstream systems.",
+      "Event sourcing stores state changes as an immutable log of events.",
+      "The log is the system of record; materialized views are derived state.",
+      "Dual writes to database and queue risk inconsistency.",
+      "Transactional outbox pattern writes events atomically with state changes."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "A database holds current state; a stream holds the history of changes. CDC bridges them by tailing the replication log. Event sourcing inverts the model: the log is primary, and current state is a derived view rebuilt by replay."
+      }
+    ],
+    "relatedConcepts": [
+      "CDC",
+      "event sourcing",
+      "materialized view",
+      "transactional outbox"
+    ],
+    "media": {}
+  },
+  "processing-streams": {
+    "id": "processing-streams",
+    "chapterId": "ch11-stream-processing",
+    "title": "Processing Streams",
+    "summary": "Stream processors apply transformations to unbounded data — windowing time is the hard part.",
+    "keyTakeaways": [
+      "Uses: notifications, search indexing, metrics, fraud detection, recommendations.",
+      "Event time (when it happened) vs processing time (when observed) diverge.",
+      "Windowing groups events by time ranges for aggregation.",
+      "Stream joins combine two streams or a stream with a table.",
+      "Fault tolerance via checkpointing and replay from durable logs."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Stream processing applies computations to data in motion. Unlike batch, the input is unbounded. Key challenges: handling out-of-order events, defining time windows, and maintaining state across failures."
+      }
+    ],
+    "relatedConcepts": [
+      "stream processing",
+      "event time",
+      "windowing",
+      "stream join",
+      "checkpoint"
+    ],
+    "media": {}
+  },
+  "data-integration": {
+    "id": "data-integration",
+    "chapterId": "ch12-future-of-data-systems",
+    "title": "Data Integration",
+    "summary": "Modern architectures combine specialized tools by deriving data through unbundled pipelines.",
+    "keyTakeaways": [
+      "No single database does everything well — compose specialized systems.",
+      "Derive views, indexes, and analytics from an immutable event log.",
+      "Batch and stream processing both feed derived data systems.",
+      "Unbundling the database separates storage, indexing, querying, and processing.",
+      "Dataflow-oriented design makes integration explicit in the architecture."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "The future is not one database to rule them all. Instead, systems specialize: OLTP for transactions, search index for full-text, warehouse for analytics, cache for speed. An event log connects them, and derived data flows keep views consistent."
+      }
+    ],
+    "relatedConcepts": [
+      "data integration",
+      "unbundling",
+      "derived data",
+      "specialized tools"
+    ],
+    "media": {}
+  },
+  "aiming-for-correctness": {
+    "id": "aiming-for-correctness",
+    "chapterId": "ch12-future-of-data-systems",
+    "title": "Aiming for Correctness",
+    "summary": "End-to-end guarantees, constraints, and verification — correctness requires deliberate design.",
+    "keyTakeaways": [
+      "The end-to-end argument: low-level reliability alone does not ensure application correctness.",
+      "Enforce constraints at the data layer where possible (unique, foreign key, check).",
+      "Timeliness and integrity: data must be correct and arrive when needed.",
+      "Audit trails and checksums enable trust-but-verify patterns.",
+      "Formal verification and testing at the system boundary catch integration bugs."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Correctness is not accidental. It requires end-to-end reasoning: the database can enforce constraints, but the application must define invariants. Auditing, idempotency, and deterministic replay help verify that derived systems match the source of truth."
+      }
+    ],
+    "relatedConcepts": [
+      "end-to-end argument",
+      "integrity",
+      "constraint",
+      "audit trail",
+      "correctness"
+    ],
+    "media": {}
+  },
+  "doing-the-right-thing": {
+    "id": "doing-the-right-thing",
+    "chapterId": "ch12-future-of-data-systems",
+    "title": "Doing the Right Thing",
+    "summary": "Data systems have societal impact — predictive analytics, privacy, and the ethics of data collection.",
+    "keyTakeaways": [
+      "Predictive systems amplify biases present in training data.",
+      "Privacy requires limiting collection, retention, and correlation of personal data.",
+      "Tracking and surveillance capitalism erode user trust.",
+      "Engineers have responsibility for how data is used, not just how it is stored.",
+      "Regulation (GDPR) and privacy-by-design are becoming engineering requirements."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Building data systems is not value-neutral. Recommendation engines shape behavior. Predictive policing encodes historical bias. Tracking infrastructure enables surveillance. Engineers must consider who benefits, who is harmed, and what data is truly necessary."
+      },
+      {
+        "type": "callout",
+        "title": "Privacy by design",
+        "text": "Collect minimum data, encrypt at rest and in transit, provide deletion mechanisms, and make data practices transparent to users.",
+        "variant": "warning"
+      }
+    ],
+    "relatedConcepts": [
+      "privacy",
+      "bias",
+      "predictive analytics",
+      "GDPR",
+      "ethics"
+    ],
+    "media": {}
+  }
+}

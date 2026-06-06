@@ -1,0 +1,82 @@
+{
+  "id": "reliability",
+  "chapterId": "ch01-reliable-scalable-maintainable",
+  "title": "Reliability",
+  "summary": "Reliability means the system continues to work correctly — performing the right function at the right time — even when faults occur. Faults are inevitable; failures are not.",
+  "keyTakeaways": [
+    "A fault is one component deviating from spec; a failure is when the system stops delivering its service.",
+    "Hardware faults (disks, power, network) are common and often correlated in cloud environments.",
+    "Software errors (bugs, cascading failures) are often worse because they can affect many users at once.",
+    "Human errors cause most outages — good design makes mistakes hard and recovery easy.",
+    "Fault-tolerance accepts that faults happen and builds systems that survive them."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Users expect systems to work. Reliability is about meeting that expectation even when the real world intrudes: a disk dies, a deploy introduces a bug, or an operator misconfigures a firewall rule. The goal is not perfection — it is building systems where individual faults do not cascade into user-visible failures."
+    },
+    {
+      "type": "callout",
+      "title": "Fault vs failure",
+      "text": "We can tolerate faults (a machine crashes) while preventing failures (the service goes down). Designing for fault-tolerance means assuming things will break and planning accordingly.",
+      "variant": "tip"
+    },
+    {
+      "type": "heading",
+      "text": "Hardware Faults",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Hard disks fail, RAM corrupts, power supplies die, and network links flap. In large fleets, failures are routine — not exceptional. Cloud platforms offer VMs with automatic restart, but that does not help if the data on disk is lost or if all replicas share the same power domain."
+    },
+    {
+      "type": "list",
+      "items": [
+        "Single-server redundancy (RAID, dual power supplies) reduces but does not eliminate risk.",
+        "Distributed systems replicate data across machines so one failure does not mean data loss.",
+        "Correlated failures (shared rack, region outage) require multi-zone or multi-region strategies."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Software Errors",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Software bugs can be subtle and long-dormant. A leap second, an edge case in input validation, or a race condition under load can trigger cascading failures across services. Unlike hardware, software faults often affect many machines simultaneously because they all run the same code."
+    },
+    {
+      "type": "heading",
+      "text": "Human Errors",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Studies of large outages consistently find human error near the root: a typo in a config, a migration run against production, a certificate that expired unnoticed. Good systems minimize opportunities for error and provide safety nets — staged rollouts, easy rollbacks, and thorough monitoring."
+    },
+    {
+      "type": "diagram",
+      "diagramId": "fault-tree",
+      "caption": "Common fault categories and how fault-tolerance strategies address them."
+    },
+    {
+      "type": "callout",
+      "title": "How important is reliability?",
+      "text": "For many business-critical systems (payments, medical records, infrastructure), downtime has serious consequences. Even for less critical apps, unreliability erodes user trust quickly. The investment in reliability should match the cost of failure.",
+      "variant": "warning"
+    }
+  ],
+  "relatedConcepts": [
+    "fault tolerance",
+    "hardware fault",
+    "cascading failure",
+    "redundancy"
+  ],
+  "media": {
+    "diagrams": [
+      "fault-tree"
+    ]
+  }
+}

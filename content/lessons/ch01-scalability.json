@@ -1,0 +1,82 @@
+{
+  "id": "scalability",
+  "chapterId": "ch01-reliable-scalable-maintainable",
+  "title": "Scalability",
+  "summary": "Scalability is not a single number — it is how a system copes with increased load. The right strategy depends entirely on what \"load\" means for your application.",
+  "keyTakeaways": [
+    "Load must be described with concrete parameters: requests/sec, read/write ratio, cache hit rate, etc.",
+    "Performance is measured in throughput (records/sec) or response time (latency percentiles).",
+    "Percentile metrics (p95, p99) matter more than averages for user experience.",
+    "Scaling can be vertical (bigger machine) or horizontal (more machines) — each has trade-offs.",
+    "Elastic systems automatically add resources under load; manual scaling is simpler but slower."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Scalability describes how performance changes when load increases. A system that handles 10 users beautifully but collapses at 10,000 is not scalable. But \"scalable\" does not mean \"infinitely fast\" — it means you have a reasonable plan for growth."
+    },
+    {
+      "type": "heading",
+      "text": "Describing Load",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Load is not just \"number of users.\" For a social network, it might be posts per second and fan-out reads. For a search engine, it is queries per second and index size. Define the parameters that matter for your system and measure them."
+    },
+    {
+      "type": "callout",
+      "title": "Example: Twitter timelines",
+      "text": "Twitter once reported ~300k requests/sec for home timelines and ~6k tweets/sec for writes. The read/write ratio and fan-out pattern (push vs pull model) dominated architectural choices.",
+      "variant": "info"
+    },
+    {
+      "type": "heading",
+      "text": "Describing Performance",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Throughput tells you how much work a system handles per unit time. Response time (latency) tells you how long an individual request waits. Both matter, but for interactive applications, tail latency — the slowest 1% or 5% of requests — often determines whether users perceive the system as fast."
+    },
+    {
+      "type": "diagram",
+      "diagramId": "latency-percentiles",
+      "caption": "Why average latency hides problems: a few slow requests dominate user perception."
+    },
+    {
+      "type": "heading",
+      "text": "Approaches for Coping with Load",
+      "level": 2
+    },
+    {
+      "type": "list",
+      "items": [
+        "Vertical scaling: upgrade CPU, RAM, or disk on one machine. Simple but has hard limits.",
+        "Horizontal scaling: distribute load across many machines. Requires partitioning and coordination.",
+        "Elastic scaling: automatically add/remove capacity. Great for variable load, harder to operate.",
+        "Tuning and optimization: sometimes a 10x improvement comes from a better algorithm, not more hardware."
+      ]
+    },
+    {
+      "type": "media",
+      "src": "/media/ch01/scaling-load.png",
+      "alt": "Conceptual illustration of traffic growing across distributed servers",
+      "kind": "image",
+      "caption": "Horizontal scaling spreads load, but introduces coordination challenges."
+    }
+  ],
+  "relatedConcepts": [
+    "throughput",
+    "latency",
+    "percentile",
+    "horizontal scaling",
+    "vertical scaling"
+  ],
+  "media": {
+    "heroImage": "/media/ch01/scaling-load.png",
+    "diagrams": [
+      "latency-percentiles"
+    ]
+  }
+}

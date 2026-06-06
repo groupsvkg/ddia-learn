@@ -1,0 +1,295 @@
+{
+  "title": "Designing Data-Intensive Applications",
+  "subtitle": "An interactive study companion for Martin Kleppmann's classic on reliable, scalable, and maintainable systems.",
+  "parts": [
+    {
+      "id": "foundations",
+      "number": 1,
+      "title": "Foundations of Data Systems",
+      "chapters": [
+        {
+          "id": "ch01-reliable-scalable-maintainable",
+          "number": 1,
+          "title": "Reliable, Scalable, and Maintainable Applications",
+          "status": "published",
+          "summary": "What we mean by reliability, scalability, and maintainability — and how they shape every data-intensive application.",
+          "sections": [
+            {
+              "id": "thinking-about-data-systems",
+              "title": "Thinking About Data Systems"
+            },
+            {
+              "id": "reliability",
+              "title": "Reliability"
+            },
+            {
+              "id": "scalability",
+              "title": "Scalability"
+            },
+            {
+              "id": "maintainability",
+              "title": "Maintainability"
+            }
+          ]
+        },
+        {
+          "id": "ch02-data-models-query-languages",
+          "number": 2,
+          "title": "Data Models and Query Languages",
+          "status": "published",
+          "summary": "Relational, document, and graph models — and the query languages that bring them to life.",
+          "sections": [
+            {
+              "id": "relational-vs-document",
+              "title": "Relational Model Versus Document Model"
+            },
+            {
+              "id": "query-languages",
+              "title": "Query Languages for Data"
+            },
+            {
+              "id": "graph-like-data-models",
+              "title": "Graph-Like Data Models"
+            }
+          ]
+        },
+        {
+          "id": "ch03-storage-and-retrieval",
+          "number": 3,
+          "title": "Storage and Retrieval",
+          "status": "published",
+          "summary": "The data structures and storage engines that power databases under the hood.",
+          "sections": [
+            {
+              "id": "data-structures",
+              "title": "Data Structures That Power Your Database"
+            },
+            {
+              "id": "transaction-processing-or-analytics",
+              "title": "Transaction Processing or Analytics?"
+            },
+            {
+              "id": "column-oriented-storage",
+              "title": "Column-Oriented Storage"
+            }
+          ]
+        },
+        {
+          "id": "ch04-encoding-and-evolution",
+          "number": 4,
+          "title": "Encoding and Evolution",
+          "status": "published",
+          "summary": "How data is encoded, how schemas evolve, and how information flows between systems.",
+          "sections": [
+            {
+              "id": "formats-for-encoding",
+              "title": "Formats for Encoding Data"
+            },
+            {
+              "id": "modes-of-dataflow",
+              "title": "Modes of Dataflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "distributed-data",
+      "number": 2,
+      "title": "Distributed Data",
+      "chapters": [
+        {
+          "id": "ch05-replication",
+          "number": 5,
+          "title": "Replication",
+          "status": "published",
+          "summary": "Leaders, followers, quorums, and the consistency trade-offs of replicated data.",
+          "sections": [
+            {
+              "id": "leaders-and-followers",
+              "title": "Leaders and Followers"
+            },
+            {
+              "id": "replication-lag",
+              "title": "Problems with Replication Lag"
+            },
+            {
+              "id": "multi-leader-replication",
+              "title": "Multi-Leader Replication"
+            },
+            {
+              "id": "leaderless-replication",
+              "title": "Leaderless Replication"
+            }
+          ]
+        },
+        {
+          "id": "ch06-partitioning",
+          "number": 6,
+          "title": "Partitioning",
+          "status": "published",
+          "summary": "Splitting data across nodes — key-range vs hash partitioning, rebalancing, and routing.",
+          "sections": [
+            {
+              "id": "partitioning-key-value",
+              "title": "Partitioning of Key-Value Data"
+            },
+            {
+              "id": "secondary-indexes",
+              "title": "Partitioning and Secondary Indexes"
+            },
+            {
+              "id": "rebalancing",
+              "title": "Rebalancing Partitions"
+            },
+            {
+              "id": "request-routing",
+              "title": "Request Routing"
+            }
+          ]
+        },
+        {
+          "id": "ch07-transactions",
+          "number": 7,
+          "title": "Transactions",
+          "status": "published",
+          "summary": "ACID, isolation levels, and the path to serializability.",
+          "sections": [
+            {
+              "id": "slippery-concept",
+              "title": "The Slippery Concept of a Transaction"
+            },
+            {
+              "id": "weak-isolation",
+              "title": "Weak Isolation Levels"
+            },
+            {
+              "id": "serializability",
+              "title": "Serializability"
+            }
+          ]
+        },
+        {
+          "id": "ch08-trouble-with-distributed-systems",
+          "number": 8,
+          "title": "The Trouble with Distributed Systems",
+          "status": "published",
+          "summary": "Networks, clocks, and partial failures — why distributed systems are fundamentally uncertain.",
+          "sections": [
+            {
+              "id": "faults-and-partial-failures",
+              "title": "Faults and Partial Failures"
+            },
+            {
+              "id": "unreliable-networks",
+              "title": "Unreliable Networks"
+            },
+            {
+              "id": "unreliable-clocks",
+              "title": "Unreliable Clocks"
+            },
+            {
+              "id": "knowledge-truth-lies",
+              "title": "Knowledge, Truth, and Lies"
+            }
+          ]
+        },
+        {
+          "id": "ch09-consistency-and-consensus",
+          "number": 9,
+          "title": "Consistency and Consensus",
+          "status": "published",
+          "summary": "Linearizability, ordering, and reaching agreement in distributed systems.",
+          "sections": [
+            {
+              "id": "consistency-guarantees",
+              "title": "Consistency Guarantees"
+            },
+            {
+              "id": "linearizability",
+              "title": "Linearizability"
+            },
+            {
+              "id": "ordering-guarantees",
+              "title": "Ordering Guarantees"
+            },
+            {
+              "id": "distributed-consensus",
+              "title": "Distributed Transactions and Consensus"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "derived-data",
+      "number": 3,
+      "title": "Derived Data",
+      "chapters": [
+        {
+          "id": "ch10-batch-processing",
+          "number": 10,
+          "title": "Batch Processing",
+          "status": "published",
+          "summary": "MapReduce, dataflow engines, and the Unix philosophy applied at scale.",
+          "sections": [
+            {
+              "id": "unix-tools",
+              "title": "Batch Processing with Unix Tools"
+            },
+            {
+              "id": "mapreduce",
+              "title": "MapReduce and Distributed Filesystems"
+            },
+            {
+              "id": "beyond-mapreduce",
+              "title": "Beyond MapReduce"
+            }
+          ]
+        },
+        {
+          "id": "ch11-stream-processing",
+          "number": 11,
+          "title": "Stream Processing",
+          "status": "published",
+          "summary": "Event streams, change data capture, and reasoning about time in motion.",
+          "sections": [
+            {
+              "id": "transmitting-event-streams",
+              "title": "Transmitting Event Streams"
+            },
+            {
+              "id": "databases-and-streams",
+              "title": "Databases and Streams"
+            },
+            {
+              "id": "processing-streams",
+              "title": "Processing Streams"
+            }
+          ]
+        },
+        {
+          "id": "ch12-future-of-data-systems",
+          "number": 12,
+          "title": "The Future of Data Systems",
+          "status": "published",
+          "summary": "Unbundling databases, correctness, and building applications around dataflow.",
+          "sections": [
+            {
+              "id": "data-integration",
+              "title": "Data Integration"
+            },
+            {
+              "id": "aiming-for-correctness",
+              "title": "Aiming for Correctness"
+            },
+            {
+              "id": "doing-the-right-thing",
+              "title": "Doing the Right Thing"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
