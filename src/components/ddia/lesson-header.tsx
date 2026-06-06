@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 type LessonHeaderProps = {
   partTitle: string;
   partSlug: string;
-  chapterNumber: number;
+  chapterLabel: string;
   chapterTitle: string;
   chapterSlug: string;
   sectionTitle: string;
@@ -22,7 +22,7 @@ type LessonHeaderProps = {
 export function LessonHeader({
   partTitle,
   partSlug,
-  chapterNumber,
+  chapterLabel,
   chapterTitle,
   chapterSlug,
   sectionTitle,
@@ -42,7 +42,7 @@ export function LessonHeader({
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink render={<Link href={`/chapters/${chapterSlug}`} />}>
-              Ch. {chapterNumber}
+              {chapterLabel}
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -52,7 +52,7 @@ export function LessonHeader({
         </BreadcrumbList>
       </Breadcrumb>
       <div className="space-y-2">
-        <Badge variant="secondary">Chapter {chapterNumber}</Badge>
+        <Badge variant="secondary">{chapterLabel}</Badge>
         <h1 className="text-3xl font-bold tracking-tight">{sectionTitle}</h1>
         <p className="text-muted-foreground max-w-2xl text-lg">{summary}</p>
       </div>

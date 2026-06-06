@@ -14,10 +14,13 @@ export type ChapterMeta = {
   sections: SectionMeta[];
 };
 
+export type CurriculumTrack = "ddia" | "system-design";
+
 export type PartMeta = {
   id: string;
   number: number;
   title: string;
+  track?: CurriculumTrack;
   chapters: ChapterMeta[];
 };
 

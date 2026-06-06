@@ -290,6 +290,130 @@
           ]
         }
       ]
+    },
+    {
+      "id": "system-design",
+      "number": 4,
+      "title": "System Design Case Studies",
+      "track": "system-design",
+      "chapters": [
+        {
+          "id": "sd-foundations",
+          "number": 1,
+          "title": "System Design Foundations",
+          "status": "published",
+          "summary": "How to frame requirements, estimate capacity, and reason about trade-offs before drawing boxes.",
+          "sections": [
+            { "id": "approaching-system-design", "title": "How to Approach System Design" },
+            { "id": "capacity-estimation", "title": "Back-of-the-Envelope Estimation" },
+            { "id": "core-tradeoffs", "title": "Latency, Throughput, and Consistency" }
+          ]
+        },
+        {
+          "id": "sd-youtube",
+          "number": 2,
+          "title": "Designing YouTube",
+          "status": "published",
+          "summary": "Video upload, transcoding pipelines, CDN delivery, and metadata at billions of views.",
+          "sections": [
+            { "id": "youtube-requirements", "title": "Requirements and Constraints" },
+            { "id": "youtube-architecture", "title": "Upload, Transcode, and Serve" },
+            { "id": "youtube-scaling", "title": "Caching, Popularity, and Cost" }
+          ]
+        },
+        {
+          "id": "sd-whatsapp",
+          "number": 3,
+          "title": "Designing WhatsApp",
+          "status": "published",
+          "summary": "Low-latency messaging, delivery guarantees, offline users, and end-to-end encryption.",
+          "sections": [
+            { "id": "whatsapp-requirements", "title": "Messaging Requirements" },
+            { "id": "whatsapp-delivery", "title": "Delivery, Ordering, and Groups" }
+          ]
+        },
+        {
+          "id": "sd-reservation",
+          "number": 4,
+          "title": "Reservation & Booking Systems",
+          "status": "published",
+          "summary": "Inventory holds, double-booking prevention, payments, and calendar search at Airbnb scale.",
+          "sections": [
+            { "id": "reservation-requirements", "title": "Booking Requirements" },
+            { "id": "reservation-concurrency", "title": "Preventing Double Booking" },
+            { "id": "reservation-architecture", "title": "End-to-End Booking Flow" }
+          ]
+        },
+        {
+          "id": "sd-voting",
+          "number": 5,
+          "title": "Voting Systems",
+          "status": "published",
+          "summary": "One person one vote, tamper resistance, auditability, and handling viral traffic spikes.",
+          "sections": [
+            { "id": "voting-requirements", "title": "Integrity and Trust" },
+            { "id": "voting-architecture", "title": "Ballots, Tallies, and Audits" }
+          ]
+        },
+        {
+          "id": "sd-multiplayer-games",
+          "number": 6,
+          "title": "Multiplayer Games",
+          "status": "published",
+          "summary": "Real-time state sync, authoritative servers, matchmaking, and regional game shards.",
+          "sections": [
+            { "id": "multiplayer-requirements", "title": "Latency and Fairness" },
+            { "id": "multiplayer-architecture", "title": "Game Servers and State Sync" },
+            { "id": "multiplayer-scaling", "title": "Sharding and Matchmaking" }
+          ]
+        },
+        {
+          "id": "sd-puzzle-games",
+          "number": 7,
+          "title": "Multiplayer Puzzle Games",
+          "status": "published",
+          "summary": "Turn-based play, async moves, conflict resolution, and leaderboards for Wordle-style games.",
+          "sections": [
+            { "id": "puzzle-turn-model", "title": "Turns, Timers, and Async Play" },
+            { "id": "puzzle-conflicts", "title": "Merging Moves and Leaderboards" }
+          ]
+        },
+        {
+          "id": "sd-multistep-systems",
+          "number": 8,
+          "title": "Multistep Systems & Workflows",
+          "status": "published",
+          "summary": "Checkout flows, sagas, compensating transactions, and durable workflow engines.",
+          "sections": [
+            { "id": "multistep-patterns", "title": "Sagas and Orchestration" },
+            { "id": "multistep-durability", "title": "Durable Execution and Retries" },
+            { "id": "multistep-examples", "title": "Real-World Workflow Stacks" }
+          ]
+        },
+        {
+          "id": "sd-collaboration",
+          "number": 9,
+          "title": "Collaboration Tools",
+          "status": "published",
+          "summary": "Google Docs, Figma, and Notion — presence, operational transforms, and CRDTs.",
+          "sections": [
+            { "id": "collaboration-presence", "title": "Presence and Permissions" },
+            { "id": "collaboration-sync", "title": "OT, CRDTs, and Conflict-Free Editing" },
+            { "id": "collaboration-architecture", "title": "Storage and Real-Time Transport" }
+          ]
+        },
+        {
+          "id": "sd-multistep-forms",
+          "number": 10,
+          "title": "Multistep Forms & Wizards",
+          "status": "published",
+          "summary": "Loan applications, onboarding wizards, draft persistence, validation, and resume-later UX.",
+          "sections": [
+            { "id": "forms-state-machine", "title": "Steps, Drafts, and Validation" },
+            { "id": "forms-architecture", "title": "Backend for Long-Running Applications" }
+          ]
+        }
+      ]
     }
   ]
 }

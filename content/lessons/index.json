@@ -2340,5 +2340,1141 @@
       "ethics"
     ],
     "media": {}
+  },
+  "approaching-system-design": {
+    "id": "approaching-system-design",
+    "chapterId": "sd-foundations",
+    "title": "How to Approach System Design",
+    "summary": "Start with users and constraints — not databases. Clarify functional needs, non-functional targets, and what you can defer.",
+    "keyTakeaways": [
+      "Separate functional requirements (what) from non-functional ones (how well).",
+      "Identify actors: mobile clients, admins, third-party integrations, batch jobs.",
+      "Sketch read vs write ratio, consistency needs, and acceptable downtime.",
+      "Defer deep dives until the happy path and failure modes are clear.",
+      "Name concrete products (YouTube, WhatsApp) to anchor estimations and trade-offs.",
+      "Interview and production design both reward structured thinking over memorized diagrams."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "System design is the practice of mapping product requirements to components that store, move, and transform data. The same DDIA concepts — replication, partitioning, streams — appear in every case study; the skill is knowing which ones matter for each problem."
+      },
+      {
+        "type": "heading",
+        "text": "A repeatable framework",
+        "level": 2
+      },
+      {
+        "type": "list",
+        "items": [
+          "Clarify scope: MVP vs full product, geography, scale today vs in 12 months.",
+          "Functional requirements: core user journeys in plain language.",
+          "Non-functional: latency targets, durability, consistency, cost, compliance.",
+          "High-level diagram: clients → API → services → data stores → async pipelines.",
+          "Deep dives: bottlenecks, failure modes, scaling levers.",
+          "Trade-offs: what you optimize for and what you explicitly sacrifice."
+        ]
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Stripe's design reviews start with the user promise ('charge once, never double-charge') before picking Postgres vs DynamoDB. Netflix capacity plans assume regional failure. The framework is universal; the storage engines change.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Airbnb at scale",
+        "text": "Before sharding listings search, the team nailed booking invariants: a night cannot be sold twice, payments must match reservations, and cancellations must release inventory. Those constraints drove PostgreSQL transactions and Kafka outbox patterns.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Frame the problem before picking databases\ntype SystemDesignBrief = {\n  actors: (\"mobile\" | \"web\" | \"admin\" | \"partner\")[];\n  functional: string[]; // \"upload video\", \"send message\"\n  nonFunctional: {\n    p99LatencyMs?: number;\n    availability?: string; // \"99.9%\"\n    consistency: \"strong\" | \"eventual\" | \"per-feature\";\n  };\n  scaleToday: { dau: number; peakQps: number };\n  invariants: string[]; // \"no double booking\"\n};",
+        "caption": "Requirements checklist as types"
+      }
+    ],
+    "relatedConcepts": [
+      "requirements",
+      "non-functional",
+      "trade-offs",
+      "scope",
+      "failure modes"
+    ],
+    "media": {}
+  },
+  "capacity-estimation": {
+    "id": "capacity-estimation",
+    "chapterId": "sd-foundations",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "Rough numbers prevent impossible architectures. Estimate QPS, storage, bandwidth, and cache size before you draw shards.",
+    "keyTakeaways": [
+      "Convert daily active users into peak requests per second with a burst factor.",
+      "Storage = records × average object size × replication factor × retention.",
+      "Video and images dominate bandwidth — metadata is usually smaller.",
+      "1 day of write volume often fits in RAM; plan for 30–90 days on disk.",
+      "Estimates justify CDN, batch transcoding, and read replicas early.",
+      "Google, Meta, and AWS whitepapers all start with napkin math."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "You do not need exact numbers. Order-of-magnitude checks catch designs that cannot work: serving 4K video from a single Postgres row, or indexing every WhatsApp message in Elasticsearch in real time."
+      },
+      {
+        "type": "heading",
+        "text": "Worked example: short-video app",
+        "level": 2
+      },
+      {
+        "type": "list",
+        "items": [
+          "50M DAU, each watches 20 videos/day → 1B views/day ≈ 12k views/s average.",
+          "Peak ≈ 5× average → ~60k read QPS for metadata; bytes served mostly from CDN.",
+          "100k uploads/day, 50 MB average raw → 5 TB/day ingest; keep hot in object storage.",
+          "Metadata row ~2 KB × 500M videos → ~1 TB before indexes and replicas."
+        ]
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "YouTube and TikTok napkin math drove separate upload paths (write-heavy) from feed reads (CDN-heavy). WhatsApp optimized for small text payloads and connection fan-in, not storage per message.",
+        "variant": "info"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Napkin math: DAU → peak QPS\nconst DAU = 50_000_000;\nconst actionsPerUserPerDay = 20;\nconst avgQps = (DAU * actionsPerUserPerDay) / 86_400;\nconst peakQps = avgQps * 5; // burst factor for prime time\nconsole.log({ avgQps: Math.round(avgQps), peakQps: Math.round(peakQps) });",
+        "caption": "Peak QPS from DAU"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-youtube",
+        "caption": "Upload bandwidth and transcode queues dominate write path; CDN serves reads."
+      }
+    ],
+    "relatedConcepts": [
+      "estimation",
+      "QPS",
+      "storage",
+      "bandwidth",
+      "CDN"
+    ],
+    "media": {}
+  },
+  "core-tradeoffs": {
+    "id": "core-tradeoffs",
+    "chapterId": "sd-foundations",
+    "title": "Latency, Throughput, and Consistency",
+    "summary": "Every system design picks a point on the latency–throughput–consistency triangle. Name your choice explicitly.",
+    "keyTakeaways": [
+      "Strong consistency simplifies application logic but adds coordination latency.",
+      "Eventual consistency scales reads but requires idempotency and conflict handling.",
+      "Tail latency (p99) matters more than averages for interactive products.",
+      "Async pipelines improve throughput at the cost of visible lag.",
+      "CAP is a reminder to plan for partitions — not a menu with three equal options.",
+      "DDIA Part II concepts map directly to these product-level decisions."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "A reservation system needs linearizable inventory decrements. A YouTube view counter can be approximate. A voting system needs auditability stronger than either. The 'right' consistency level is domain-specific."
+      },
+      {
+        "type": "callout",
+        "title": "Pick your guarantees",
+        "text": "Write down what must never happen (double booking, duplicate vote) before choosing databases. The invariant picks the consistency model.",
+        "variant": "tip"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Instagram tolerates slightly stale like counts (approximate aggregation) but not duplicate posts on retry (idempotent write IDs). Google Spanner pays latency for global consistency where ads billing requires it.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "WhatsApp at scale",
+        "text": "Message ordering within a chat is strict; global search across chats is weaker or absent. The product promise determines per-feature consistency.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Facebook / Instagram: route reads to primary after posting\nasync function createPost(userId: string, text: string) {\n  const post = await db.primary.posts.create({ data: { userId, text } });\n  // Sticky session: next reads hit primary or caught-up replica\n  session.set(\"readFromPrimaryUntil\", Date.now() + 5_000);\n  return post;\n}\n\nasync function getFeed(userId: string) {\n  const client = session.get(\"readFromPrimaryUntil\") > Date.now()\n    ? db.primary\n    : db.replica;\n  return client.feed.findMany({ where: { userId } });\n}",
+        "caption": "Read-your-writes vs eventual feed"
+      }
+    ],
+    "relatedConcepts": [
+      "consistency",
+      "latency",
+      "throughput",
+      "CAP",
+      "idempotency"
+    ],
+    "media": {}
+  },
+  "youtube-requirements": {
+    "id": "youtube-requirements",
+    "chapterId": "sd-youtube",
+    "title": "Requirements and Constraints",
+    "summary": "YouTube must ingest massive files, serve globally with low startup latency, and recommend the next clip — all profitably.",
+    "keyTakeaways": [
+      "Upload: resumable, durable, survive client crashes mid-transfer.",
+      "Processing: transcode to many resolutions and codecs (ABR ladder).",
+      "Delivery: edge caching; adaptive bitrate for variable networks.",
+      "Metadata: title, channel, stats, comments — OLTP with heavy read caching.",
+      "Recommendations: batch + stream features; personalization is derived data.",
+      "Copyright and moderation pipelines are async consumers of upload events."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Video is the bulk of bytes; metadata is the bulk of queries. Treating them as one system fails — upload and transcode are write pipelines, playback is a CDN problem, home feed is a ranking problem."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "YouTube stores originals in durable object storage (GCS-style), serves via Google's CDN, and keeps metadata in sharded databases. Creators see processing state; viewers see p95 startup time under a few seconds on good networks.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "YouTube at scale",
+        "text": "A 2 GB upload cannot block a synchronous API thread. Resumable uploads land in object storage; a job queue fans out transcoding workers that write HLS/DASH segments back to the bucket.",
+        "variant": "tip"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-youtube",
+        "caption": "Separate upload/transcode pipeline from CDN playback path."
+      }
+    ],
+    "relatedConcepts": [
+      "video",
+      "upload",
+      "CDN",
+      "transcoding",
+      "metadata"
+    ],
+    "media": {}
+  },
+  "youtube-architecture": {
+    "id": "youtube-architecture",
+    "chapterId": "sd-youtube",
+    "title": "Upload, Transcode, and Serve",
+    "summary": "The write path is a pipeline; the read path is cache-heavy. Connect them with immutable video IDs and versioned manifests.",
+    "keyTakeaways": [
+      "Resumable uploads (tus/S3 multipart) buffer network unreliability.",
+      "Transcoding is embarrassingly parallel — one job per resolution per video.",
+      "Manifest files (M3U8) list segment URLs; players switch bitrate dynamically.",
+      "CDN caches segments close to users; origin shield reduces object storage load.",
+      "Thumbnails and titles are tiny compared to video — cache aggressively.",
+      "Kafka or Pub/Sub notifies subscribers when processing completes."
+    ],
+    "body": [
+      {
+        "type": "heading",
+        "text": "Write path",
+        "level": 2
+      },
+      {
+        "type": "list",
+        "items": [
+          "Client → upload API → object storage (raw).",
+          "Event → transcoder fleet → object storage (segments + manifests).",
+          "Metadata service marks video READY and exposes playback URL."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Read path",
+        "level": 2
+      },
+      {
+        "type": "list",
+        "items": [
+          "Client requests manifest from API (cached).",
+          "Player fetches segments from CDN edge; miss goes to origin.",
+          "View counts batched to stream processor (approximate is OK)."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Resumable upload → transcode queue (YouTube-style)\nasync function onUploadComplete(videoId: string, rawKey: string) {\n  await db.videos.update({ id: videoId, status: \"PROCESSING\" });\n  await kafka.publish(\"video.uploaded\", {\n    videoId,\n    rawKey,\n    renditions: [\"360p\", \"720p\", \"1080p\"],\n  });\n}\n// Workers write HLS segments to object storage; API serves manifest URL",
+        "caption": "Upload job enqueue"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-youtube",
+        "caption": "Upload → transcode queue → segmented storage → CDN playback."
+      }
+    ],
+    "relatedConcepts": [
+      "HLS",
+      "transcoding",
+      "object storage",
+      "Kafka",
+      "manifest"
+    ],
+    "media": {}
+  },
+  "youtube-scaling": {
+    "id": "youtube-scaling",
+    "chapterId": "sd-youtube",
+    "title": "Caching, Popularity, and Cost",
+    "summary": "Virality shifts traffic from long-tail to hot objects. Design caching and storage tiers for both.",
+    "keyTakeaways": [
+      "Long-tail videos: CDN still helps, but most bytes sit cold in cheap storage.",
+      "Viral videos: push to more edge POPs; protect origin with shield tiers.",
+      "Popular metadata (trending page) needs application-level cache + singleflight.",
+      "Recommendation features precomputed offline; online path does light reranking.",
+      "Cost control: transcode once, store lifecycle policies for unwatched uploads.",
+      "Multi-region metadata replicas with sticky routing for editors."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "A video with 10 views and one with 10M views share the same architecture but wildly different cache hit ratios. Popularity-aware prefetch and tiered storage prevent paying CDN prices for cold content."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Netflix Open Connect caches hot titles on ISP appliances. YouTube's long tail lives in cheaper storage classes; only trending manifests get aggressive edge warming.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Google at scale",
+        "text": "Search ranking and YouTube recommendations share DNA: offline batch features + online low-latency scoring. The serving path never scans raw watch history per request.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Prevent thundering herd on trending metadata\nconst inflight = new Map<string, Promise<TrendingPage>>();\n\nasync function getTrending(region: string): Promise<TrendingPage> {\n  const cached = await redis.get(`trending:${region}`);\n  if (cached) return JSON.parse(cached);\n  if (!inflight.has(region)) {\n    inflight.set(region, loadTrendingFromDb(region).finally(() => inflight.delete(region)));\n  }\n  return inflight.get(region)!;\n}",
+        "caption": "Singleflight for trending metadata"
+      }
+    ],
+    "relatedConcepts": [
+      "CDN",
+      "cache",
+      "long tail",
+      "recommendations",
+      "cost"
+    ],
+    "media": {}
+  },
+  "whatsapp-requirements": {
+    "id": "whatsapp-requirements",
+    "chapterId": "sd-whatsapp",
+    "title": "Messaging Requirements",
+    "summary": "Billions of users expect near-instant delivery, offline support, and privacy — on unreliable mobile networks.",
+    "keyTakeaways": [
+      "Delivery semantics: at-least-once with client-side deduplication by message ID.",
+      "Ordering: per-chat sequence numbers, not global total order.",
+      "Offline users: store-and-forward plus push notifications (APNs/FCM).",
+      "Groups fan out one write to many recipients — hotspot risk.",
+      "E2E encryption: servers route ciphertext; metadata still visible.",
+      "Low payload size favors custom protocols over verbose JSON."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Chat apps are connection-heavy. A user with one WebSocket can receive thousands of messages per day; the hard part is routing each message to the right connection set with minimal latency."
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-whatsapp",
+        "caption": "Sender → chat server → store → online delivery or push gateway."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "WhatsApp famously runs Erlang/BEAM for massive connection counts. Message IDs are client-generated UUIDs so retries do not duplicate chats. Signal protocol handles E2E on devices.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "WhatsApp at scale",
+        "text": "When the receiver is offline, the server persists ciphertext and triggers APNs/FCM. On reconnect, the client syncs from its last acked sequence — no message loss without unbounded server memory.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "messaging",
+      "WebSocket",
+      "push",
+      "E2E encryption",
+      "ordering"
+    ],
+    "media": {}
+  },
+  "whatsapp-delivery": {
+    "id": "whatsapp-delivery",
+    "chapterId": "sd-whatsapp",
+    "title": "Delivery, Ordering, and Groups",
+    "summary": "Per-chat ordering, presence, and group fan-out define the server-side data model.",
+    "keyTakeaways": [
+      "Each chat has a monotonic server or hybrid logical clock for ordering.",
+      "Acks from clients let servers trim durable queues.",
+      "Group messages: write once, fan out to member inboxes or connection maps.",
+      "Large groups may use partial fan-out + pull on open (hybrid like Meta feeds).",
+      "Presence (online/typing) is ephemeral — Redis with TTL, not Postgres.",
+      "Multi-device sync shares the same message log keyed by account."
+    ],
+    "body": [
+      {
+        "type": "heading",
+        "text": "Group fan-out strategies",
+        "level": 2
+      },
+      {
+        "type": "list",
+        "items": [
+          "Small groups (< 256): push to every member inbox on send.",
+          "Large groups: store single copy; members pull on chat open.",
+          "Typing indicators: gossip or pub/sub channel, lossy is acceptable."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Per-chat ordering with client ack\ntype ChatMessage = { id: string; chatId: string; seq: number; ciphertext: Buffer };\n\nasync function onClientAck(chatId: string, upToSeq: number) {\n  await db.messages.deleteQueued({ chatId, seq: { lte: upToSeq } });\n}\n// Server assigns monotonic seq per chat; client dedupes by message id",
+        "caption": "Per-chat sequence and ack"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-whatsapp",
+        "caption": "Online WebSocket delivery; offline path through push + sync."
+      }
+    ],
+    "relatedConcepts": [
+      "fan-out",
+      "sequence",
+      "groups",
+      "presence",
+      "Redis"
+    ],
+    "media": {}
+  },
+  "reservation-requirements": {
+    "id": "reservation-requirements",
+    "chapterId": "sd-reservation",
+    "title": "Booking Requirements",
+    "summary": "Hotels, flights, restaurants, and concerts sell finite inventory that must never be oversold.",
+    "keyTakeaways": [
+      "Search is read-heavy and fuzzy; booking is write-heavy and exact.",
+      "Holds: temporary locks while user pays (10–15 minute TTL).",
+      "Payments tie to reservations — sagas coordinate both.",
+      "Cancellations and modifications release inventory back to the pool.",
+      "Calendar queries need efficient range indexes on availability.",
+      "Time zones and daylight saving complicate 'night' inventory."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Reservation systems are classic OLTP with brutal correctness requirements. A double-booked hotel room destroys trust faster than a slow search page."
+      },
+      {
+        "type": "callout",
+        "title": "Airbnb at scale",
+        "text": "Guests search Elasticsearch-backed listings but commit bookings through a transactional core that decrements night-level inventory in PostgreSQL with row-level locks or serializable isolation.",
+        "variant": "tip"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-reservation",
+        "caption": "Search index derived from inventory source of truth in OLTP."
+      }
+    ],
+    "relatedConcepts": [
+      "booking",
+      "inventory",
+      "OLTP",
+      "search",
+      "holds"
+    ],
+    "media": {}
+  },
+  "reservation-concurrency": {
+    "id": "reservation-concurrency",
+    "chapterId": "sd-reservation",
+    "title": "Preventing Double Booking",
+    "summary": "Use database constraints, compare-and-swap, or dedicated inventory services — never 'check then insert' without locking.",
+    "keyTakeaways": [
+      "Pessimistic locking (SELECT FOR UPDATE) on inventory rows is simple and strong.",
+      "Optimistic concurrency with version columns works when conflicts are rare.",
+      "Distributed locks (Redis Redlock) only if DB row is unavailable — know the risks.",
+      "Hold tokens expire via TTL job to release abandoned carts.",
+      "Idempotent booking API keys prevent duplicate charges on retry.",
+      "Outbox pattern publishes booking events after commit."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Two users booking the last seat is a race. The fix is atomic decrement: one transaction wins, the other gets a clear 'sold out' error — not two confirmations."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Atomic inventory — prevent double booking\nawait prisma.$transaction(async (tx) => {\n  const slot = await tx.inventory.findUnique({\n    where: { listingId_date: { listingId, date } },\n  });\n  if (!slot || slot.available < 1) throw new Error(\"SOLD_OUT\");\n  await tx.inventory.update({\n    where: { listingId_date: { listingId, date }, version: slot.version },\n    data: { available: { decrement: 1 }, version: { increment: 1 } },\n  });\n});",
+        "caption": "Atomic inventory decrement"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "OpenTable and Ticketmaster use inventory partitions per venue/show time. Airbnb shards booking writes by listing ID. All share: single writer per inventory cell at commit time.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Hold vs confirm",
+        "text": "A hold reserves inventory temporarily; confirm converts hold to sale after payment. Never confirm without checking hold ownership.",
+        "variant": "warning"
+      }
+    ],
+    "relatedConcepts": [
+      "locking",
+      "serializable",
+      "idempotency",
+      "hold",
+      "outbox"
+    ],
+    "media": {}
+  },
+  "reservation-architecture": {
+    "id": "reservation-architecture",
+    "chapterId": "sd-reservation",
+    "title": "End-to-End Booking Flow",
+    "summary": "Search, hold, pay, confirm — orchestrated with sagas and clear compensation if payment fails.",
+    "keyTakeaways": [
+      "API gateway routes search to read services, booking to write service.",
+      "Hold service writes to inventory DB; payment service calls Stripe.",
+      "On payment success: confirm hold; on failure: release hold (compensating action).",
+      "Kafka events update search index and send confirmation emails async.",
+      "Read replicas serve 'my trips'; primary handles commits.",
+      "Admin overrides need audit log separate from user-facing booking row."
+    ],
+    "body": [
+      {
+        "type": "diagram",
+        "diagramId": "system-reservation",
+        "caption": "Search → hold → pay → confirm, with saga compensation on failure."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Hold → pay → confirm with compensation\nasync function bookingSaga(bookingId: string) {\n  const hold = await inventory.hold(bookingId);\n  try {\n    const charge = await stripe.charge({ idempotencyKey: bookingId });\n    await inventory.confirm(hold.id);\n    await kafka.publish(\"booking.confirmed\", { bookingId, chargeId: charge.id });\n  } catch (err) {\n    await inventory.release(hold.id); // compensating action\n    throw err;\n  }\n}",
+        "caption": "Booking saga with compensation"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Expedia and Booking.com pipelines mirror this: Elasticsearch for discovery, PostgreSQL for reservations, Stripe/Adyen for payments, Temporal or custom sagas for multi-step checkout.",
+        "variant": "info"
+      }
+    ],
+    "relatedConcepts": [
+      "saga",
+      "Stripe",
+      "Elasticsearch",
+      "PostgreSQL",
+      "compensation"
+    ],
+    "media": {}
+  },
+  "voting-requirements": {
+    "id": "voting-requirements",
+    "chapterId": "sd-voting",
+    "title": "Integrity and Trust",
+    "summary": "Voting systems must prevent duplicate ballots, resist tampering, and survive traffic spikes on election night.",
+    "keyTakeaways": [
+      "One voter → one ballot: unique constraint on (election_id, voter_id).",
+      "Ballots should be append-only; tallies derived, not edited in place.",
+      "Secret ballot vs verifiability is a product/legal trade-off.",
+      "Rate limiting and bot detection at the edge.",
+      "Audit logs: who cast when (metadata), not necessarily how they voted.",
+      "Read scaling for results pages; write spike at poll close."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Unlike likes on a post, votes are legally and socially sensitive. The architecture must make certain attacks impossible (double vote) and others detectable (ballot box stuffing at scale)."
+      },
+      {
+        "type": "callout",
+        "title": "Threat model first",
+        "text": "Define adversaries: duplicate voter, admin tampering, DDoS, network partition during close. Each drives different controls.",
+        "variant": "warning"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Estonia's i-Voting uses cryptographic protocols; US precinct systems often air-gap tallies. Product web polls (Twitter, Slack) use idempotent voter keys and Redis rate limits — weaker but appropriate for low stakes.",
+        "variant": "info"
+      }
+    ],
+    "relatedConcepts": [
+      "integrity",
+      "audit",
+      "rate limiting",
+      "append-only",
+      "threat model"
+    ],
+    "media": {}
+  },
+  "voting-architecture": {
+    "id": "voting-architecture",
+    "chapterId": "sd-voting",
+    "title": "Ballots, Tallies, and Audits",
+    "summary": "Append ballots to an immutable log; aggregate counts in stream processors or materialized views.",
+    "keyTakeaways": [
+      "Ballot ingest API validates voter eligibility once, writes immutable record.",
+      "Hash chain or signed events support third-party audit (high-stakes systems).",
+      "Tally service aggregates by choice_id; real-time preview uses stream processor.",
+      "Results page reads materialized count — never COUNT(*) on raw ballots live.",
+      "Idempotency-Key per voter session prevents double submit on retry.",
+      "Geo-distributed read replicas for results; single-region write primary for consistency."
+    ],
+    "body": [
+      {
+        "type": "diagram",
+        "diagramId": "system-voting",
+        "caption": "Eligible voter → ballot log → stream aggregate → results cache."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// One ballot per voter — idempotent submit\nasync function castBallot(electionId: string, voterId: string, choiceId: string) {\n  return prisma.ballot.upsert({\n    where: { electionId_voterId: { electionId, voterId } },\n    create: { electionId, voterId, choiceId, castAt: new Date() },\n    update: {}, // no-op on retry — same result\n  });\n}",
+        "caption": "Idempotent ballot submission"
+      },
+      {
+        "type": "callout",
+        "title": "Slack at scale",
+        "text": "Workspace polls are low-stakes but still use one-vote-per-user keys stored in OLTP with unique indexes — the same pattern at national scale with harder identity proofing.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "ballot",
+      "tally",
+      "Kafka",
+      "idempotency",
+      "materialized view"
+    ],
+    "media": {}
+  },
+  "multiplayer-requirements": {
+    "id": "multiplayer-requirements",
+    "chapterId": "sd-multiplayer-games",
+    "title": "Latency and Fairness",
+    "summary": "FPS and battle royale players feel 50 ms; turn-based tolerates seconds. Pick transport and authority model accordingly.",
+    "keyTakeaways": [
+      "Sub-100 ms RTT often requires regional servers and UDP-based protocols.",
+      "Authoritative server prevents most cheating; client prediction hides latency.",
+      "Tick rate (20–128 Hz) trades CPU for smoothness.",
+      "Matchmaking groups similar skill and low ping — data problem + queue system.",
+      "Disconnect/reconnect must restore state from server snapshot.",
+      "Anti-cheat inspects impossible state transitions server-side."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Games are distributed systems with humans in the loop. Fairness means everyone sees a consistent world; responsiveness means hiding network delay with prediction and reconciliation."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Riot Games deploys regional shards (NA, EUW) with dedicated UDP servers. Among Us uses simpler authoritative state with lower tick demands. Protocol choice follows latency budget.",
+        "variant": "info"
+      }
+    ],
+    "relatedConcepts": [
+      "latency",
+      "UDP",
+      "authoritative server",
+      "matchmaking",
+      "tick rate"
+    ],
+    "media": {}
+  },
+  "multiplayer-architecture": {
+    "id": "multiplayer-architecture",
+    "chapterId": "sd-multiplayer-games",
+    "title": "Game Servers and State Sync",
+    "summary": "Dedicated simulation loop owns truth; clients send inputs, receive state deltas.",
+    "keyTakeaways": [
+      "Lobby service assigns players to a game server instance.",
+      "Server sim loop: inputs in → physics/rules → state snapshot out.",
+      "Delta compression sends only changed entities to clients.",
+      "Redis or in-memory store for session; periodic checkpoint to DB for stats.",
+      "Dedicated servers vs P2P: commercial titles choose servers for anti-cheat.",
+      "Agones on Kubernetes scales game server pods per match."
+    ],
+    "body": [
+      {
+        "type": "diagram",
+        "diagramId": "system-multiplayer",
+        "caption": "Matchmaker → game server tick loop → delta sync to clients."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Authoritative server simulation loop\nlet tick = 0;\nconst inputs: Input[] = [];\n\nfunction simLoop() {\n  const snapshot = applyPhysics(world, inputs.splice(0));\n  broadcastDelta(clients, diff(previous, snapshot));\n  previous = snapshot;\n  tick++;\n}\nsetInterval(simLoop, 1000 / 60); // 60 Hz",
+        "caption": "Authoritative tick with input buffer"
+      },
+      {
+        "type": "callout",
+        "title": "Fortnite at scale",
+        "text": "Epic runs regional game server fleets; matchmaking minimizes RTT. Client sends inputs; server corrects position if client prediction diverges.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "game server",
+      "delta compression",
+      "Agones",
+      "Kubernetes",
+      "prediction"
+    ],
+    "media": {}
+  },
+  "multiplayer-scaling": {
+    "id": "multiplayer-scaling",
+    "chapterId": "sd-multiplayer-games",
+    "title": "Sharding and Matchmaking",
+    "summary": "Scale horizontally by adding game server processes; matchmaking is the control plane.",
+    "keyTakeaways": [
+      "Each match is an isolated process — natural parallelism boundary.",
+      "Matchmaking queues partition by mode/region/rank.",
+      "Backpressure when server pool full: queue wait UX vs degraded bots.",
+      "Cross-region play only when product accepts high ping.",
+      "Telemetry pipeline (Kafka) feeds ranking and crash analytics.",
+      "Stateful sets or Agones allocate UDP ports per pod."
+    ],
+    "body": [
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Call of Duty warzone spins thousands of single-match processes across cloud VMs. Control plane tracks capacity; data plane is ephemeral per round.",
+        "variant": "info"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Regional matchmaking with skill bucket\ntype Ticket = { playerId: string; mmr: number; region: string };\n\nfunction findMatch(queue: Ticket[]): Match | null {\n  const ready = queue.filter((t) => t.region === \"eu-west\");\n  if (ready.length < 10) return null;\n  const avg = ready.reduce((s, t) => s + t.mmr, 0) / ready.length;\n  const picked = ready.filter((t) => Math.abs(t.mmr - avg) < 200).slice(0, 10);\n  return { players: picked.map((t) => t.playerId), serverShard: \"eu-west-3\" };\n}",
+        "caption": "Regional matchmaking queue"
+      }
+    ],
+    "relatedConcepts": [
+      "sharding",
+      "matchmaking",
+      "Agones",
+      "regional",
+      "telemetry"
+    ],
+    "media": {}
+  },
+  "puzzle-turn-model": {
+    "id": "puzzle-turn-model",
+    "chapterId": "sd-puzzle-games",
+    "title": "Turns, Timers, and Async Play",
+    "summary": "Wordle, chess, and daily puzzles mix turn order, deadlines, and optional async moves.",
+    "keyTakeaways": [
+      "Turn state machine: WAITING → ACTIVE → COMPLETED per player.",
+      "Server validates moves against rules before applying to board.",
+      "Timers use scheduled jobs (SQS delay, Redis TTL) to forfeit on timeout.",
+      "Async mode: push notification when opponent moves.",
+      "Daily puzzles: same seed globally; validate once per user per day.",
+      "Smaller payloads than FPS — HTTPS and WebSocket both fine."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Puzzle games stress correctness over microseconds. A illegal word guess must be rejected; a daily puzzle must not accept two submissions from the same account."
+      },
+      {
+        "type": "callout",
+        "title": "Wordle at scale",
+        "text": "One puzzle ID per calendar day, stored as immutable answer hash. Client submits guess; server returns tile feedback without leaking future answers.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// One submission per user per puzzle day\nasync function submitGuess(userId: string, puzzleDate: string, guess: string) {\n  const existing = await db.submissions.findUnique({\n    where: { userId_puzzleDate: { userId, puzzleDate } },\n  });\n  if (existing) return existing; // idempotent replay\n  const feedback = scoreGuess(puzzleDate, guess);\n  return db.submissions.create({ data: { userId, puzzleDate, guess, feedback } });\n}",
+        "caption": "Daily puzzle idempotency"
+      }
+    ],
+    "relatedConcepts": [
+      "turn-based",
+      "state machine",
+      "timer",
+      "daily puzzle",
+      "validation"
+    ],
+    "media": {}
+  },
+  "puzzle-conflicts": {
+    "id": "puzzle-conflicts",
+    "chapterId": "sd-puzzle-games",
+    "title": "Merging Moves and Leaderboards",
+    "summary": "Concurrent edits to shared boards need versioning; leaderboards need approximate top-K at scale.",
+    "keyTakeaways": [
+      "Board state version increments on each valid move; stale versions rejected.",
+      "Shared puzzles (collaborative crosswords) may use CRDT grids for cells.",
+      "Leaderboards: Redis sorted sets for real-time; batch reconcile for seasons.",
+      "Anti-cheat: server-side dictionary and move legality only.",
+      "Spectator mode reads immutable move log — same pattern as event sourcing.",
+      "Tie-breakers defined upfront (time, fewer hints)."
+    ],
+    "body": [
+      {
+        "type": "diagram",
+        "diagramId": "system-puzzle",
+        "caption": "Move log append → board projection → leaderboard aggregate."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Reject stale concurrent moves\nasync function applyMove(gameId: string, version: number, move: Move) {\n  const updated = await db.games.updateMany({\n    where: { id: gameId, version },\n    data: { board: applyRules(move), version: { increment: 1 } },\n  });\n  if (updated.count === 0) throw new Error(\"STALE_BOARD — refresh and retry\");\n}",
+        "caption": "Optimistic board version check"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Chess.com stores PGN move logs; lichess uses similar event-sourced game records. NYT Games leaderboard uses precomputed daily ranks to avoid scanning all players at read time.",
+        "variant": "info"
+      }
+    ],
+    "relatedConcepts": [
+      "leaderboard",
+      "versioning",
+      "Redis",
+      "event sourcing",
+      "CRDT"
+    ],
+    "media": {}
+  },
+  "multistep-patterns": {
+    "id": "multistep-patterns",
+    "chapterId": "sd-multistep-systems",
+    "title": "Sagas and Orchestration",
+    "summary": "Long-running flows span services. Sagas coordinate forward steps and compensating rollbacks.",
+    "keyTakeaways": [
+      "Choreography: each service emits events; others react (loose coupling).",
+      "Orchestration: central workflow engine calls services in order (clear visibility).",
+      "Each step idempotent; correlation ID ties the saga together.",
+      "Compensating transactions undo prior steps (cancel shipment, refund hold).",
+      "Timeouts trigger automatic compensation or human escalation.",
+      "Shopify checkout and Uber trip lifecycle are canonical sagas."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "A multistep checkout is not one database transaction — payment, inventory, shipping, and email span systems. Sagas make partial failure explicit instead of hoping for the best."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Hold → pay → confirm with compensation\nasync function bookingSaga(bookingId: string) {\n  const hold = await inventory.hold(bookingId);\n  try {\n    const charge = await stripe.charge({ idempotencyKey: bookingId });\n    await inventory.confirm(hold.id);\n    await kafka.publish(\"booking.confirmed\", { bookingId, chargeId: charge.id });\n  } catch (err) {\n    await inventory.release(hold.id); // compensating action\n    throw err;\n  }\n}",
+        "caption": "Saga step with compensation"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-multistep-workflow",
+        "caption": "Orchestrator invokes steps; failures trigger compensating actions in reverse order."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Temporal, AWS Step Functions, and Cadence power durable workflows at Uber, Netflix, and Stripe. Kafka-only choreography works until you need a human-readable workflow graph.",
+        "variant": "info"
+      }
+    ],
+    "relatedConcepts": [
+      "saga",
+      "orchestration",
+      "choreography",
+      "Temporal",
+      "compensation"
+    ],
+    "media": {}
+  },
+  "multistep-durability": {
+    "id": "multistep-durability",
+    "chapterId": "sd-multistep-systems",
+    "title": "Durable Execution and Retries",
+    "summary": "Workflow state must survive process crashes. Durable timers and replayable history are the answer.",
+    "keyTakeaways": [
+      "Workflow engine persists event history before calling external APIs.",
+      "Activities retry with exponential backoff; non-retryable errors branch to compensate.",
+      "Exactly-once illusion via idempotent activity implementations.",
+      "Human tasks (KYC review) park workflow for days without holding threads.",
+      "Visibility APIs show ops which step failed and with what payload.",
+      "Version workflows carefully — running instances use old definition."
+    ],
+    "body": [
+      {
+        "type": "callout",
+        "title": "Uber at scale",
+        "text": "A trip saga spans matching, driver en route, payment capture, and receipt email. Temporal replays from history if the worker crashes mid-step.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Temporal-style durable step (conceptual)\nasync function onboardMerchant(merchantId: string) {\n  await activities.verifyIdentity(merchantId); // retried automatically\n  await activities.linkBankAccount(merchantId);\n  await sleep(\"7 days\"); // durable timer — survives worker crash\n  await activities.enablePayouts(merchantId);\n}",
+        "caption": "Durable workflow stub"
+      },
+      {
+        "type": "callout",
+        "title": "Outbox + inbox",
+        "text": "Combine sagas with transactional outbox so 'charge card' and 'mark order paid' never diverge.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "Temporal",
+      "durable execution",
+      "retry",
+      "idempotency",
+      "outbox"
+    ],
+    "media": {}
+  },
+  "multistep-examples": {
+    "id": "multistep-examples",
+    "chapterId": "sd-multistep-systems",
+    "title": "Real-World Workflow Stacks",
+    "summary": "Compare how production companies implement the same pattern with different engines.",
+    "keyTakeaways": [
+      "E-commerce checkout: cart → hold inventory → charge → fulfill → notify.",
+      "Onboarding KYC: upload ID → vendor verify → manual review → activate.",
+      "Loan origination: apply → credit pull → underwrite → fund → servicer handoff.",
+      "Each step is a service boundary; workflow engine is the spine.",
+      "Observability: trace ID per saga instance across all HTTP and queue hops.",
+      "Dead-letter queues capture poison steps without losing the saga context."
+    ],
+    "body": [
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Stripe Checkout is a hosted multistep UI over PaymentIntents sagas. Airbnb host onboarding chains identity, payout, and listing steps with manual gates. Banks use Camunda or custom mainframes with the same state-machine thinking.",
+        "variant": "info"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-multistep-workflow",
+        "caption": "Checkout saga: payment success continues; failure triggers inventory release."
+      }
+    ],
+    "relatedConcepts": [
+      "checkout",
+      "KYC",
+      "workflow",
+      "observability",
+      "DLQ"
+    ],
+    "media": {}
+  },
+  "collaboration-presence": {
+    "id": "collaboration-presence",
+    "chapterId": "sd-collaboration",
+    "title": "Presence and Permissions",
+    "summary": "See who is online, what they are editing, and whether they may change it — without leaking document content.",
+    "keyTakeaways": [
+      "Presence heartbeats in Redis with TTL; disconnect clears avatar.",
+      "Document ACLs: owner, editor, commenter, viewer enforced on every op.",
+      "Cursors and selections are ephemeral broadcast, not durable history.",
+      "Share links map tokens to roles with expiration.",
+      "Audit log records permission changes, not every keystroke.",
+      "Google Docs 'anonymous animals' are presence UX on top of WebSocket fan-out."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Collaboration tools combine real-time transport with authorization. A user without edit permission must not apply operations even if they bypass the UI."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Figma stores file permissions in Postgres; presence in Redis. Notion blocks embed share settings per page tree. All validate ops server-side against ACL snapshot.",
+        "variant": "info"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Redis presence with TTL heartbeat\nasync function heartbeat(docId: string, userId: string, cursor: Cursor) {\n  await redis.setex(`presence:${docId}:${userId}`, 30, JSON.stringify(cursor));\n  await redis.publish(`doc:${docId}`, JSON.stringify({ type: \"cursor\", userId, cursor }));\n}",
+        "caption": "Presence heartbeat"
+      }
+    ],
+    "relatedConcepts": [
+      "presence",
+      "ACL",
+      "Redis",
+      "permissions",
+      "WebSocket"
+    ],
+    "media": {}
+  },
+  "collaboration-sync": {
+    "id": "collaboration-sync",
+    "chapterId": "sd-collaboration",
+    "title": "OT, CRDTs, and Conflict-Free Editing",
+    "summary": "Concurrent edits merge without a single global lock. OT needs a server; CRDTs can peer-sync.",
+    "keyTakeaways": [
+      "Operational Transformation: server transforms concurrent ops against each other.",
+      "CRDTs: mathematically merge without central coordinator (Yjs, Automerge).",
+      "Choose OT for rich text with complex intent; CRDTs for JSON/tree structures.",
+      "Periodic snapshots bound replay time on reconnect.",
+      "Comment threads attach to stable anchors (block IDs), not byte offsets.",
+      "Offline edit queues flush on reconnect with merge."
+    ],
+    "body": [
+      {
+        "type": "diagram",
+        "diagramId": "system-canva",
+        "caption": "WebSocket collab server applies OT/CRDT; Postgres stores snapshots."
+      },
+      {
+        "type": "callout",
+        "title": "Figma at scale",
+        "text": "Multiplayer editing uses a central server to order operations and broadcast deltas. CRDT research powers newer whiteboard features with less server coupling.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// CRDT document sync (Yjs-style conceptual)\nimport * as Y from \"yjs\";\nconst doc = new Y.Doc();\nconst text = doc.getText(\"content\");\ntext.insert(0, \"Hello\");\nconst update = Y.encodeStateAsUpdate(doc);\n// Broadcast update to peers; merge is commutative — no central lock",
+        "caption": "Yjs-style document update"
+      }
+    ],
+    "relatedConcepts": [
+      "OT",
+      "CRDT",
+      "Yjs",
+      "Figma",
+      "offline sync"
+    ],
+    "media": {}
+  },
+  "collaboration-architecture": {
+    "id": "collaboration-architecture",
+    "chapterId": "sd-collaboration",
+    "title": "Storage and Real-Time Transport",
+    "summary": "Split blob storage, metadata DB, collab server, and CDN for assets.",
+    "keyTakeaways": [
+      "Object storage (S3) for images/fonts; Postgres for doc metadata and ACL.",
+      "Collab server cluster sticky by document ID for OT ordering.",
+      "WebSocket gateway scales with connection count; Redis pub/sub bridges regions.",
+      "Export/render jobs async — separate from live editing path.",
+      "Version history: snapshot + op log compaction weekly.",
+      "Same architecture pattern as Canva, Google Docs, Notion — different CRDT/OT choices."
+    ],
+    "body": [
+      {
+        "type": "diagram",
+        "diagramId": "system-canva",
+        "caption": "Clients ↔ collab server ↔ Postgres metadata + S3 assets + Redis presence."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Google Docs historically used centralized OT servers at scale. Notion shards documents across cells; Miro uses regional collab routers for EU data residency.",
+        "variant": "info"
+      }
+    ],
+    "relatedConcepts": [
+      "WebSocket",
+      "S3",
+      "PostgreSQL",
+      "snapshot",
+      "compaction"
+    ],
+    "media": {}
+  },
+  "forms-state-machine": {
+    "id": "forms-state-machine",
+    "chapterId": "sd-multistep-forms",
+    "title": "Steps, Drafts, and Validation",
+    "summary": "Wizards span sessions and devices. Persist partial progress; validate per step and on submit.",
+    "keyTakeaways": [
+      "Explicit step graph: some steps skippable based on prior answers.",
+      "Draft record keyed by user + form version; autosave debounced.",
+      "Server-side validation authoritative — client hints are UX only.",
+      "Schema versioning: in-flight drafts pinned to form version they started.",
+      "Resume token in email link maps to draft without exposing PII in URL.",
+      "Final submit is idempotent — duplicate clicks do not create two applications."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Mortgage and insurance forms take days. Users expect to pause on mobile and finish on desktop. That requires durable draft storage, not session cookies."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Autosave wizard draft across sessions\nasync function saveDraft(userId: string, formVersion: number, step: number, data: Json) {\n  await db.formDrafts.upsert({\n    where: { userId_formVersion: { userId, formVersion } },\n    create: { userId, formVersion, step, data, updatedAt: new Date() },\n    update: { step, data, updatedAt: new Date() },\n  });\n}",
+        "caption": "Multistep draft autosave"
+      },
+      {
+        "type": "callout",
+        "title": "Stripe at scale",
+        "text": "Connect onboarding is a hosted multistep form with saved progress — merchants resume KYC without re-entering verified fields.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "wizard",
+      "draft",
+      "validation",
+      "state machine",
+      "autosave"
+    ],
+    "media": {}
+  },
+  "forms-architecture": {
+    "id": "forms-architecture",
+    "chapterId": "sd-multistep-forms",
+    "title": "Backend for Long-Running Applications",
+    "summary": "API design for partial saves, file uploads, and async verification steps.",
+    "keyTakeaways": [
+      "POST /drafts upserts JSON blob; PATCH /steps/:id validates slice only.",
+      "Large uploads direct-to-S3 with signed URLs; draft stores pointer.",
+      "Async steps (credit check) transition draft to PENDING_VERIFICATION.",
+      "Webhook or poll updates UI when vendor returns.",
+      "PII encrypted at rest; field-level encryption for SSN/tax IDs.",
+      "Analytics on funnel drop-off per step drives product iteration."
+    ],
+    "body": [
+      {
+        "type": "diagram",
+        "diagramId": "system-multistep-form",
+        "caption": "Client autosave → draft API → S3 files → async verification webhooks."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "TurboTax and government visa portals use identical patterns: session-less drafts in DB, step validators as pure functions, async steps wired to mainframe or vendor APIs.",
+        "variant": "info"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Validate only fields for current step\nconst stepSchemas = {\n  1: z.object({ legalName: z.string().min(2), dob: z.string().date() }),\n  2: z.object({ ssn: z.string().regex(/^\\d{9}$/) }),\n  3: z.object({ income: z.number().positive() }),\n};\n\nfunction validateStep(step: number, payload: unknown) {\n  return stepSchemas[step as keyof typeof stepSchemas].parse(payload);\n}",
+        "caption": "Step validation handler"
+      }
+    ],
+    "relatedConcepts": [
+      "draft API",
+      "S3",
+      "webhook",
+      "PII",
+      "funnel analytics"
+    ],
+    "media": {}
   }
 }

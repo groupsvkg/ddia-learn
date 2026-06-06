@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, ChevronRight } from "lucide-react";
 import type { Curriculum } from "@/types/content";
+import { formatChapterLabel } from "@/lib/curriculum";
 import {
   Sidebar,
   SidebarContent,
@@ -33,6 +34,7 @@ export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: A
   const pathname = usePathname();
   const [openChapters, setOpenChapters] = useState<string[]>([
     "ch01-reliable-scalable-maintainable",
+    "sd-foundations",
   ]);
 
   useEffect(() => {
@@ -72,7 +74,7 @@ export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: A
         {curriculum.parts.map((part) => (
           <SidebarGroup key={part.id}>
             <SidebarGroupLabel>
-              Part {part.number}: {part.title}
+              {part.track === "system-design" ? part.title : `Part ${part.number}: ${part.title}`}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="gap-1">
@@ -82,7 +84,7 @@ export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: A
                     <SidebarMenuButton
                       render={<Link href={`/chapters/${chapter.id}`} />}
                       isActive={pathname.startsWith(`/chapters/${chapter.id}`)}
-                      tooltip={`Ch. ${chapter.number}: ${chapter.title}`}
+                      tooltip={`${formatChapterLabel(chapter, part)}: ${chapter.title}`}
                       className="hidden group-data-[collapsible=icon]:flex"
                     >
                       <span className="text-xs font-semibold tabular-nums">{chapter.number}</span>
@@ -105,7 +107,7 @@ export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: A
                         >
                           <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden whitespace-nowrap">
                             <span className="text-muted-foreground shrink-0">
-                              Ch.{chapter.number}
+                              {formatChapterLabel(chapter, part)}
                             </span>
                             <span className="truncate">{chapter.title}</span>
                           </span>

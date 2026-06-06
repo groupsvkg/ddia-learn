@@ -355,4 +355,173 @@ const authUrl = oauth.authorizeUrl({
 const changes = debezium.stream("shopify.orders");
 // Step 2: land in Snowflake star schema for BI dashboards
 await snowflake.merge("fact_orders", changes, { key: "order_id" });`,
+
+  systemDesignChecklist: `// Frame the problem before picking databases
+type SystemDesignBrief = {
+  actors: ("mobile" | "web" | "admin" | "partner")[];
+  functional: string[]; // "upload video", "send message"
+  nonFunctional: {
+    p99LatencyMs?: number;
+    availability?: string; // "99.9%"
+    consistency: "strong" | "eventual" | "per-feature";
+  };
+  scaleToday: { dau: number; peakQps: number };
+  invariants: string[]; // "no double booking"
+};`,
+
+  capacityEstimation: `// Napkin math: DAU → peak QPS
+const DAU = 50_000_000;
+const actionsPerUserPerDay = 20;
+const avgQps = (DAU * actionsPerUserPerDay) / 86_400;
+const peakQps = avgQps * 5; // burst factor for prime time
+console.log({ avgQps: Math.round(avgQps), peakQps: Math.round(peakQps) });`,
+
+  youtubeUploadPipeline: `// Resumable upload → transcode queue (YouTube-style)
+async function onUploadComplete(videoId: string, rawKey: string) {
+  await db.videos.update({ id: videoId, status: "PROCESSING" });
+  await kafka.publish("video.uploaded", {
+    videoId,
+    rawKey,
+    renditions: ["360p", "720p", "1080p"],
+  });
+}
+// Workers write HLS segments to object storage; API serves manifest URL`,
+
+  trendingCacheSingleflight: `// Prevent thundering herd on trending metadata
+const inflight = new Map<string, Promise<TrendingPage>>();
+
+async function getTrending(region: string): Promise<TrendingPage> {
+  const cached = await redis.get(\`trending:\${region}\`);
+  if (cached) return JSON.parse(cached);
+  if (!inflight.has(region)) {
+    inflight.set(region, loadTrendingFromDb(region).finally(() => inflight.delete(region)));
+  }
+  return inflight.get(region)!;
+}`,
+
+  whatsappSequence: `// Per-chat ordering with client ack
+type ChatMessage = { id: string; chatId: string; seq: number; ciphertext: Buffer };
+
+async function onClientAck(chatId: string, upToSeq: number) {
+  await db.messages.deleteQueued({ chatId, seq: { lte: upToSeq } });
+}
+// Server assigns monotonic seq per chat; client dedupes by message id`,
+
+  reservationLock: `// Atomic inventory — prevent double booking
+await prisma.$transaction(async (tx) => {
+  const slot = await tx.inventory.findUnique({
+    where: { listingId_date: { listingId, date } },
+  });
+  if (!slot || slot.available < 1) throw new Error("SOLD_OUT");
+  await tx.inventory.update({
+    where: { listingId_date: { listingId, date }, version: slot.version },
+    data: { available: { decrement: 1 }, version: { increment: 1 } },
+  });
+});`,
+
+  bookingSaga: `// Hold → pay → confirm with compensation
+async function bookingSaga(bookingId: string) {
+  const hold = await inventory.hold(bookingId);
+  try {
+    const charge = await stripe.charge({ idempotencyKey: bookingId });
+    await inventory.confirm(hold.id);
+    await kafka.publish("booking.confirmed", { bookingId, chargeId: charge.id });
+  } catch (err) {
+    await inventory.release(hold.id); // compensating action
+    throw err;
+  }
+}`,
+
+  votingBallot: `// One ballot per voter — idempotent submit
+async function castBallot(electionId: string, voterId: string, choiceId: string) {
+  return prisma.ballot.upsert({
+    where: { electionId_voterId: { electionId, voterId } },
+    create: { electionId, voterId, choiceId, castAt: new Date() },
+    update: {}, // no-op on retry — same result
+  });
+}`,
+
+  gameServerTick: `// Authoritative server simulation loop
+let tick = 0;
+const inputs: Input[] = [];
+
+function simLoop() {
+  const snapshot = applyPhysics(world, inputs.splice(0));
+  broadcastDelta(clients, diff(previous, snapshot));
+  previous = snapshot;
+  tick++;
+}
+setInterval(simLoop, 1000 / 60); // 60 Hz`,
+
+  matchmakingQueue: `// Regional matchmaking with skill bucket
+type Ticket = { playerId: string; mmr: number; region: string };
+
+function findMatch(queue: Ticket[]): Match | null {
+  const ready = queue.filter((t) => t.region === "eu-west");
+  if (ready.length < 10) return null;
+  const avg = ready.reduce((s, t) => s + t.mmr, 0) / ready.length;
+  const picked = ready.filter((t) => Math.abs(t.mmr - avg) < 200).slice(0, 10);
+  return { players: picked.map((t) => t.playerId), serverShard: "eu-west-3" };
+}`,
+
+  dailyPuzzleSubmit: `// One submission per user per puzzle day
+async function submitGuess(userId: string, puzzleDate: string, guess: string) {
+  const existing = await db.submissions.findUnique({
+    where: { userId_puzzleDate: { userId, puzzleDate } },
+  });
+  if (existing) return existing; // idempotent replay
+  const feedback = scoreGuess(puzzleDate, guess);
+  return db.submissions.create({ data: { userId, puzzleDate, guess, feedback } });
+}`,
+
+  puzzleBoardVersion: `// Reject stale concurrent moves
+async function applyMove(gameId: string, version: number, move: Move) {
+  const updated = await db.games.updateMany({
+    where: { id: gameId, version },
+    data: { board: applyRules(move), version: { increment: 1 } },
+  });
+  if (updated.count === 0) throw new Error("STALE_BOARD — refresh and retry");
+}`,
+
+  durableWorkflow: `// Temporal-style durable step (conceptual)
+async function onboardMerchant(merchantId: string) {
+  await activities.verifyIdentity(merchantId); // retried automatically
+  await activities.linkBankAccount(merchantId);
+  await sleep("7 days"); // durable timer — survives worker crash
+  await activities.enablePayouts(merchantId);
+}`,
+
+  collaborationPresence: `// Redis presence with TTL heartbeat
+async function heartbeat(docId: string, userId: string, cursor: Cursor) {
+  await redis.setex(\`presence:\${docId}:\${userId}\`, 30, JSON.stringify(cursor));
+  await redis.publish(\`doc:\${docId}\`, JSON.stringify({ type: "cursor", userId, cursor }));
+}`,
+
+  crdtUpdate: `// CRDT document sync (Yjs-style conceptual)
+import * as Y from "yjs";
+const doc = new Y.Doc();
+const text = doc.getText("content");
+text.insert(0, "Hello");
+const update = Y.encodeStateAsUpdate(doc);
+// Broadcast update to peers; merge is commutative — no central lock`,
+
+  multistepFormDraft: `// Autosave wizard draft across sessions
+async function saveDraft(userId: string, formVersion: number, step: number, data: Json) {
+  await db.formDrafts.upsert({
+    where: { userId_formVersion: { userId, formVersion } },
+    create: { userId, formVersion, step, data, updatedAt: new Date() },
+    update: { step, data, updatedAt: new Date() },
+  });
+}`,
+
+  formStepValidation: `// Validate only fields for current step
+const stepSchemas = {
+  1: z.object({ legalName: z.string().min(2), dob: z.string().date() }),
+  2: z.object({ ssn: z.string().regex(/^\\d{9}$/) }),
+  3: z.object({ income: z.number().positive() }),
+};
+
+function validateStep(step: number, payload: unknown) {
+  return stepSchemas[step as keyof typeof stepSchemas].parse(payload);
+}`,
 };

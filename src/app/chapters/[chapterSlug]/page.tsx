@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAllChapters, getChapter } from "@/lib/curriculum";
+import { formatChapterLabel, getAllChapters, getChapter } from "@/lib/curriculum";
 import { ComingSoon } from "@/components/ddia/coming-soon";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,9 +25,11 @@ export default async function ChapterPage({ params }: ChapterPageProps) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="space-y-2">
-        <Badge variant="secondary">Part {part.number}: {part.title}</Badge>
+        <Badge variant="secondary">
+          {part.track === "system-design" ? part.title : `Part ${part.number}: ${part.title}`}
+        </Badge>
         <h1 className="text-3xl font-bold tracking-tight">
-          Chapter {chapter.number}: {chapter.title}
+          {formatChapterLabel(chapter, part)}: {chapter.title}
         </h1>
         <p className="text-muted-foreground text-lg">{chapter.summary}</p>
       </div>

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getChapter, getPublishedSectionParams } from "@/lib/curriculum";
+import { formatChapterLabel, getChapter, getPublishedSectionParams } from "@/lib/curriculum";
 import { getAdjacentSections, getLesson } from "@/lib/lessons";
 import { LessonHeader } from "@/components/ddia/lesson-header";
 import { LessonBody } from "@/components/ddia/lesson-body";
@@ -30,7 +30,7 @@ export default async function SectionPage({ params }: SectionPageProps) {
       <LessonHeader
         partTitle={part.title}
         partSlug={part.id}
-        chapterNumber={chapter.number}
+        chapterLabel={formatChapterLabel(chapter, part)}
         chapterTitle={chapter.title}
         chapterSlug={chapter.id}
         sectionTitle={lesson.title}

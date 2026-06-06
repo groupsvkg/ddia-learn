@@ -482,6 +482,163 @@ function SystemCanvaDiagram() {
   );
 }
 
+function SystemYoutubeDiagram() {
+  return (
+    <svg viewBox="0 0 720 280" className="h-auto w-full" role="img" aria-label="YouTube video pipeline">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">YouTube — upload, transcode, CDN playback</text>
+      <SysBox x={40} y={50} w={90} h={40} label="Creator" sub="upload" />
+      <SysBox x={170} y={44} w={110} h={48} label="Upload API" sub="resumable" highlight />
+      <SysBox x={310} y={44} w={110} h={48} label="Object Store" sub="raw video" />
+      <SysBox x={450} y={44} w={110} h={48} label="Transcode" sub="job queue" highlight />
+      <SysBox x={590} y={44} w={100} h={48} label="Segments" sub="HLS/DASH" />
+      {[{ x: 130, t: 72 }, { x: 280, t: 68 }, { x: 420, t: 68 }, { x: 560, t: 68 }].map((a, i, arr) =>
+        i < arr.length - 1 ? (
+          <line key={a.x} x1={a.x + (i === 0 ? 60 : 110)} y1={a.t} x2={arr[i + 1].x} y2={arr[i + 1].t} stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+        ) : null,
+      )}
+      <SysBox x={80} y={150} w={100} h={40} label="Viewer" sub="player" />
+      <SysBox x={220} y={144} w={120} h={48} label="Metadata API" sub="cached" />
+      <SysBox x={380} y={144} w={120} h={48} label="CDN Edge" sub="segments" highlight />
+      <SysBox x={540} y={144} w={120} h={48} label="Origin" sub="object store" />
+      <line x1="180" y1="170" x2="220" y2="168" stroke="var(--primary)" strokeWidth="1.5" markerEnd="url(#arrow)" />
+      <line x1="340" y1="168" x2="380" y2="168" stroke="var(--primary)" strokeWidth="1.5" markerEnd="url(#arrow)" />
+      <line x1="500" y1="168" x2="540" y2="168" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" markerEnd="url(#arrow-muted)" />
+      <text x="360" y="230" textAnchor="middle" className="fill-muted-foreground text-xs">Write path: async transcode pipeline. Read path: manifest + CDN bytes.</text>
+      <text x="360" y="255" textAnchor="middle" className="fill-muted-foreground text-xs">View counts batched via stream processor — approximate OK</text>
+    </svg>
+  );
+}
+
+function SystemReservationDiagram() {
+  return (
+    <svg viewBox="0 0 720 260" className="h-auto w-full" role="img" aria-label="Reservation booking flow">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Reservation system — search, hold, pay, confirm</text>
+      <SysBox x={40} y={50} w={100} h={44} label="Guest" />
+      <SysBox x={180} y={50} w={110} h={44} label="Search" sub="Elasticsearch" />
+      <SysBox x={320} y={44} w={110} h={52} label="Hold Svc" sub="inventory lock" highlight />
+      <SysBox x={460} y={50} w={100} h={44} label="Stripe" sub="payment" />
+      <SysBox x={580} y={44} w={110} h={52} label="Confirm" sub="saga" highlight />
+      <line x1="140" y1="72" x2="180" y2="72" stroke="var(--muted-foreground)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
+      <line x1="290" y1="72" x2="320" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="430" y1="72" x2="460" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="560" y1="72" x2="580" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <SysBox x={200} y={150} w={130} h={48} label="PostgreSQL" sub="inventory OLTP" />
+      <SysBox x={380} y={150} w={110} h={48} label="Kafka" sub="events" />
+      <line x1="375" y1="96" x2="265" y2="150" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+      <line x1="635" y1="96" x2="435" y2="150" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+      <text x="360" y="220" textAnchor="middle" className="fill-muted-foreground text-xs">Payment failure → release hold (compensating transaction)</text>
+      <text x="360" y="245" textAnchor="middle" className="fill-muted-foreground text-xs">Search index updated async from booking events</text>
+    </svg>
+  );
+}
+
+function SystemVotingDiagram() {
+  return (
+    <svg viewBox="0 0 720 240" className="h-auto w-full" role="img" aria-label="Voting system architecture">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Voting — ballot log, tally, results</text>
+      <SysBox x={60} y={50} w={100} h={44} label="Voter" />
+      <SysBox x={200} y={44} w={120} h={52} label="Ballot API" sub="idempotent" highlight />
+      <SysBox x={360} y={50} w={110} h={44} label="Ballot Log" sub="append-only" />
+      <SysBox x={500} y={50} w={120} h={44} label="Aggregator" sub="stream" />
+      <SysBox x={600} y={130} w={100} h={44} label="Results" sub="cached" highlight />
+      <line x1="160" y1="72" x2="200" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="320" y1="72" x2="360" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="470" y1="72" x2="500" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="560" y1="94" x2="630" y2="130" stroke="var(--muted-foreground)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
+      <text x="360" y="200" textAnchor="middle" className="fill-muted-foreground text-xs">Unique (election_id, voter_id) prevents double voting</text>
+      <text x="360" y="225" textAnchor="middle" className="fill-muted-foreground text-xs">Audit trail immutable; tallies derived from log</text>
+    </svg>
+  );
+}
+
+function SystemMultiplayerDiagram() {
+  return (
+    <svg viewBox="0 0 720 260" className="h-auto w-full" role="img" aria-label="Multiplayer game architecture">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Multiplayer game — matchmaking and authoritative server</text>
+      {[{ x: 50, l: "Player A" }, { x: 570, l: "Player B" }].map((p) => (
+        <SysBox key={p.l} x={p.x} y={44} w={90} h={40} label={p.l} sub="UDP client" />
+      ))}
+      <SysBox x={260} y={100} w={140} h={52} label="Game Server" sub="60 Hz tick" highlight />
+      <SysBox x={280} y={44} w={120} h={44} label="Matchmaker" sub="skill + region" />
+      <line x1="360" y1="88" x2="330" y2="100" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="140" y1="84" x2="260" y2="120" stroke="var(--primary)" strokeWidth="1.5" markerEnd="url(#arrow)" />
+      <line x1="580" y1="84" x2="400" y2="120" stroke="var(--primary)" strokeWidth="1.5" markerEnd="url(#arrow)" />
+      <SysBox x={180} y={190} w={120} h={44} label="Agones/K8s" sub="pod per match" />
+      <SysBox x={420} y={190} w={120} h={44} label="Telemetry" sub="Kafka" />
+      <line x1="330" y1="152" x2="240" y2="190" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+      <line x1="370" y1="152" x2="480" y2="190" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+      <text x="360" y="248" textAnchor="middle" className="fill-muted-foreground text-xs">Server owns truth; clients predict locally then reconcile</text>
+    </svg>
+  );
+}
+
+function SystemPuzzleDiagram() {
+  return (
+    <svg viewBox="0 0 720 240" className="h-auto w-full" role="img" aria-label="Multiplayer puzzle game">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Puzzle game — move log and leaderboard</text>
+      <SysBox x={80} y={50} w={100} h={44} label="Players" sub="turn-based" />
+      <SysBox x={220} y={44} w={120} h={52} label="Game API" sub="validate moves" highlight />
+      <SysBox x={380} y={50} w={110} h={44} label="Move Log" sub="append" />
+      <SysBox x={530} y={50} w={120} h={44} label="Board State" sub="versioned" />
+      <line x1="180" y1="72" x2="220" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="340" y1="72" x2="380" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="490" y1="72" x2="530" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <SysBox x={260} y={150} w={120} h={48} label="Redis ZSET" sub="leaderboard" highlight />
+      <SysBox x={420} y={150} w={120} h={48} label="Scheduler" sub="turn timer" />
+      <line x1="430" y1="94" x2="320" y2="150" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+      <text x="360" y="220" textAnchor="middle" className="fill-muted-foreground text-xs">Stale move versions rejected; daily puzzle idempotent per user</text>
+    </svg>
+  );
+}
+
+function SystemMultistepWorkflowDiagram() {
+  return (
+    <svg viewBox="0 0 720 260" className="h-auto w-full" role="img" aria-label="Multistep workflow saga">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Multistep workflow — saga with compensation</text>
+      <SysBox x={60} y={60} w={100} h={44} label="Cart" />
+      <SysBox x={190} y={60} w={100} h={44} label="Hold" highlight />
+      <SysBox x={320} y={60} w={100} h={44} label="Charge" highlight />
+      <SysBox x={450} y={60} w={100} h={44} label="Ship" />
+      <SysBox x={580} y={60} w={100} h={44} label="Notify" />
+      {[{ x: 160 }, { x: 290 }, { x: 420 }, { x: 550 }].map((a) => (
+        <line key={a.x} x1={a.x} y1="82" x2={a.x + 30} y2="82" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      ))}
+      <SysBox x={260} y={160} w={200} h={48} label="Workflow Engine" sub="Temporal / Step Functions" highlight />
+      <line x1="370" y1="104" x2="360" y2="160" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+      <line x1="320" y1="160" x2="240" y2="104" stroke="hsl(0 72% 51%)" strokeWidth="1.5" strokeDasharray="5" markerEnd="url(#arrow-muted)" />
+      <text x="280" y="148" className="fill-muted-foreground text-xs">compensate</text>
+      <text x="360" y="230" textAnchor="middle" className="fill-muted-foreground text-xs">Charge fails → release hold. Each step idempotent with correlation ID.</text>
+    </svg>
+  );
+}
+
+function SystemMultistepFormDiagram() {
+  return (
+    <svg viewBox="0 0 720 250" className="h-auto w-full" role="img" aria-label="Multistep form architecture">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Multistep form — drafts, uploads, async verification</text>
+      <SysBox x={60} y={50} w={100} h={44} label="Applicant" sub="web/mobile" />
+      <SysBox x={200} y={44} w={120} h={52} label="Draft API" sub="autosave" highlight />
+      <SysBox x={360} y={50} w={110} h={44} label="Postgres" sub="draft JSON" />
+      <SysBox x={500} y={50} w={100} h={44} label="S3" sub="documents" />
+      <line x1="160" y1="72" x2="200" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="320" y1="72" x2="360" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="430" y1="72" x2="500" y2="72" stroke="var(--muted-foreground)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
+      <SysBox x={220} y={150} w={140} h={48} label="Verify Vendor" sub="async webhook" highlight />
+      <SysBox x={400} y={150} w={140} h={48} label="Submit" sub="idempotent" />
+      <line x1="430" y1="94" x2="290" y2="150" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+      <line x1="430" y1="94" x2="470" y2="150" stroke="var(--primary)" strokeWidth="1.2" markerEnd="url(#arrow)" />
+      <text x="360" y="220" textAnchor="middle" className="fill-muted-foreground text-xs">Resume later via magic link; step validators run server-side only</text>
+    </svg>
+  );
+}
+
 function SystemModernStackDiagram() {
   return (
     <svg viewBox="0 0 720 280" className="h-auto w-full" role="img" aria-label="Modern SaaS data stack">
@@ -520,6 +677,13 @@ const diagrams: Record<string, () => React.ReactNode> = {
   "system-meta-feed": SystemMetaFeedDiagram,
   "system-canva": SystemCanvaDiagram,
   "system-modern-stack": SystemModernStackDiagram,
+  "system-youtube": SystemYoutubeDiagram,
+  "system-reservation": SystemReservationDiagram,
+  "system-voting": SystemVotingDiagram,
+  "system-multiplayer": SystemMultiplayerDiagram,
+  "system-puzzle": SystemPuzzleDiagram,
+  "system-multistep-workflow": SystemMultistepWorkflowDiagram,
+  "system-multistep-form": SystemMultistepFormDiagram,
 };
 
 const SYSTEM_DIAGRAMS = new Set([
@@ -529,6 +693,13 @@ const SYSTEM_DIAGRAMS = new Set([
   "system-meta-feed",
   "system-canva",
   "system-modern-stack",
+  "system-youtube",
+  "system-reservation",
+  "system-voting",
+  "system-multiplayer",
+  "system-puzzle",
+  "system-multistep-workflow",
+  "system-multistep-form",
 ]);
 
 export function TechnicalDiagram({ diagramId, caption }: TechnicalDiagramProps) {

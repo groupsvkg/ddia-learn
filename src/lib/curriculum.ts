@@ -45,3 +45,13 @@ export function getPublishedSectionParams(): Array<{
     ),
   );
 }
+
+export function formatChapterLabel(
+  chapter: { number: number },
+  part: { track?: "ddia" | "system-design" },
+): string {
+  if (part.track === "system-design") {
+    return `Case ${chapter.number}`;
+  }
+  return `Ch. ${chapter.number}`;
+}

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { LessonSection } from "../src/types/content";
 import { rw, app, code, sys, TS } from "./lesson-snippets";
+import { systemDesignLessons } from "./system-design-lessons";
 
 const root = path.resolve(import.meta.dirname, "..");
 const lessonsDir = path.join(root, "content/lessons");
@@ -418,7 +419,7 @@ const newLessons: L[] = [
 const ch01 = loadCh01();
 const index: Record<string, LessonSection> = { ...ch01 };
 
-for (const lesson of newLessons) {
+for (const lesson of [...newLessons, ...systemDesignLessons]) {
   index[lesson.id] = { ...lesson, media: lesson.media ?? {} };
 }
 
