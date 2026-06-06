@@ -2416,7 +2416,40 @@
         "type": "mermaid",
         "source": "flowchart TB\n    Clients[\"Clients<br/>web + mobile\"]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    ES[(Elasticsearch)]\n    Kafka[[Kafka]]\n    SF[(Snowflake)]\n\n    subgraph syncPath [\"Synchronous request path\"]\n      direction LR\n      CDN[\"CDN + Reverse Proxy<br/>Cloudflare / nginx\"]\n      API[\"API Services<br/>Docker / K8s\"]\n      Clients -->|\"① HTTPS\"| CDN\n      CDN -->|\"② REST/gRPC\"| API\n      API -->|\"③ OLTP read/write\"| PG\n      API -->|\"④ cache hot keys\"| Redis\n      API -->|\"⑤ search query\"| ES\n    end\n\n    API -->|\"⑥ publish events\"| Kafka\n    Kafka -.->|\"⑦ ETL / CDC\"| SF\n    Kafka -.->|\"⑧ index sync\"| ES",
         "kind": "architecture",
-        "caption": "Synchronous path (top): numbered steps ①–⑤ from client through API to specialized stores. Async path (dashed): Kafka fans out CDC/ETL to warehouse and search index."
+        "caption": "Typical SaaS stack: synchronous request path through CDN and API to specialized stores; async path via Kafka for derived data."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Synchronous request path",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① HTTPS — Browser or mobile client hits the CDN / reverse proxy (TLS termination, DDoS shield).",
+          "② REST/gRPC — Proxy forwards API calls to stateless application pods behind the load balancer.",
+          "③ OLTP read/write — API reads and writes authoritative rows in PostgreSQL (orders, accounts, inventory).",
+          "④ Cache hot keys — Sessions, rate counters, and hot reads go through Redis with TTL.",
+          "⑤ Search query — Full-text and facet queries hit Elasticsearch, not a table scan on Postgres."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Async derived-data path (dashed arrows)",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "⑥ Publish events — After a successful commit, the API appends a domain event to Kafka (outbox pattern).",
+          "⑦ ETL / CDC — Stream consumers copy changes into Snowflake for analytics and BI dashboards.",
+          "⑧ Index sync — Search index updates from the same event log — never dual-write to ES and Postgres in one request."
+        ]
       },
       {
         "type": "code",
@@ -2551,7 +2584,43 @@
         "type": "mermaid",
         "source": "flowchart TB\n    Creator[\"Creator app\"]\n    Viewer[\"Viewer app\"]\n    S3[(\"Object Storage<br/>S3 / GCS\")]\n    MetaDB[(\"Metadata DB<br/>PostgreSQL\")]\n\n    subgraph writePath [\"Write path — upload and transcode\"]\n      direction LR\n      UploadAPI[\"Upload API<br/>resumable multipart\"]\n      Kafka[[Kafka<br/>video.uploaded]]\n      Transcoder[\"Transcoder fleet<br/>FFmpeg workers\"]\n      Creator -->|\"① upload chunks\"| UploadAPI\n      UploadAPI -->|\"② PUT raw video\"| S3\n      UploadAPI -->|\"③ INSERT status=PROCESSING\"| MetaDB\n      UploadAPI -->|\"④ publish event\"| Kafka\n      Kafka -->|\"⑤ transcode job\"| Transcoder\n      Transcoder -->|\"⑥ read raw / write HLS\"| S3\n      Transcoder -->|\"⑦ UPDATE status=READY\"| MetaDB\n    end\n\n    subgraph readPath [\"Read path — metadata and playback\"]\n      direction LR\n      MetaAPI[\"Metadata API<br/>Redis cache\"]\n      CDN[\"CDN Edge<br/>CloudFront / Akamai\"]\n      Viewer -->|\"① GET /videos/:id\"| MetaAPI\n      MetaAPI -->|\"② SELECT title, manifest URL\"| MetaDB\n      Viewer -->|\"③ GET .m3u8 + .ts segments\"| CDN\n      CDN -.->|\"cache miss → origin\"| S3\n    end",
         "kind": "architecture",
-        "caption": "Upload bandwidth and transcode queues dominate write path; CDN serves reads."
+        "caption": "YouTube splits write (upload + transcode) and read (metadata + CDN playback). Object Storage and Metadata DB are shared between both paths."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Write path — upload and transcode",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① Upload chunks — Creator sends resumable multipart uploads; API never buffers the full file in RAM.",
+          "② PUT raw video — Upload API streams bytes directly to Object Storage (S3/GCS).",
+          "③ INSERT status=PROCESSING — Metadata DB row created so creators see upload received, not yet playable.",
+          "④ Publish event — video.uploaded event to Kafka; upload HTTP response returns immediately.",
+          "⑤ Transcode job — FFmpeg worker consumes the event from the queue.",
+          "⑥ Read raw / write HLS — Worker reads original, writes adaptive bitrate segments back to Object Storage.",
+          "⑦ UPDATE status=READY — Metadata row updated; manifest URL becomes valid for viewers."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Read path — metadata and playback",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① GET /videos/:id — Viewer requests title, channel, and manifest URL from Metadata API.",
+          "② SELECT title, manifest URL — API reads Postgres; hot rows cached in Redis.",
+          "③ GET .m3u8 + .ts segments — Player fetches HLS manifest and video segments from CDN edge.",
+          "Cache miss → origin — CDN pulls segment from Object Storage on miss; viral content stays at the edge."
+        ]
       }
     ],
     "relatedConcepts": [
@@ -2644,12 +2713,6 @@
         "title": "YouTube at scale",
         "text": "A 2 GB upload cannot block a synchronous API thread. Resumable uploads land in object storage; a job queue fans out transcoding workers that write HLS/DASH segments back to the bucket.",
         "variant": "tip"
-      },
-      {
-        "type": "mermaid",
-        "source": "flowchart TB\n    Creator[\"Creator app\"]\n    Viewer[\"Viewer app\"]\n    S3[(\"Object Storage<br/>S3 / GCS\")]\n    MetaDB[(\"Metadata DB<br/>PostgreSQL\")]\n\n    subgraph writePath [\"Write path — upload and transcode\"]\n      direction LR\n      UploadAPI[\"Upload API<br/>resumable multipart\"]\n      Kafka[[Kafka<br/>video.uploaded]]\n      Transcoder[\"Transcoder fleet<br/>FFmpeg workers\"]\n      Creator -->|\"① upload chunks\"| UploadAPI\n      UploadAPI -->|\"② PUT raw video\"| S3\n      UploadAPI -->|\"③ INSERT status=PROCESSING\"| MetaDB\n      UploadAPI -->|\"④ publish event\"| Kafka\n      Kafka -->|\"⑤ transcode job\"| Transcoder\n      Transcoder -->|\"⑥ read raw / write HLS\"| S3\n      Transcoder -->|\"⑦ UPDATE status=READY\"| MetaDB\n    end\n\n    subgraph readPath [\"Read path — metadata and playback\"]\n      direction LR\n      MetaAPI[\"Metadata API<br/>Redis cache\"]\n      CDN[\"CDN Edge<br/>CloudFront / Akamai\"]\n      Viewer -->|\"① GET /videos/:id\"| MetaAPI\n      MetaAPI -->|\"② SELECT title, manifest URL\"| MetaDB\n      Viewer -->|\"③ GET .m3u8 + .ts segments\"| CDN\n      CDN -.->|\"cache miss → origin\"| S3\n    end",
-        "kind": "architecture",
-        "caption": "Two paths share Object Storage and Metadata DB. Write path (top): numbered steps ①–⑦ from multipart upload through Kafka transcode to READY status. Read path (bottom): metadata from API/DB, video segments from CDN with origin fallback on cache miss."
       },
       {
         "type": "mermaid",
@@ -2862,7 +2925,43 @@
         "type": "mermaid",
         "source": "flowchart TB\n    Creator[\"Creator app\"]\n    Viewer[\"Viewer app\"]\n    S3[(\"Object Storage<br/>S3 / GCS\")]\n    MetaDB[(\"Metadata DB<br/>PostgreSQL\")]\n\n    subgraph writePath [\"Write path — upload and transcode\"]\n      direction LR\n      UploadAPI[\"Upload API<br/>resumable multipart\"]\n      Kafka[[Kafka<br/>video.uploaded]]\n      Transcoder[\"Transcoder fleet<br/>FFmpeg workers\"]\n      Creator -->|\"① upload chunks\"| UploadAPI\n      UploadAPI -->|\"② PUT raw video\"| S3\n      UploadAPI -->|\"③ INSERT status=PROCESSING\"| MetaDB\n      UploadAPI -->|\"④ publish event\"| Kafka\n      Kafka -->|\"⑤ transcode job\"| Transcoder\n      Transcoder -->|\"⑥ read raw / write HLS\"| S3\n      Transcoder -->|\"⑦ UPDATE status=READY\"| MetaDB\n    end\n\n    subgraph readPath [\"Read path — metadata and playback\"]\n      direction LR\n      MetaAPI[\"Metadata API<br/>Redis cache\"]\n      CDN[\"CDN Edge<br/>CloudFront / Akamai\"]\n      Viewer -->|\"① GET /videos/:id\"| MetaAPI\n      MetaAPI -->|\"② SELECT title, manifest URL\"| MetaDB\n      Viewer -->|\"③ GET .m3u8 + .ts segments\"| CDN\n      CDN -.->|\"cache miss → origin\"| S3\n    end",
         "kind": "architecture",
-        "caption": "Write path fans out transcoding via Kafka; read path never touches raw uploads — viewers hit Metadata API for manifests and CDN for HLS segments."
+        "caption": "YouTube splits write (upload + transcode) and read (metadata + CDN playback). Object Storage and Metadata DB are shared between both paths."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Write path — upload and transcode",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① Upload chunks — Creator sends resumable multipart uploads; API never buffers the full file in RAM.",
+          "② PUT raw video — Upload API streams bytes directly to Object Storage (S3/GCS).",
+          "③ INSERT status=PROCESSING — Metadata DB row created so creators see upload received, not yet playable.",
+          "④ Publish event — video.uploaded event to Kafka; upload HTTP response returns immediately.",
+          "⑤ Transcode job — FFmpeg worker consumes the event from the queue.",
+          "⑥ Read raw / write HLS — Worker reads original, writes adaptive bitrate segments back to Object Storage.",
+          "⑦ UPDATE status=READY — Metadata row updated; manifest URL becomes valid for viewers."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Read path — metadata and playback",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① GET /videos/:id — Viewer requests title, channel, and manifest URL from Metadata API.",
+          "② SELECT title, manifest URL — API reads Postgres; hot rows cached in Redis.",
+          "③ GET .m3u8 + .ts segments — Player fetches HLS manifest and video segments from CDN edge.",
+          "Cache miss → origin — CDN pulls segment from Object Storage on miss; viral content stays at the edge."
+        ]
       },
       {
         "type": "mermaid",
@@ -2946,12 +3045,6 @@
       {
         "type": "paragraph",
         "text": "Chat apps are connection-heavy. A user with one WebSocket can receive thousands of messages per day; the hard part is routing each message to the right connection set with minimal latency."
-      },
-      {
-        "type": "mermaid",
-        "source": "flowchart TB\n    Sender[\"Sender app\"]\n    Receiver[\"Receiver app\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Redis[(\"Redis<br/>presence + typing\")]\n\n    subgraph sendPath [\"Send path — persist message\"]\n      direction LR\n      Server[\"Chat Server<br/>Erlang/BEAM\"]\n      Sender -->|\"① WebSocket SEND\"| Server\n      Server -->|\"② append seq=N\"| Store\n      Server -->|\"③ update presence\"| Redis\n    end\n\n    subgraph deliverPath [\"Delivery path — online or offline\"]\n      direction LR\n      Push[\"Push Gateway<br/>APNs / FCM\"]\n      Server -->|\"④a online: WebSocket PUSH\"| Receiver\n      Server -.->|\"④b offline: notify\"| Push\n      Push -.->|\"⑤ push alert\"| Receiver\n      Receiver -->|\"⑥ ACK seq\"| Server\n    end",
-        "kind": "architecture",
-        "caption": "Send path (top): persist ciphertext with per-chat sequence numbers. Delivery path (bottom): WebSocket PUSH when online; APNs/FCM alert when offline — same store, two routes."
       },
       {
         "type": "mermaid",
@@ -3161,7 +3254,39 @@
         "type": "mermaid",
         "source": "flowchart TB\n    Sender[\"Sender app\"]\n    Receiver[\"Receiver app\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Redis[(\"Redis<br/>presence + typing\")]\n\n    subgraph sendPath [\"Send path — persist message\"]\n      direction LR\n      Server[\"Chat Server<br/>Erlang/BEAM\"]\n      Sender -->|\"① WebSocket SEND\"| Server\n      Server -->|\"② append seq=N\"| Store\n      Server -->|\"③ update presence\"| Redis\n    end\n\n    subgraph deliverPath [\"Delivery path — online or offline\"]\n      direction LR\n      Push[\"Push Gateway<br/>APNs / FCM\"]\n      Server -->|\"④a online: WebSocket PUSH\"| Receiver\n      Server -.->|\"④b offline: notify\"| Push\n      Push -.->|\"⑤ push alert\"| Receiver\n      Receiver -->|\"⑥ ACK seq\"| Server\n    end",
         "kind": "architecture",
-        "caption": "Receiver ACKs trim the durable queue. Large groups may switch from push fan-out (④a) to pull-on-open — the send path stays one write."
+        "caption": "WhatsApp persists every message once, then delivers online via WebSocket or offline via push — same store, two routes."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Send path — persist message",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① WebSocket SEND — Sender posts ciphertext over an open connection; payload stays small (no JSON bloat).",
+          "② Append seq=N — Chat server assigns a monotonic sequence number and appends to the replicated message store.",
+          "③ Update presence — Sender marked online in Redis with TTL; typing indicators use the same channel."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Delivery path — online or offline",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "④a Online: WebSocket PUSH — If receiver is connected, server pushes the message on their socket immediately.",
+          "④b Offline: notify — If receiver is disconnected, server triggers APNs/FCM instead of holding sockets open.",
+          "⑤ Push alert — Mobile OS shows notification; message ciphertext waits in the durable store.",
+          "⑥ ACK seq — Receiver acknowledges; server trims delivered messages from the hot queue."
+        ]
       }
     ],
     "relatedConcepts": [
@@ -3198,12 +3323,6 @@
         "title": "Airbnb at scale",
         "text": "Guests search Elasticsearch-backed listings but commit bookings through a transactional core that decrements night-level inventory in PostgreSQL with row-level locks or serializable isolation.",
         "variant": "tip"
-      },
-      {
-        "type": "mermaid",
-        "source": "flowchart TB\n    Guest[\"Guest app\"]\n    Inv[(\"Inventory DB<br/>PostgreSQL\")]\n    ES[(\"Elasticsearch<br/>listings index\")]\n    Redis[(\"Redis<br/>hot listing cache\")]\n\n    subgraph readPath [\"Read path — search and browse\"]\n      direction LR\n      SearchAPI[\"Search API\"]\n      Guest -->|\"① browse / filter\"| SearchAPI\n      SearchAPI -->|\"② query index\"| ES\n      SearchAPI -.->|\"③ cache hit\"| Redis\n      Guest -->|\"④ GET listing detail\"| SearchAPI\n    end\n\n    subgraph writePath [\"Write path — hold, pay, confirm\"]\n      direction LR\n      BookAPI[\"Booking API\"]\n      Stripe[\"Stripe\"]\n      Kafka[[Kafka]]\n      Guest -->|\"⑤ POST /hold\"| BookAPI\n      BookAPI -->|\"⑥ lock slot\"| Inv\n      Guest -->|\"⑦ POST /confirm\"| BookAPI\n      BookAPI -->|\"⑧ charge card\"| Stripe\n      BookAPI -->|\"⑨ confirm → COMMIT\"| Inv\n      BookAPI -->|\"⑩ booking.confirmed\"| Kafka\n      Kafka -.->|\"⑪ async index update\"| ES\n    end",
-        "kind": "architecture",
-        "caption": "Read path (top): fuzzy search via Elasticsearch — never scans inventory rows. Write path (bottom): holds and confirms go through PostgreSQL with ACID guarantees."
       },
       {
         "type": "heading",
@@ -3429,7 +3548,43 @@
         "type": "mermaid",
         "source": "flowchart TB\n    Guest[\"Guest app\"]\n    Inv[(\"Inventory DB<br/>PostgreSQL\")]\n    ES[(\"Elasticsearch<br/>listings index\")]\n    Redis[(\"Redis<br/>hot listing cache\")]\n\n    subgraph readPath [\"Read path — search and browse\"]\n      direction LR\n      SearchAPI[\"Search API\"]\n      Guest -->|\"① browse / filter\"| SearchAPI\n      SearchAPI -->|\"② query index\"| ES\n      SearchAPI -.->|\"③ cache hit\"| Redis\n      Guest -->|\"④ GET listing detail\"| SearchAPI\n    end\n\n    subgraph writePath [\"Write path — hold, pay, confirm\"]\n      direction LR\n      BookAPI[\"Booking API\"]\n      Stripe[\"Stripe\"]\n      Kafka[[Kafka]]\n      Guest -->|\"⑤ POST /hold\"| BookAPI\n      BookAPI -->|\"⑥ lock slot\"| Inv\n      Guest -->|\"⑦ POST /confirm\"| BookAPI\n      BookAPI -->|\"⑧ charge card\"| Stripe\n      BookAPI -->|\"⑨ confirm → COMMIT\"| Inv\n      BookAPI -->|\"⑩ booking.confirmed\"| Kafka\n      Kafka -.->|\"⑪ async index update\"| ES\n    end",
         "kind": "architecture",
-        "caption": "Kafka (⑩–⑪) updates the search index after commit — derived data, not dual-write. Payment failure triggers compensation before the guest sees an error."
+        "caption": "Reservations split fuzzy search (Elasticsearch) from exact booking (PostgreSQL + Stripe). Kafka updates the index after commit."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Read path — search and browse",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① Browse / filter — Guest runs date, price, and location filters against the Search API.",
+          "② Query index — Search API queries Elasticsearch inverted index — never scans inventory rows.",
+          "③ Cache hit — Hot listing cards served from Redis when the same queries repeat.",
+          "④ GET listing detail — Guest opens a listing page; photos and description from search index or cache."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Write path — hold, pay, confirm",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "⑤ POST /hold — Guest reserves a slot; Booking API starts a short transaction.",
+          "⑥ Lock slot — Inventory row locked in PostgreSQL (SELECT FOR UPDATE or serializable isolation).",
+          "⑦ POST /confirm — Guest submits payment with Idempotency-Key to prevent double charge on retry.",
+          "⑧ Charge card — Booking API calls Stripe; payment success required before confirm.",
+          "⑨ Confirm → COMMIT — Hold converted to sale in one atomic transaction.",
+          "⑩ booking.confirmed — Event published to Kafka after commit (outbox pattern).",
+          "⑪ Async index update — Consumer updates Elasticsearch availability — derived data, not dual-write."
+        ]
       },
       {
         "type": "mermaid",
@@ -3612,7 +3767,37 @@
         "type": "mermaid",
         "source": "flowchart TB\n    Voter[\"Voter app\"]\n    Log[(\"Ballot Log<br/>append-only\")]\n    Results[(\"Results Cache<br/>Redis\")]\n    Agg[\"Stream Aggregator\"]\n\n    subgraph writePath [\"Write path — cast ballot (append-only)\"]\n      direction LR\n      API[\"Ballot API<br/>idempotent\"]\n      Voter -->|\"① POST + Idempotency-Key\"| API\n      API -->|\"② INSERT ballot\"| Log\n      API -->|\"③ ballot.cast event\"| Agg\n    end\n\n    subgraph readPath [\"Read path — live totals (never COUNT on log)\"]\n      direction LR\n      Agg -->|\"④ INCR choice_count\"| Results\n      Voter -->|\"⑤ GET /results\"| Results\n    end",
         "kind": "architecture",
-        "caption": "Write path (top): append-only INSERT with idempotency — ballots are never updated. Read path (bottom): live totals from Redis cache, updated by stream aggregator — never COUNT(*) on the log."
+        "caption": "Votes are append-only writes; live totals are pre-aggregated in Redis — never COUNT(*) on the ballot table at read time."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Write path — cast ballot",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① POST + Idempotency-Key — Voter submits once; retries return the same ballot ID, not a duplicate vote.",
+          "② INSERT ballot — Append-only row in ballot log; ballots are never UPDATEd in place.",
+          "③ ballot.cast event — Stream aggregator notified asynchronously to update live totals."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Read path — live totals",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "④ INCR choice_count — Aggregator increments precomputed counts in Redis on each ballot event.",
+          "⑤ GET /results — Results page reads materialized totals from cache — O(1) per choice, not a table scan."
+        ]
       },
       {
         "type": "mermaid",
@@ -3831,7 +4016,38 @@
         "type": "mermaid",
         "source": "flowchart TB\n    PA[\"Player A\"]\n    PB[\"Player B\"]\n    Redis[(\"Redis<br/>match queue\")]\n    Kafka[[Kafka<br/>telemetry]]\n\n    subgraph controlPlane [\"Control plane — matchmaking\"]\n      direction LR\n      MM[\"Matchmaker\"]\n      K8s[\"Agones / K8s\"]\n      PA -->|\"① enqueue ticket\"| MM\n      PB -->|\"① enqueue ticket\"| MM\n      MM -->|\"② skill + region bucket\"| Redis\n      MM -->|\"③ allocate pod\"| K8s\n      MM -->|\"④ return host:port\"| PA\n      MM -->|\"④ return host:port\"| PB\n    end\n\n    subgraph dataPlane [\"Data plane — live match (UDP, in-memory)\"]\n      direction LR\n      GS[\"Game Server<br/>60 Hz tick\"]\n      K8s --> GS\n      PA <-->|\"⑤ input / state delta\"| GS\n      PB <-->|\"⑤ input / state delta\"| GS\n      GS -.->|\"⑥ fire-and-forget events\"| Kafka\n    end",
         "kind": "architecture",
-        "caption": "Control plane (top): matchmaking allocates pods via Agones/K8s. Data plane (bottom): live UDP ticks run in-memory — Postgres only sees post-match stats, not every frame."
+        "caption": "Matchmaking is the control plane (HTTP/Redis/K8s); live gameplay is the data plane (UDP, in-memory, no Postgres per tick)."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Control plane — matchmaking",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① Enqueue ticket — Each player submits skill rating and region preference to the matchmaker.",
+          "② Skill + region bucket — Matchmaker groups compatible players in Redis sorted sets.",
+          "③ Allocate pod — Agones/Kubernetes spins up or assigns a dedicated game server pod.",
+          "④ Return host:port — Players receive UDP endpoint; RTT kept low by regional placement."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Data plane — live match",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "⑤ Input / state delta — Clients send inputs at 20–128 Hz; server broadcasts compressed state deltas.",
+          "⑥ Fire-and-forget events — Telemetry (kills, crashes) streams to Kafka without blocking the tick loop."
+        ]
       },
       {
         "type": "mermaid",
@@ -4145,7 +4361,38 @@
         "type": "mermaid",
         "source": "flowchart TB\n    Player[\"Player app\"]\n    API[\"Game API<br/>validate rules\"]\n    Board[(\"Board DB<br/>versioned\")]\n    Log[(\"Move Log<br/>event sourced\")]\n    Redis[(\"Redis ZSET<br/>leaderboard\")]\n\n    subgraph playPath [\"Play path — validate and persist move\"]\n      direction LR\n      Player -->|\"① POST /move\"| API\n      API -->|\"② UPDATE WHERE version=N\"| Board\n      API -->|\"③ append move event\"| Log\n    end\n\n    subgraph scorePath [\"Score path — leaderboard and timers\"]\n      direction LR\n      Timer[\"Scheduler<br/>forfeit on timeout\"]\n      API -->|\"④ ZADD score\"| Redis\n      Timer -.->|\"⑤ trigger forfeit\"| API\n      Player -.->|\"⑥ GET top-100\"| Redis\n    end",
         "kind": "architecture",
-        "caption": "Play path (top): optimistic locking on board version before appending to move log. Score path (bottom): Redis ZSET for O(log N) leaderboard queries — no SQL ORDER BY on millions of rows."
+        "caption": "Puzzle games validate moves against versioned board state, append to a move log, and rank players in Redis — not SQL ORDER BY."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Play path — validate and persist",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① POST /move — Player submits a move; server is authoritative, not the client.",
+          "② UPDATE WHERE version=N — Optimistic lock on board row; stale version rejected with 409 Conflict.",
+          "③ Append move event — Immutable move log supports replay, spectators, and audit."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Score path — leaderboard and timers",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "④ ZADD score — Redis sorted set updated on valid move; top-100 is O(log N + 100).",
+          "⑤ Trigger forfeit — Scheduler fires when turn timer expires; API applies forfeit rule.",
+          "⑥ GET top-100 — Leaderboard reads from Redis, not a full table scan in Postgres."
+        ]
       },
       {
         "type": "mermaid",
@@ -4377,7 +4624,39 @@
         "type": "mermaid",
         "source": "flowchart TB\n    Client[\"Client\"]\n    Inv[\"Inventory svc\"]\n    Pay[\"Payments<br/>Stripe\"]\n    Ship[\"Shipping svc\"]\n\n    subgraph forwardPath [\"Forward saga — happy path\"]\n      direction LR\n      Orch[\"Orchestrator<br/>Temporal\"]\n      Client -->|\"① start checkout\"| Orch\n      Orch -->|\"② reserve stock\"| Inv\n      Orch -->|\"③ capture payment\"| Pay\n      Orch -->|\"④ create shipment\"| Ship\n      Orch -->|\"⑤ order complete\"| Client\n    end\n\n    Pay -.->|\"FAILED\"| Orch\n    Orch -.->|\"⑥ compensate: release hold\"| Inv",
         "kind": "architecture",
-        "caption": "Forward saga (top): numbered steps ①–⑤ across inventory, payments, and shipping. Dashed arrows: payment failure triggers step ⑥ — release inventory hold before returning error."
+        "caption": "Checkout saga: orchestrator calls each service in order; payment failure triggers compensating inventory release."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Forward saga — happy path",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① Start checkout — Client kicks off a durable workflow with a correlation ID.",
+          "② Reserve stock — Orchestrator calls inventory service; hold ID returned and persisted in workflow history.",
+          "③ Capture payment — Payments service charges card; idempotent on retry with same key.",
+          "④ Create shipment — Shipping service creates label only after payment succeeds.",
+          "⑤ Order complete — Client notified; workflow marked succeeded in orchestrator history."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Compensation — payment failure",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "FAILED — Stripe returns card_declined; orchestrator branches to compensate, not retry forever.",
+          "⑥ Compensate: release hold — Inventory hold released before error returned to client — no orphaned locks."
+        ]
       },
       {
         "type": "mermaid",
@@ -4510,12 +4789,6 @@
         "title": "In practice",
         "text": "Stripe Checkout is a hosted multistep UI over PaymentIntents sagas. Airbnb host onboarding chains identity, payout, and listing steps with manual gates. Banks use Camunda or custom mainframes with the same state-machine thinking.",
         "variant": "info"
-      },
-      {
-        "type": "mermaid",
-        "source": "flowchart TB\n    Client[\"Client\"]\n    Inv[\"Inventory svc\"]\n    Pay[\"Payments<br/>Stripe\"]\n    Ship[\"Shipping svc\"]\n\n    subgraph forwardPath [\"Forward saga — happy path\"]\n      direction LR\n      Orch[\"Orchestrator<br/>Temporal\"]\n      Client -->|\"① start checkout\"| Orch\n      Orch -->|\"② reserve stock\"| Inv\n      Orch -->|\"③ capture payment\"| Pay\n      Orch -->|\"④ create shipment\"| Ship\n      Orch -->|\"⑤ order complete\"| Client\n    end\n\n    Pay -.->|\"FAILED\"| Orch\n    Orch -.->|\"⑥ compensate: release hold\"| Inv",
-        "kind": "architecture",
-        "caption": "Each saga step is an idempotent HTTP call with durable history — the orchestrator replays from disk on worker crash, not from in-memory state."
       }
     ],
     "relatedConcepts": [
@@ -4713,12 +4986,6 @@
     "body": [
       {
         "type": "mermaid",
-        "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    PG[(\"PostgreSQL<br/>metadata + ACL\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n\n    subgraph realtimePath [\"Real-time path — live editing\"]\n      direction LR\n      UA <-->|\"① send/receive ops\"| WS\n      UB <-->|\"② send/receive ops\"| WS\n      WS -->|\"③ heartbeat + cursors\"| Redis\n    end\n\n    WS -->|\"④ persist ops + snapshots\"| PG\n    WS -->|\"⑤ asset metadata\"| S3\n    UA -.->|\"⑥ signed URL upload\"| S3",
-        "kind": "architecture",
-        "caption": "Real-time path (top): WebSocket ops broadcast between editors; presence in Redis. Persistence (arrows below): ops snapshotted to Postgres; large assets bypass the collab server via signed S3 upload."
-      },
-      {
-        "type": "mermaid",
         "source": "sequenceDiagram\n    participant A as User A\n    participant WS as Collab Server\n    participant B as User B\n    participant DB as Postgres\n    A->>WS: WS connect + auth\n    B->>WS: WS connect + auth\n    A->>WS: OP insert('hello')\n    WS->>DB: persist op\n    WS->>B: BROADCAST op\n    B->>WS: ACK\n    B->>WS: OP cursor move\n    WS->>A: presence update",
         "kind": "sequence",
         "caption": "Edit operation broadcast and optional persistence to Postgres."
@@ -4763,7 +5030,38 @@
         "type": "mermaid",
         "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    PG[(\"PostgreSQL<br/>metadata + ACL\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n\n    subgraph realtimePath [\"Real-time path — live editing\"]\n      direction LR\n      UA <-->|\"① send/receive ops\"| WS\n      UB <-->|\"② send/receive ops\"| WS\n      WS -->|\"③ heartbeat + cursors\"| Redis\n    end\n\n    WS -->|\"④ persist ops + snapshots\"| PG\n    WS -->|\"⑤ asset metadata\"| S3\n    UA -.->|\"⑥ signed URL upload\"| S3",
         "kind": "architecture",
-        "caption": "Sticky routing by document ID keeps OT ordering on one collab server. Op log compaction prevents unbounded Postgres growth — snapshot every few minutes."
+        "caption": "Collaboration: real-time ops through WebSocket; durable state in Postgres and S3; large files bypass the collab server."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Real-time path — live editing",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① Send/receive ops — User A's edits flow over WebSocket to the collab server (OT or CRDT ordering).",
+          "② Send/receive ops — Server broadcasts transformed ops to User B and other connected editors.",
+          "③ Heartbeat + cursors — Presence (who is online, cursor position) stored in Redis with TTL."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Persistence path — durable state",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "④ Persist ops + snapshots — Collab server batches operations into Postgres; periodic snapshots bound replay time.",
+          "⑤ Asset metadata — File pointers and ACL metadata in Postgres; blobs are not inlined in rows.",
+          "⑥ Signed URL upload — Large images upload direct-to-S3; collab server never proxies multi-MB files."
+        ]
       },
       {
         "type": "callout",
@@ -5017,7 +5315,39 @@
         "type": "mermaid",
         "source": "flowchart TB\n    User[\"Applicant\"]\n    API[\"Draft API\"]\n    PG[(\"Postgres<br/>draft JSON\")]\n    S3[(\"S3<br/>documents\")]\n\n    subgraph syncPath [\"Synchronous path — autosave while editing\"]\n      direction LR\n      User -->|\"① PATCH /draft every 30s\"| API\n      API -->|\"② UPSERT JSON\"| PG\n      User -->|\"③ PUT via signed URL\"| S3\n    end\n\n    subgraph asyncPath [\"Async path — submit and verify\"]\n      direction LR\n      Vendor[\"Verify API<br/>KYC / credit\"]\n      User -->|\"④ POST /submit\"| API\n      API -->|\"⑤ start verification\"| Vendor\n      Vendor -.->|\"⑥ webhook result\"| API\n      API -->|\"⑦ status = APPROVED\"| PG\n    end",
         "kind": "architecture",
-        "caption": "Sync path (top): autosave PATCH dominates traffic — debounce to reduce writes. Async path (bottom): submit triggers vendor verification via webhook — user waits hours, not milliseconds."
+        "caption": "Long forms: autosave dominates the sync path; vendor verification runs async over webhooks after submit."
+      },
+      {
+        "type": "heading",
+        "text": "Step-by-step walkthrough",
+        "level": 2
+      },
+      {
+        "type": "heading",
+        "text": "Synchronous path — autosave while editing",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "① PATCH /draft every 30s — Client debounced autosave; dominates write QPS vs final submit.",
+          "② UPSERT JSON — Draft API persists partial answers in Postgres keyed by user + form version.",
+          "③ PUT via signed URL — Large documents (PDF, scans) upload direct-to-S3; draft stores pointer only."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Async path — submit and verify",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "④ POST /submit — Idempotent final submit; draft status moves to PENDING_VERIFICATION.",
+          "⑤ Start verification — API calls external KYC/credit vendor; HTTP returns 202 immediately.",
+          "⑥ Webhook result — Vendor calls back hours later with pass/fail; no long-polling from browser.",
+          "⑦ status = APPROVED — Draft row updated; user notified via email or in-app poll."
+        ]
       },
       {
         "type": "mermaid",
