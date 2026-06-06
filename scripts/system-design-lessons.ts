@@ -162,7 +162,10 @@ export const systemDesignLessons: L[] = [
       },
       rw("YouTube stores originals in durable object storage (GCS-style), serves via Google's CDN, and keeps metadata in sharded databases. Creators see processing state; viewers see p95 startup time under a few seconds on good networks."),
       app("YouTube", "A 2 GB upload cannot block a synchronous API thread. Resumable uploads land in object storage; a job queue fans out transcoding workers that write HLS/DASH segments back to the bucket."),
-      sys("system-youtube", "Components and protocols: multipart upload, Kafka transcode jobs, CDN segment delivery."),
+      sys(
+        "system-youtube",
+        "Two paths share Object Storage and Metadata DB. Write path (top): numbered steps ①–⑦ from multipart upload through Kafka transcode to READY status. Read path (bottom): metadata from API/DB, video segments from CDN with origin fallback on cache miss.",
+      ),
       seq("seq-youtube-upload", "Time-ordered upload flow from creator through object storage to async transcoding."),
       ...youtubeStack(),
     ],
@@ -202,7 +205,10 @@ export const systemDesignLessons: L[] = [
         ],
       },
       code("Upload job enqueue", TS.youtubeUploadPipeline),
-      sys("system-youtube", "Upload → transcode queue → segmented storage → CDN playback."),
+      sys(
+        "system-youtube",
+        "Write path fans out transcoding via Kafka; read path never touches raw uploads — viewers hit Metadata API for manifests and CDN for HLS segments.",
+      ),
       seq("seq-youtube-playback", "Viewer fetches metadata, then manifest and segments from CDN with origin fallback."),
     ],
     ["HLS", "transcoding", "object storage", "Kafka", "manifest", "CDN"],

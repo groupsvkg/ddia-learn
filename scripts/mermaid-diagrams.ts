@@ -19,27 +19,33 @@ export const MERMAID_ARCH: Record<string, string> = {
     Kafka -.->|ETL| SF`,
 
   "system-youtube": `flowchart TB
-    subgraph write ["Write path"]
-      Creator[Creator]
-      UploadAPI["Upload API<br/>resumable"]
-      S3Raw[("Object Store<br/>raw video")]
-      Kafka[[Kafka]]
-      Transcoder["Transcoder<br/>workers"]
-      S3HLS[("Object Store<br/>HLS segments")]
-      Creator -->|multipart| UploadAPI
-      UploadAPI -->|PUT| S3Raw
-      UploadAPI -->|event| Kafka
-      Kafka --> Transcoder
-      Transcoder -->|segments| S3HLS
+    Creator["Creator app"]
+    Viewer["Viewer app"]
+    S3[("Object Storage<br/>S3 / GCS")]
+    MetaDB[("Metadata DB<br/>PostgreSQL")]
+
+    subgraph writePath ["Write path — upload and transcode"]
+      direction LR
+      UploadAPI["Upload API<br/>resumable multipart"]
+      Kafka[[Kafka<br/>video.uploaded]]
+      Transcoder["Transcoder fleet<br/>FFmpeg workers"]
+      Creator -->|"① upload chunks"| UploadAPI
+      UploadAPI -->|"② PUT raw video"| S3
+      UploadAPI -->|"③ INSERT status=PROCESSING"| MetaDB
+      UploadAPI -->|"④ publish event"| Kafka
+      Kafka -->|"⑤ transcode job"| Transcoder
+      Transcoder -->|"⑥ read raw / write HLS"| S3
+      Transcoder -->|"⑦ UPDATE status=READY"| MetaDB
     end
-    subgraph read ["Read path"]
-      Viewer[Viewer]
-      MetaAPI["Metadata API<br/>REST"]
-      CDN["CDN Edge"]
-      Origin[("Origin / S3")]
-      Viewer -->|GET /videos| MetaAPI
-      Viewer -->|m3u8 + .ts| CDN
-      CDN -.->|cache miss| Origin
+
+    subgraph readPath ["Read path — metadata and playback"]
+      direction LR
+      MetaAPI["Metadata API<br/>Redis cache"]
+      CDN["CDN Edge<br/>CloudFront / Akamai"]
+      Viewer -->|"① GET /videos/:id"| MetaAPI
+      MetaAPI -->|"② SELECT title, manifest URL"| MetaDB
+      Viewer -->|"③ GET .m3u8 + .ts segments"| CDN
+      CDN -.->|"cache miss → origin"| S3
     end`,
 
   "system-whatsapp": `flowchart LR

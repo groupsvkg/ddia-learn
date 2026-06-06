@@ -27,7 +27,14 @@ function ensureMermaid() {
     theme: "neutral",
     securityLevel: "loose",
     fontFamily: "inherit",
-    flowchart: { curve: "basis", htmlLabels: true },
+    flowchart: {
+      curve: "basis",
+      htmlLabels: true,
+      nodeSpacing: 50,
+      rankSpacing: 60,
+      padding: 16,
+      useMaxWidth: true,
+    },
     sequence: { mirrorActors: true, useMaxWidth: true },
   });
   mermaidReady = true;
