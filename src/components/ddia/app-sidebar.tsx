@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, ChevronRight } from "lucide-react";
@@ -30,6 +31,27 @@ type AppSidebarProps = {
 
 export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: AppSidebarProps) {
   const pathname = usePathname();
+  const [openChapters, setOpenChapters] = useState<string[]>([
+    "ch01-reliable-scalable-maintainable",
+  ]);
+
+  useEffect(() => {
+    const activeChapter = curriculum.parts
+      .flatMap((part) => part.chapters)
+      .find((chapter) => pathname.startsWith(`/chapters/${chapter.id}`));
+
+    if (!activeChapter) return;
+
+    setOpenChapters((prev) =>
+      prev.includes(activeChapter.id) ? prev : [...prev, activeChapter.id],
+    );
+  }, [pathname, curriculum.parts]);
+
+  const setChapterOpen = (chapterId: string, open: boolean) => {
+    setOpenChapters((prev) =>
+      open ? (prev.includes(chapterId) ? prev : [...prev, chapterId]) : prev.filter((id) => id !== chapterId),
+    );
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -68,9 +90,8 @@ export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: A
 
                     {/* Expanded sidebar: full tree */}
                     <Collapsible
-                      defaultOpen={
-                        pathname.startsWith(`/chapters/${chapter.id}`) || chapter.number === 1
-                      }
+                      open={openChapters.includes(chapter.id)}
+                      onOpenChange={(open) => setChapterOpen(chapter.id, open)}
                       className="group/collapsible group-data-[collapsible=icon]:hidden"
                     >
                       <div className="flex min-w-0 items-center gap-0.5">
