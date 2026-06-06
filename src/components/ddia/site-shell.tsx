@@ -24,16 +24,18 @@ export function SiteShell({ curriculum, children }: SiteShellProps) {
         onSidebarWidthChange={setSidebarWidth}
       />
       <SidebarInset>
-        <header className="flex h-14 items-center gap-2 border-b px-4">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
           <span className="text-muted-foreground hidden text-xs lg:inline">Toggle sidebar</span>
           <Separator orientation="vertical" className="mx-1 h-4" />
           <span className="text-muted-foreground text-sm">Designing Data-Intensive Applications</span>
         </header>
-        <main className="flex-1 p-4 md:p-8">{children}</main>
-        <footer className="text-muted-foreground border-t px-4 py-6 text-center text-xs">
-          Inspired by DDIA by Martin Kleppmann. Independent study companion — not affiliated with O&apos;Reilly.
-        </footer>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+          <main className="p-4 md:p-8">{children}</main>
+          <footer className="text-muted-foreground border-t px-4 py-6 text-center text-xs">
+            Inspired by DDIA by Martin Kleppmann. Independent study companion — not affiliated with O&apos;Reilly.
+          </footer>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

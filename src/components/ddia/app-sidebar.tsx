@@ -67,6 +67,27 @@ export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: A
     );
   };
 
+  useEffect(() => {
+    const container = document.querySelector<HTMLElement>('[data-slot="sidebar-container"]');
+    if (!container) return;
+
+    const onWheel = (event: WheelEvent) => {
+      const content = container.querySelector<HTMLElement>('[data-slot="sidebar-content"]');
+      if (!content) return;
+
+      const maxScroll = content.scrollHeight - content.clientHeight;
+      const nextScroll = Math.min(maxScroll, Math.max(0, content.scrollTop + event.deltaY));
+      if (nextScroll !== content.scrollTop) {
+        content.scrollTop = nextScroll;
+      }
+
+      event.preventDefault();
+    };
+
+    container.addEventListener("wheel", onWheel, { passive: false });
+    return () => container.removeEventListener("wheel", onWheel);
+  }, []);
+
   return (
     <Sidebar collapsible="icon">
       <SidebarResizeHandle width={sidebarWidth} onWidthChange={onSidebarWidthChange} />
