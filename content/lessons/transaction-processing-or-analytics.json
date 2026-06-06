@@ -1,0 +1,63 @@
+{
+  "id": "transaction-processing-or-analytics",
+  "chapterId": "ch03-storage-and-retrieval",
+  "title": "Transaction Processing or Analytics?",
+  "summary": "OLTP and OLAP systems optimize for opposite access patterns — and mixing them hurts both.",
+  "keyTakeaways": [
+    "OLTP handles many small, fast transactions: inserts, updates, point lookups.",
+    "OLAP runs large aggregation scans over historical data.",
+    "Data warehouses use column-oriented storage and star/snowflake schemas.",
+    "ETL pipelines copy OLTP data into warehouses for analytics.",
+    "Trying to run analytics on OLTP databases overloads production traffic.",
+    "PostgreSQL powers OLTP; Snowflake, BigQuery, and Redshift power OLAP."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Transaction processing (OLTP) systems power live applications: checkout, account updates, messaging. Analytics (OLAP) systems answer business questions over months of history. Their hardware, schema, and storage layouts diverge completely."
+    },
+    {
+      "type": "heading",
+      "text": "Data Warehousing",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "A data warehouse ingests copies of production data via ETL, denormalizes into star schemas (fact tables surrounded by dimension tables), and optimizes for scan-heavy aggregation — not millisecond point lookups."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "A Shopify-scale stack might use PostgreSQL or Aurora for live orders, then pipe data through Airbyte or Fivetran into Snowflake or BigQuery for BI dashboards. Running heavy aggregations directly on the production Postgres would starve checkout queries — exactly the anti-pattern DDIA warns about.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Shopify at scale",
+      "text": "Checkout and inventory run on low-latency OLTP (PostgreSQL/Aurora). Merchant analytics and revenue dashboards query Snowflake star schemas fed by nightly ETL — never the live order database.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Shopify OLTP → OLAP — never run heavy scans on production Postgres\n// Step 1: CDC from Aurora PostgreSQL\nconst changes = debezium.stream(\"shopify.orders\");\n// Step 2: land in Snowflake star schema for BI dashboards\nawait snowflake.merge(\"fact_orders\", changes, { key: \"order_id\" });",
+      "caption": "OLTP → warehouse ETL pipeline"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart LR\n    Crawler[Crawler]\n    GFS[(\"GFS / S3\")]\n    MR[MapReduce]\n    Index[(\"Index\")]\n    Query[Query svc]\n    User[User]\n    Crawler --> GFS --> MR --> Index\n    User -->|query| Query\n    Query --> Index",
+      "kind": "architecture",
+      "caption": "OLTP writes to row stores; OLAP reads columnar warehouses — Google-scale search indexing follows the same split."
+    }
+  ],
+  "relatedConcepts": [
+    "OLTP",
+    "OLAP",
+    "PostgreSQL",
+    "Snowflake",
+    "BigQuery",
+    "data warehouse",
+    "ETL"
+  ],
+  "media": {}
+}

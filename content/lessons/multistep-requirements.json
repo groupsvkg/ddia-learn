@@ -1,0 +1,40 @@
+{
+  "id": "multistep-requirements",
+  "chapterId": "sd-multistep-systems",
+  "title": "Requirements and Constraints",
+  "summary": "Multistep workflows span services, minutes to days, and must survive partial failure.",
+  "keyTakeaways": [
+    "No single database transaction spans payment, inventory, shipping, and email.",
+    "Each step must be idempotent — retries cannot double-charge or double-ship.",
+    "Compensating actions roll back prior steps when a later step fails.",
+    "Human review gates (KYC, underwriting) can park a flow for days.",
+    "Visibility: ops must see which step failed and with what payload.",
+    "Correlation ID ties every HTTP call and queue message to one saga instance."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Checkout, trip lifecycle, and loan origination are the same shape: forward steps with explicit failure branches, not a prayer that every service stays up."
+    },
+    {
+      "type": "callout",
+      "title": "Shopify at scale",
+      "text": "Checkout coordinates inventory holds, Stripe charges, and fulfillment webhooks. A card decline must release the hold before the customer sees an error.",
+      "variant": "tip"
+    },
+    {
+      "type": "callout",
+      "title": "Define invariants first",
+      "text": "What must never happen? Double charge, ship without payment, lose inventory on crash. Invariants pick orchestration vs choreography.",
+      "variant": "warning"
+    }
+  ],
+  "relatedConcepts": [
+    "requirements",
+    "saga",
+    "idempotency",
+    "compensation",
+    "workflow"
+  ],
+  "media": {}
+}

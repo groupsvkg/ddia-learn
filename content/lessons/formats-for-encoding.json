@@ -1,0 +1,59 @@
+{
+  "id": "formats-for-encoding",
+  "chapterId": "ch04-encoding-and-evolution",
+  "title": "Formats for Encoding Data",
+  "summary": "How you encode data determines compatibility, schema evolution, and cross-language interoperability.",
+  "keyTakeaways": [
+    "JSON and XML are human-readable but verbose and weakly typed.",
+    "Thrift and Protocol Buffers use tagged field numbers for compact binary encoding.",
+    "Avro requires a schema for reading — enabling compact encoding without field tags.",
+    "Forward and backward compatibility let old and new code coexist during deploys.",
+    "Schema registries manage evolution in production systems.",
+    "REST APIs use JSON; gRPC uses Protobuf; Kafka ecosystems standardize on Avro with Schema Registry."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Programs in memory represent data as objects and structs. To send data over a network or store it on disk, you must encode it as bytes. The encoding format determines size, speed, and — critically — whether schemas can evolve without breaking consumers."
+    },
+    {
+      "type": "callout",
+      "title": "Compatibility modes",
+      "text": "Forward compatibility: old code reads new data. Backward compatibility: new code reads old data. Field tags (Protobuf) and union schemas (Avro) enable both.",
+      "variant": "tip"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Public REST APIs return JSON with OpenAPI specs. Internal microservices increasingly use gRPC with Protocol Buffers for compact, typed RPC. Kafka pipelines pair Avro schemas with Confluent Schema Registry so producers and consumers evolve independently during rolling deploys on Kubernetes.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Canva at scale",
+      "text": "Design state syncs over WebSockets with compact binary payloads. Internal services use Protocol Buffers so new canvas fields ship without breaking older editor builds — forward compatibility via tagged field numbers.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Canva / gRPC — Protocol Buffers with forward-compatible field tags\n// message Design { string id = 1; repeated Layer layers = 2; string title = 3; }\nconst payload = Design.encode({\n  id: designId,\n  layers: canvasLayers,\n  title: \"Untitled\",\n}).finish();\n// New field tag 4 added in v2 — old clients ignore unknown tags",
+      "caption": "Protocol Buffers encoding"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    PG[(\"PostgreSQL<br/>metadata + ACL\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n\n    subgraph realtimePath [\"Real-time path — live editing\"]\n      direction LR\n      UA <-->|\"① send/receive ops\"| WS\n      UB <-->|\"② send/receive ops\"| WS\n      WS -->|\"③ heartbeat + cursors\"| Redis\n    end\n\n    WS -->|\"④ persist ops + snapshots\"| PG\n    WS -->|\"⑤ asset metadata\"| S3\n    UA -.->|\"⑥ signed URL upload\"| S3",
+      "kind": "architecture",
+      "caption": "Real-time collaboration requires compact encoding and schema evolution as the editor adds new layer types."
+    }
+  ],
+  "relatedConcepts": [
+    "JSON",
+    "Protocol Buffers",
+    "Avro",
+    "gRPC",
+    "schema evolution",
+    "serialization"
+  ],
+  "media": {}
+}

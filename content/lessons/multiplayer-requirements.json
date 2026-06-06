@@ -1,0 +1,34 @@
+{
+  "id": "multiplayer-requirements",
+  "chapterId": "sd-multiplayer-games",
+  "title": "Requirements and Constraints",
+  "summary": "FPS and battle royale players feel 50 ms; turn-based tolerates seconds. Pick transport and authority model accordingly.",
+  "keyTakeaways": [
+    "Sub-100 ms RTT often requires regional servers and UDP-based protocols.",
+    "Authoritative server prevents most cheating; client prediction hides latency.",
+    "Tick rate (20–128 Hz) trades CPU for smoothness.",
+    "Matchmaking groups similar skill and low ping — data problem + queue system.",
+    "Disconnect/reconnect must restore state from server snapshot.",
+    "Anti-cheat inspects impossible state transitions server-side."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Games are distributed systems with humans in the loop. Fairness means everyone sees a consistent world; responsiveness means hiding network delay with prediction and reconciliation."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Riot Games deploys regional shards (NA, EUW) with dedicated UDP servers. Among Us uses simpler authoritative state with lower tick demands. Protocol choice follows latency budget.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "latency",
+    "UDP",
+    "authoritative server",
+    "matchmaking",
+    "tick rate"
+  ],
+  "media": {}
+}

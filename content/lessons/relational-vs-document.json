@@ -1,0 +1,70 @@
+{
+  "id": "relational-vs-document",
+  "chapterId": "ch02-data-models-query-languages",
+  "title": "Relational Model Versus Document Model",
+  "summary": "The relational and document models represent data differently — and each shines for different access patterns.",
+  "keyTakeaways": [
+    "Relational databases normalize data into tables with foreign-key relationships.",
+    "Document databases embed related data together for locality of reference.",
+    "One-to-many and many-to-many relationships are easier in relational schemas.",
+    "Schema flexibility favors documents for rapidly evolving product data.",
+    "Neither model is universally superior — match the model to your query patterns.",
+    "PostgreSQL handles both relational tables and JSONB columns; MongoDB stores BSON documents natively."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "At the heart of every database is a data model: the abstraction it exposes to applications. For decades, the relational model dominated. The rise of web applications brought document databases back into focus, each arguing they better fit modern development."
+    },
+    {
+      "type": "heading",
+      "text": "The Object-Relational Mismatch",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Object-oriented code thinks in nested structures; relational tables are flat rows. ORMs bridge this gap but introduce impedance mismatch — awkward joins, N+1 queries, and schema migrations that fight your object model."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Stripe and GitHub run core workloads on PostgreSQL with strict schemas and migrations. Product catalogs and mobile backends often use MongoDB or DynamoDB where documents map cleanly to JSON APIs. Prisma and Drizzle ORMs target PostgreSQL; Mongoose targets MongoDB — the ORM choice often follows the data model.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Airbnb at scale",
+      "text": "Listings, guests, and payments live in normalized PostgreSQL tables joined at query time. Canva stores entire design documents — layers, fonts, assets — as nested BSON so the editor loads one record per canvas open.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Airbnb-style booking: relational joins across tables (PostgreSQL + Prisma)\nconst booking = await prisma.booking.findUnique({\n  where: { id: bookingId },\n  include: { listing: true, guest: true, payments: true },\n});\n\n// Canva-style design doc: nested document (MongoDB)\nconst design = await db.collection(\"designs\").findOne({\n  _id: designId,\n  // layers, fonts, assets embedded — one read for the whole canvas\n});",
+      "caption": "Relational joins vs embedded documents"
+    },
+    {
+      "type": "callout",
+      "title": "When documents win",
+      "text": "If your application mostly reads or writes whole records together (user profile + settings + preferences), embedding in a document avoids joins and maps naturally to JSON APIs.",
+      "variant": "tip"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Relational: strong for ad-hoc queries, joins, and enforcing referential integrity.",
+        "Document: strong for hierarchical data, flexible schemas, and horizontal scaling.",
+        "Graph: strong when relationships are the primary query pattern (covered next)."
+      ]
+    }
+  ],
+  "relatedConcepts": [
+    "relational model",
+    "document model",
+    "PostgreSQL",
+    "MongoDB",
+    "normalization",
+    "impedance mismatch"
+  ],
+  "media": {}
+}

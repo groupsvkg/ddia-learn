@@ -1,0 +1,47 @@
+{
+  "id": "unreliable-clocks",
+  "chapterId": "ch08-trouble-with-distributed-systems",
+  "title": "Unreliable Clocks",
+  "summary": "Clocks drift, jump backward after NTP sync, and are meaningless across machines without careful use.",
+  "keyTakeaways": [
+    "Time-of-day clocks (NTP) synchronize to UTC but can jump backward.",
+    "Monotonic clocks measure elapsed time and never go backward — good for timeouts.",
+    "Clock skew between machines makes event ordering by timestamp unreliable.",
+    "Logical clocks (Lamport, vector clocks) track causality without wall-clock time.",
+    "Never use wall-clock timestamps alone for ordering in distributed systems.",
+    "OpenTelemetry traces, Kafka event time, and Spanner TrueTime handle time carefully."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Applications use clocks for timeouts, deadlines, and event ordering. But NTP adjustments can jump time backward, quartz drift causes skew, and leap seconds create surprises. Relying on synchronized wall clocks for correctness is dangerous."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Docker and Kubernetes nodes sync via NTP but can still drift milliseconds apart — enough to break last-write-wins conflict resolution. Use monotonic clocks (System.nanoTime) for timeouts in Java/Go services. Kafka stream processors distinguish event time from processing time. Google Spanner uses GPS-synchronized TrueTime for globally consistent timestamps — expensive, but instructive.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Google at scale",
+      "text": "Spanner's TrueTime API exposes uncertainty bounds on wall-clock time so transactions can order commits globally. Most services should use monotonic clocks for timeouts and event-time for stream windows — not NTP for correctness.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Kafka / Flink — never order events by NTP wall clock alone\nconst start = process.hrtime.bigint(); // monotonic — safe for timeouts\nawait doWork();\nconst elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;\n\n// Event time from producer timestamp; processing time = when consumer sees it\nconst window = tumblingWindow(event.timestamp, Duration.ofMinutes(5));",
+      "caption": "Monotonic vs event time"
+    }
+  ],
+  "relatedConcepts": [
+    "NTP",
+    "OpenTelemetry",
+    "Kafka",
+    "clock skew",
+    "monotonic clock",
+    "Lamport clock"
+  ],
+  "media": {}
+}

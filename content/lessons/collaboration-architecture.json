@@ -1,0 +1,117 @@
+{
+  "id": "collaboration-architecture",
+  "chapterId": "sd-collaboration",
+  "title": "Storage and Real-Time Transport",
+  "summary": "Split blob storage, metadata DB, collab server, and CDN for assets.",
+  "keyTakeaways": [
+    "Object storage (S3) for images/fonts; Postgres for doc metadata and ACL.",
+    "Collab server cluster sticky by document ID for OT ordering.",
+    "WebSocket gateway scales with connection count; Redis pub/sub bridges regions.",
+    "Export/render jobs async — separate from live editing path.",
+    "Version history: snapshot + op log compaction weekly.",
+    "Same architecture pattern as Canva, Google Docs, Notion — different CRDT/OT choices."
+  ],
+  "body": [
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    PG[(\"PostgreSQL<br/>metadata + ACL\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n\n    subgraph realtimePath [\"Real-time path — live editing\"]\n      direction LR\n      UA <-->|\"① send/receive ops\"| WS\n      UB <-->|\"② send/receive ops\"| WS\n      WS -->|\"③ heartbeat + cursors\"| Redis\n    end\n\n    WS -->|\"④ persist ops + snapshots\"| PG\n    WS -->|\"⑤ asset metadata\"| S3\n    UA -.->|\"⑥ signed URL upload\"| S3",
+      "kind": "architecture",
+      "caption": "Collaboration: real-time ops through WebSocket; durable state in Postgres and S3; large files bypass the collab server."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Real-time path — live editing",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① Send/receive ops — User A's edits flow over WebSocket to the collab server (OT or CRDT ordering).",
+        "② Send/receive ops — Server broadcasts transformed ops to User B and other connected editors.",
+        "③ Heartbeat + cursors — Presence (who is online, cursor position) stored in Redis with TTL."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Persistence path — durable state",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "④ Persist ops + snapshots — Collab server batches operations into Postgres; periodic snapshots bound replay time.",
+        "⑤ Asset metadata — File pointers and ACL metadata in Postgres; blobs are not inlined in rows.",
+        "⑥ Signed URL upload — Large images upload direct-to-S3; collab server never proxies multi-MB files."
+      ]
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Google Docs historically used centralized OT servers at scale. Notion shards documents across cells; Miro uses regional collab routers for EU data residency.",
+      "variant": "info"
+    },
+    {
+      "type": "heading",
+      "text": "Why these technologies?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why WebSocket collab server?",
+      "text": "Sub-100 ms operation broadcast for cursors and edits. HTTP polling would feel laggy and waste bandwidth.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why OT or CRDT library (Yjs, Automerge)?",
+      "text": "Merge concurrent edits without locking the whole document. OT needs server ordering; CRDTs can peer-sync offline then merge.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why PostgreSQL (metadata & ACL)?",
+      "text": "Document titles, share permissions, folder hierarchy — relational model fits. Not for multi-MB canvas blobs.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why S3 / GCS (assets)?",
+      "text": "Images, fonts, video layers are large immutable files — cheap object storage with CDN in front for export/download.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Redis (presence & pub/sub)?",
+      "text": "Who is online, cursor color, typing — ephemeral with TTL. Pub/sub bridges collab server instances in multi-region deploys.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Sticky routing by document ID?",
+      "text": "OT requires consistent operation ordering per document — route all ops for doc X to the same server or use CRDT to avoid stickiness.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Not storing every keystroke in Postgres forever?",
+      "text": "Op log compacted to periodic snapshots — unbounded insert rate would saturate OLTP.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "WebSocket",
+    "S3",
+    "PostgreSQL",
+    "snapshot",
+    "compaction",
+    "Redis",
+    "CRDT",
+    "ops/s"
+  ],
+  "media": {}
+}

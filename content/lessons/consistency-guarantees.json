@@ -1,0 +1,47 @@
+{
+  "id": "consistency-guarantees",
+  "chapterId": "ch09-consistency-and-consensus",
+  "title": "Consistency Guarantees",
+  "summary": "Consistency models define what reads can return after writes — from eventual to linearizable.",
+  "keyTakeaways": [
+    "Eventual consistency: replicas converge if no new writes occur.",
+    "Causal consistency preserves cause-and-effect ordering.",
+    "Linearizability: every operation appears instantaneous at some point between start and end.",
+    "Stronger guarantees cost latency and availability during partitions.",
+    "Choose the weakest consistency model that satisfies your application invariants.",
+    "DynamoDB tunable consistency, MongoDB read concerns, and Redis replication illustrate the spectrum."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "When data is replicated, reads may not reflect the latest write. Consistency models formalize what clients can expect. The spectrum runs from eventual (replicas converge eventually) to linearizable (behaves like a single copy)."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "DynamoDB offers eventual (default) or strong (R+W>N) reads per request. MongoDB readConcern: majority waits for replication to a quorum. Redis async replication means reads from replicas may be stale — many teams read only from the primary for consistency-sensitive data. Caching in Redis amplifies consistency questions: what TTL is acceptable for stale catalog data?",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Facebook at scale",
+      "text": "News feed tolerates seconds of staleness in Redis cache-aside — a slightly old post order is acceptable. Account balance reads require strong consistency from the primary, not a cached replica.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Facebook feed cache-aside pattern\nasync function getFeed(userId: string): Promise<Post[]> {\n  const cacheKey = `feed:${userId}`;\n  const cached = await redis.get(cacheKey);\n  if (cached) return JSON.parse(cached);\n\n  const posts = await db.posts.findMany({\n    where: { userId },\n    orderBy: { createdAt: \"desc\" },\n    take: 50,\n  });\n  await redis.setex(cacheKey, 300, JSON.stringify(posts));\n  return posts;\n}",
+      "caption": "Cache-aside with tunable staleness"
+    }
+  ],
+  "relatedConcepts": [
+    "eventual consistency",
+    "DynamoDB",
+    "MongoDB",
+    "Redis",
+    "causal consistency",
+    "linearizability"
+  ],
+  "media": {}
+}

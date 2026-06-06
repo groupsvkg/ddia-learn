@@ -1,0 +1,60 @@
+{
+  "id": "transmitting-event-streams",
+  "chapterId": "ch11-stream-processing",
+  "title": "Transmitting Event Streams",
+  "summary": "Event streams deliver records continuously — via message brokers, partitioned logs, or direct sockets.",
+  "keyTakeaways": [
+    "Message brokers (RabbitMQ) route messages to consumers with optional persistence.",
+    "Partitioned logs (Kafka) retain messages for replay and multiple consumer groups.",
+    "Producers append; consumers track their offset in the log.",
+    "Backpressure and buffering handle speed mismatches between producers and consumers.",
+    "Exactly-once processing semantics require idempotent consumers, transactional commits, or deduplication.",
+    "Kafka, RabbitMQ, AWS SQS/SNS, WebSockets, and SSE cover async and real-time delivery."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Unlike request-response, event streams deliver a sequence of records over time. Message brokers decouple producers and consumers. Partitioned logs add durability and replay — consumers can re-read history at their own pace."
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart LR\n    P1[Producer A]\n    P2[Producer B]\n    Log[[\"Partitioned log<br/>Kafka\"]]\n    G1[\"Consumer group 1\"]\n    G2[\"Consumer group 2\"]\n    P1 & P2 -->|append| Log\n    Log --> G1 & G2",
+      "kind": "diagram",
+      "caption": "Producers append to a partitioned log; consumer groups read at independent offsets."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Apache Kafka is the default partitioned log for microservices — order events, audit logs, and CDC streams. RabbitMQ and AWS SQS route task queues with at-least-once delivery. For browser real-time updates, WebSockets (bidirectional) and Server-Sent Events (server push over HTTP) complement the async backend. Kafka transactions plus idempotent producers achieve exactly-once processing semantics within a cluster.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "WhatsApp at scale",
+      "text": "Message delivery events append to a partitioned log so multiple consumer groups — push notifications, analytics, moderation — read the same stream at independent offsets without competing for messages.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// LinkedIn / Uber-style Kafka consumer with offset tracking\nasync function consumeMessages(groupId: string) {\n  const consumer = kafka.consumer({ groupId });\n  await consumer.subscribe({ topic: \"user-events\" });\n\n  await consumer.run({\n    eachMessage: async ({ partition, message }) => {\n      const event = JSON.parse(message.value!.toString());\n      await processEvent(event); // must be idempotent for at-least-once\n      // offset committed after processing (or in transaction with side effect)\n    },\n  });\n}",
+      "caption": "Kafka consumer group"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Sender[\"Sender app\"]\n    Receiver[\"Receiver app\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Redis[(\"Redis<br/>presence + typing\")]\n\n    subgraph sendPath [\"Send path — persist message\"]\n      direction LR\n      Server[\"Chat Server<br/>Erlang/BEAM\"]\n      Sender -->|\"① WebSocket SEND\"| Server\n      Server -->|\"② append seq=N\"| Store\n      Server -->|\"③ update presence\"| Redis\n    end\n\n    subgraph deliverPath [\"Delivery path — online or offline\"]\n      direction LR\n      Push[\"Push Gateway<br/>APNs / FCM\"]\n      Server -->|\"④a online: WebSocket PUSH\"| Receiver\n      Server -.->|\"④b offline: notify\"| Push\n      Push -.->|\"⑤ push alert\"| Receiver\n      Receiver -->|\"⑥ ACK seq\"| Server\n    end",
+      "kind": "architecture",
+      "caption": "Partitioned event log for message streams: producers append, consumers replay at their own pace."
+    }
+  ],
+  "relatedConcepts": [
+    "Kafka",
+    "RabbitMQ",
+    "WebSocket",
+    "SSE",
+    "partitioned log",
+    "consumer group",
+    "offset"
+  ],
+  "media": {}
+}

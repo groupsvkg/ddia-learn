@@ -1,0 +1,53 @@
+{
+  "id": "leaderless-replication",
+  "chapterId": "ch05-replication",
+  "title": "Leaderless Replication",
+  "summary": "Dynamo-style systems let any replica accept writes and use quorums to detect inconsistency.",
+  "keyTakeaways": [
+    "Clients write to multiple replicas in parallel (W replicas).",
+    "Reads contact R replicas and pick the most recent version by version number.",
+    "Quorum condition W + R > N ensures overlap between read and write sets.",
+    "Sloppy quorums and hinted handoff maintain availability during partitions.",
+    "Version vectors detect concurrent writes that need merging.",
+    "Amazon DynamoDB, Cassandra, and Riak follow Dynamo-style quorum design."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Leaderless replication (pioneered by Dynamo) removes the single-leader bottleneck. Any node can accept writes. On read, the client queries multiple replicas and reconciles versions. Quorum rules balance consistency against availability."
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    subgraph cluster [\"N=3 replicas\"]\n      N1[(Node 1)]\n      N2[(Node 2)]\n      N3[(Node 3)]\n    end\n    W[\"W=2 write quorum\"]\n    R[\"R=2 read quorum\"]\n    Client[Client] --> W --> N1 & N2\n    Client --> R --> N2 & N3\n    note[\"R + W > N → overlap on at least one node\"]",
+      "kind": "diagram",
+      "caption": "With N=3, W=2, R=2: writes and reads overlap on at least one node."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Amazon DynamoDB lets you tune W and R per request — R=2, W=2 with N=3 is a common production setting. Apache Cassandra uses tunable consistency (QUORUM, ONE, ALL). During a partition, sloppy quorums and hinted handoff keep writes flowing to healthy nodes.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Stripe at scale",
+      "text": "Payment session state and idempotency records use Dynamo-style quorum writes so any replica can accept a retry without a single leader bottleneck. Tunable R/W per request trades latency for consistency.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// DynamoDB-style quorum: W + R > N ensures read/write overlap\nconst N = 3, W = 2, R = 2;\nasync function write(key: string, value: VersionedValue) {\n  const nodes = pickNodes(key, N);\n  await Promise.all(nodes.slice(0, W).map((n) => n.put(key, value)));\n}\nasync function read(key: string) {\n  const nodes = pickNodes(key, N);\n  const versions = await Promise.all(nodes.slice(0, R).map((n) => n.get(key)));\n  return versions.sort((a, b) => b.version - a.version)[0];\n}",
+      "caption": "Quorum read and write"
+    }
+  ],
+  "relatedConcepts": [
+    "quorum",
+    "DynamoDB",
+    "Cassandra",
+    "leaderless",
+    "version vector",
+    "sloppy quorum"
+  ],
+  "media": {}
+}

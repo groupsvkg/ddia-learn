@@ -1,0 +1,105 @@
+{
+  "id": "youtube-architecture",
+  "chapterId": "sd-youtube",
+  "title": "Upload, Transcode, and Serve",
+  "summary": "The write path is a pipeline; the read path is cache-heavy. Connect them with immutable video IDs and versioned manifests.",
+  "keyTakeaways": [
+    "Resumable uploads (tus/S3 multipart) buffer network unreliability.",
+    "Transcoding is embarrassingly parallel — one job per resolution per video.",
+    "Manifest files (M3U8) list segment URLs; players switch bitrate dynamically.",
+    "CDN caches segments close to users; origin shield reduces object storage load.",
+    "Thumbnails and titles are tiny compared to video — cache aggressively.",
+    "Kafka or Pub/Sub notifies subscribers when processing completes."
+  ],
+  "body": [
+    {
+      "type": "heading",
+      "text": "Write path",
+      "level": 2
+    },
+    {
+      "type": "list",
+      "items": [
+        "Client → upload API → object storage (raw).",
+        "Event → transcoder fleet → object storage (segments + manifests).",
+        "Metadata service marks video READY and exposes playback URL."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Read path",
+      "level": 2
+    },
+    {
+      "type": "list",
+      "items": [
+        "Client requests manifest from API (cached).",
+        "Player fetches segments from CDN edge; miss goes to origin.",
+        "View counts batched to stream processor (approximate is OK)."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Resumable upload → transcode queue (YouTube-style)\nasync function onUploadComplete(videoId: string, rawKey: string) {\n  await db.videos.update({ id: videoId, status: \"PROCESSING\" });\n  await kafka.publish(\"video.uploaded\", {\n    videoId,\n    rawKey,\n    renditions: [\"360p\", \"720p\", \"1080p\"],\n  });\n}\n// Workers write HLS segments to object storage; API serves manifest URL",
+      "caption": "Upload job enqueue"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Creator[\"Creator app\"]\n    Viewer[\"Viewer app\"]\n    S3[(\"Object Storage<br/>S3 / GCS\")]\n    MetaDB[(\"Metadata DB<br/>PostgreSQL\")]\n\n    subgraph writePath [\"Write path — upload and transcode\"]\n      direction LR\n      UploadAPI[\"Upload API<br/>resumable multipart\"]\n      Kafka[[Kafka<br/>video.uploaded]]\n      Transcoder[\"Transcoder fleet<br/>FFmpeg workers\"]\n      Creator -->|\"① upload chunks\"| UploadAPI\n      UploadAPI -->|\"② PUT raw video\"| S3\n      UploadAPI -->|\"③ INSERT status=PROCESSING\"| MetaDB\n      UploadAPI -->|\"④ publish event\"| Kafka\n      Kafka -->|\"⑤ transcode job\"| Transcoder\n      Transcoder -->|\"⑥ read raw / write HLS\"| S3\n      Transcoder -->|\"⑦ UPDATE status=READY\"| MetaDB\n    end\n\n    subgraph readPath [\"Read path — metadata and playback\"]\n      direction LR\n      MetaAPI[\"Metadata API<br/>Redis cache\"]\n      CDN[\"CDN Edge<br/>CloudFront / Akamai\"]\n      Viewer -->|\"① GET /videos/:id\"| MetaAPI\n      MetaAPI -->|\"② SELECT title, manifest URL\"| MetaDB\n      Viewer -->|\"③ GET .m3u8 + .ts segments\"| CDN\n      CDN -.->|\"cache miss → origin\"| S3\n    end",
+      "kind": "architecture",
+      "caption": "YouTube splits write (upload + transcode) and read (metadata + CDN playback). Object Storage and Metadata DB are shared between both paths."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Write path — upload and transcode",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① Upload chunks — Creator sends resumable multipart uploads; API never buffers the full file in RAM.",
+        "② PUT raw video — Upload API streams bytes directly to Object Storage (S3/GCS).",
+        "③ INSERT status=PROCESSING — Metadata DB row created so creators see upload received, not yet playable.",
+        "④ Publish event — video.uploaded event to Kafka; upload HTTP response returns immediately.",
+        "⑤ Transcode job — FFmpeg worker consumes the event from the queue.",
+        "⑥ Read raw / write HLS — Worker reads original, writes adaptive bitrate segments back to Object Storage.",
+        "⑦ UPDATE status=READY — Metadata row updated; manifest URL becomes valid for viewers."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Read path — metadata and playback",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① GET /videos/:id — Viewer requests title, channel, and manifest URL from Metadata API.",
+        "② SELECT title, manifest URL — API reads Postgres; hot rows cached in Redis.",
+        "③ GET .m3u8 + .ts segments — Player fetches HLS manifest and video segments from CDN edge.",
+        "Cache miss → origin — CDN pulls segment from Object Storage on miss; viral content stays at the edge."
+      ]
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant V as Viewer\n    participant API as Metadata API\n    participant CDN as CDN Edge\n    participant O as Origin\n    V->>API: GET /videos/:id\n    API-->>V: manifest URL + title\n    V->>CDN: GET playlist.m3u8\n    CDN-->>V: bitrate ladder\n    V->>CDN: GET segment-004.ts\n    Note over CDN,O: cache miss\n    CDN->>O: fetch segment\n    CDN-->>V: video bytes",
+      "kind": "sequence",
+      "caption": "Viewer fetches metadata, then manifest and segments from CDN with origin fallback."
+    }
+  ],
+  "relatedConcepts": [
+    "HLS",
+    "transcoding",
+    "object storage",
+    "Kafka",
+    "manifest",
+    "CDN"
+  ],
+  "media": {}
+}

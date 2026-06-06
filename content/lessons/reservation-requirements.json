@@ -1,0 +1,83 @@
+{
+  "id": "reservation-requirements",
+  "chapterId": "sd-reservation",
+  "title": "Requirements and Constraints",
+  "summary": "Hotels, flights, restaurants, and concerts sell finite inventory that must never be oversold.",
+  "keyTakeaways": [
+    "Search is read-heavy and fuzzy; booking is write-heavy and exact.",
+    "Holds: temporary locks while user pays (10–15 minute TTL).",
+    "Payments tie to reservations — sagas coordinate both.",
+    "Cancellations and modifications release inventory back to the pool.",
+    "Calendar queries need efficient range indexes on availability.",
+    "Time zones and daylight saving complicate 'night' inventory."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Reservation systems are classic OLTP with brutal correctness requirements. A double-booked hotel room destroys trust faster than a slow search page."
+    },
+    {
+      "type": "callout",
+      "title": "Airbnb at scale",
+      "text": "Guests search Elasticsearch-backed listings but commit bookings through a transactional core that decrements night-level inventory in PostgreSQL with row-level locks or serializable isolation.",
+      "variant": "tip"
+    },
+    {
+      "type": "heading",
+      "text": "Why these technologies?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why Elasticsearch / OpenSearch?",
+      "text": "Guests search by date range, location, price, amenities — fuzzy, faceted queries that SQL can do but not at Airbnb-scale relevance ranking. Index is rebuilt from listing events; stale by seconds is OK.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why PostgreSQL (inventory OLTP)?",
+      "text": "A night sold twice destroys trust — needs ACID, row locks, unique constraints, and serializable transactions on inventory rows. DynamoDB can work with careful conditional writes but SQL is the default for booking invariants.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why API gateway?",
+      "text": "Routes read-heavy search traffic separately from write-heavy booking commits. Can throttle abusive search without starving checkout.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Stripe / Adyen (payments)?",
+      "text": "PCI-DSS compliance, card vaulting, and dispute handling outsourced — building this in-house is a non-starter for most products.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Kafka?",
+      "text": "After booking commits, emails, search index updates, analytics, and host notifications run async. Outbox pattern ensures events publish only after DB commit.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Redis (optional hold TTL)?",
+      "text": "Fast expiry of abandoned cart holds with key TTL + background sweeper. Source of truth remains Postgres; Redis accelerates 'is this hold still valid?' checks.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Saga / workflow orchestrator?",
+      "text": "Hold → pay → confirm spans services — no single XA transaction across Stripe and your DB. Compensating release on payment failure is mandatory.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "booking",
+    "inventory",
+    "OLTP",
+    "search",
+    "holds",
+    "Elasticsearch",
+    "Stripe"
+  ],
+  "media": {}
+}

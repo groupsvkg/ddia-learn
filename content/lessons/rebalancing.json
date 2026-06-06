@@ -1,0 +1,47 @@
+{
+  "id": "rebalancing",
+  "chapterId": "ch06-partitioning",
+  "title": "Rebalancing Partitions",
+  "summary": "When nodes join or leave the cluster, partitions must move — without excessive downtime.",
+  "keyTakeaways": [
+    "Hash mod N breaks when N changes — most keys remap to new nodes.",
+    "Consistent hashing minimizes key movement when nodes are added or removed.",
+    "Fixed number of partitions with virtual nodes simplifies rebalancing.",
+    "Automatic rebalancing risks cascading failures; manual triggers are safer.",
+    "Rebalancing should move minimal data at bounded throughput.",
+    "Cassandra vnodes, Kafka partition reassignment, and Kubernetes StatefulSet scaling all rebalance data."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Adding a machine should improve capacity, not invalidate your entire partition map. Naive hash mod N remaps almost every key when N changes. Better schemes use fixed partitions or consistent hashing to limit data movement."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Cassandra uses virtual nodes (vnodes) so adding a host only moves a fraction of data. Kafka's kafka-reassign-partitions tool migrates partitions between brokers with throttling. On Kubernetes, scaling a StatefulSet adds pods but your app still needs a safe rebalance plan — automatic resharding without ops oversight has caused production outages.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Netflix at scale",
+      "text": "Adding Cassandra nodes during peak streaming hours uses consistent hashing with vnodes so only a fraction of keys move — avoiding the full remap disaster of hash mod N.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Netflix / Cassandra — consistent hashing limits key movement on rebalance\nfunction hashRing(key: string, nodes: string[]): string {\n  const ring = nodes.flatMap((n) =>\n    Array.from({ length: 128 }, (_, i) => ({ hash: hash(`${n}:${i}`), node: n }))\n  ).sort((a, b) => a.hash - b.hash);\n  const h = hash(key);\n  return ring.find((e) => e.hash >= h)?.node ?? ring[0].node;\n}\n// Adding one node moves only ~1/N of keys — not hash(key) % N",
+      "caption": "Consistent hashing on the ring"
+    }
+  ],
+  "relatedConcepts": [
+    "rebalancing",
+    "Cassandra",
+    "Kafka",
+    "Kubernetes",
+    "consistent hashing",
+    "virtual node"
+  ],
+  "media": {}
+}

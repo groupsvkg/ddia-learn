@@ -1,0 +1,47 @@
+{
+  "id": "beyond-mapreduce",
+  "chapterId": "ch10-batch-processing",
+  "title": "Beyond MapReduce",
+  "summary": "Modern batch engines add iterative processing, higher-level APIs, and faster in-memory execution.",
+  "keyTakeaways": [
+    "Materializing intermediate state to disk (MapReduce) is slow for iterative algorithms.",
+    "Spark keeps data in memory across stages for faster iteration.",
+    "High-level APIs (Spark SQL, DataFrames) decouple logic from execution.",
+    "Graph processing (Pregel) uses message-passing between vertices.",
+    "Batch and stream processing are converging into unified engines.",
+    "Apache Spark, Apache Flink, and Snowflake's elastic compute supersede classic MapReduce."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "MapReduce's rigid map-shuffle-reduce cycle forces disk writes between every stage. Modern engines materialize less, push computation to data, and expose declarative APIs — while retaining fault tolerance through lineage graphs."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Databricks runs Apache Spark for ETL and ML training over terabytes in memory. Apache Flink unifies batch and stream processing in one runtime. Snowflake separates storage (S3/Azure) from elastic compute warehouses — you write SQL, not MapReduce jobs. dbt layers transformations on top of Snowflake or BigQuery with version-controlled SQL models.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Netflix at scale",
+      "text": "Recommendation model training runs on Spark over viewing-history Parquet in S3 — iterative in-memory stages replace MapReduce's disk-bound shuffle between every step.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Google BigQuery / Snowflake — declarative OLAP over columnar storage\nconst revenueByRegion = await snowflake.execute(`\n  SELECT d.region, SUM(f.revenue_cents) AS total\n  FROM fact_orders f\n  JOIN dim_date d ON f.order_date = d.date_key\n  WHERE d.year = 2025\n  GROUP BY d.region\n  ORDER BY total DESC\n`);\n// Optimizer reads only region + revenue columns — not full rows",
+      "caption": "Declarative warehouse SQL"
+    }
+  ],
+  "relatedConcepts": [
+    "Spark",
+    "Flink",
+    "Snowflake",
+    "dbt",
+    "DataFrame",
+    "dataflow engine"
+  ],
+  "media": {}
+}

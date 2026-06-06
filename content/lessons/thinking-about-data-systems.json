@@ -1,0 +1,95 @@
+{
+  "id": "thinking-about-data-systems",
+  "chapterId": "ch01-reliable-scalable-maintainable",
+  "title": "Thinking About Data Systems",
+  "summary": "Most applications today are data-intensive rather than compute-intensive. Understanding what that means is the foundation for every design decision that follows.",
+  "keyTakeaways": [
+    "Data-intensive applications are usually limited by data volume, complexity, or speed — not CPU.",
+    "A \"data system\" is any system built from multiple components working together to store, process, or move data.",
+    "Reliability, scalability, and maintainability are not features you bolt on — they shape architecture from day one.",
+    "There is no one-size-fits-all tool; good engineers combine specialized components thoughtfully.",
+    "Production stacks combine PostgreSQL, Redis, Kafka, Elasticsearch, and object storage (S3) — each for a different job."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "When people talk about \"the cloud\" or \"big data,\" they often focus on raw compute power. In practice, most modern applications are data-intensive: the hard problems come from handling large volumes of data, complex data transformations, or rapid changes — not from crunching numbers on an idle CPU."
+    },
+    {
+      "type": "callout",
+      "title": "What makes an app data-intensive?",
+      "text": "Typical challenges include the database becoming a bottleneck, caching layers multiplying, search indexes to maintain, file storage at scale, analytics pipelines, and inter-service data exchange. The application exists to serve data to users and capture it back.",
+      "variant": "info"
+    },
+    {
+      "type": "heading",
+      "text": "Beyond a Single Database",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "We use the term data system broadly: not just a database, but any combination of components that store, process, or move data. A single product might use a relational database for transactions, a search index for full-text queries, a cache for hot reads, and a message queue for async work. Each tool has strengths and weaknesses."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "A typical SaaS backend on AWS might run stateless services in Docker on Kubernetes, store transactional data in PostgreSQL (RDS), cache sessions in Redis (ElastiCache), index products in Elasticsearch, stream domain events through Kafka (MSK), and serve files from S3 — with an nginx or Envoy reverse proxy at the edge.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Airbnb at scale",
+      "text": "Airbnb is a textbook data-intensive app: PostgreSQL for bookings and listings, Elasticsearch for search, Kafka for event-driven sync between services, Redis for caching, and Snowflake for analytics. No single database does everything — the architecture composes specialized tools.",
+      "variant": "tip"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Clients[\"Clients<br/>web + mobile\"]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    ES[(Elasticsearch)]\n    Kafka[[Kafka]]\n    SF[(Snowflake)]\n\n    subgraph syncPath [\"Synchronous request path\"]\n      direction LR\n      CDN[\"CDN + Reverse Proxy<br/>Cloudflare / nginx\"]\n      API[\"API Services<br/>Docker / K8s\"]\n      Clients -->|\"① HTTPS\"| CDN\n      CDN -->|\"② REST/gRPC\"| API\n      API -->|\"③ OLTP read/write\"| PG\n      API -->|\"④ cache hot keys\"| Redis\n      API -->|\"⑤ search query\"| ES\n    end\n\n    API -->|\"⑥ publish events\"| Kafka\n    Kafka -.->|\"⑦ ETL / CDC\"| SF\n    Kafka -.->|\"⑧ index sync\"| ES",
+      "kind": "architecture",
+      "caption": "Modern products like Airbnb and Canva combine OLTP, cache, search, streams, and a warehouse."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "caption": "Compose specialized data stores — don't force one database to do everything",
+      "code": "// Typical service layer composes multiple backends\ntype DataSystem = {\n  oltp: PostgresClient;      // bookings, users\n  cache: RedisClient;        // sessions, hot reads\n  search: ElasticsearchClient;\n  events: KafkaProducer;     // async integration\n  warehouse: SnowflakeClient;  // analytics only\n};\n\n// Airbnb routes listing search to Elasticsearch,\n// but booking payments always hit PostgreSQL"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Storage engines optimize for different access patterns (point lookups vs scans vs analytics).",
+        "Query languages express intent differently (SQL joins vs document embedding vs graph traversal).",
+        "Consistency models range from strong ACID guarantees to eventual consistency with conflict resolution."
+      ]
+    },
+    {
+      "type": "media",
+      "src": "/media/ch01/data-systems-hero.png",
+      "alt": "Abstract illustration of interconnected data system components",
+      "kind": "image",
+      "caption": "A modern data-intensive application combines specialized components into a cohesive system."
+    },
+    {
+      "type": "heading",
+      "text": "The Three Pillars",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Every design choice in this book can be evaluated against three qualities: reliability (it works correctly, even when things go wrong), scalability (it keeps working as load grows), and maintainability (people can work on it productively over time). The rest of this chapter explores each pillar in depth."
+    }
+  ],
+  "relatedConcepts": [
+    "data-intensive application",
+    "reliability",
+    "scalability",
+    "maintainability",
+    "PostgreSQL",
+    "Redis",
+    "Kafka",
+    "Kubernetes"
+  ],
+  "media": {
+    "heroImage": "/media/ch01/data-systems-hero.png"
+  }
+}

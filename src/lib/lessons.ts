@@ -1,13 +1,10 @@
 import type { LessonSection } from "@/types/content";
 import { getChapter } from "@/lib/curriculum";
-import lessonsIndex from "../../content/lessons/index.json";
 
-const lessonsBySection = lessonsIndex as Record<string, LessonSection>;
-
-export function getLesson(
+export async function getLesson(
   chapterSlug: string,
   sectionSlug: string,
-): LessonSection | undefined {
+): Promise<LessonSection | undefined> {
   const context = getChapter(chapterSlug);
   if (!context || context.chapter.status !== "published") {
     return undefined;
@@ -18,7 +15,12 @@ export function getLesson(
     return undefined;
   }
 
-  return lessonsBySection[sectionSlug];
+  try {
+    const mod = await import(`../../content/lessons/${sectionSlug}.json`);
+    return mod.default as LessonSection;
+  } catch {
+    return undefined;
+  }
 }
 
 export function getAdjacentSections(chapterSlug: string, sectionSlug: string) {

@@ -11,6 +11,8 @@ type SectionPageProps = {
   params: Promise<{ chapterSlug: string; sectionSlug: string }>;
 };
 
+export const dynamic = "force-static";
+
 export function generateStaticParams() {
   return getPublishedSectionParams();
 }
@@ -18,7 +20,7 @@ export function generateStaticParams() {
 export default async function SectionPage({ params }: SectionPageProps) {
   const { chapterSlug, sectionSlug } = await params;
   const context = getChapter(chapterSlug);
-  const lesson = getLesson(chapterSlug, sectionSlug);
+  const lesson = await getLesson(chapterSlug, sectionSlug);
 
   if (!context || !lesson) notFound();
 

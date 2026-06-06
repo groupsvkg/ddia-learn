@@ -1,0 +1,35 @@
+{
+  "id": "collaboration-requirements",
+  "chapterId": "sd-collaboration",
+  "title": "Requirements and Constraints",
+  "summary": "Collaboration tools merge real-time editing, permissions, and durable document state.",
+  "keyTakeaways": [
+    "Multiple editors on one document with sub-second op delivery.",
+    "Every operation validated against ACL — UI bypass must not grant edit access.",
+    "Presence (cursors, typing) is ephemeral; document content is durable.",
+    "Large assets (images, fonts) bypass the collab server — direct to object storage.",
+    "Offline edits queue locally and merge on reconnect.",
+    "Export/render is async — separate from the live editing hot path."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Google Docs, Figma, and Notion share one constraint: the server orders concurrent operations so every client converges on the same document state."
+    },
+    {
+      "type": "callout",
+      "title": "Figma at scale",
+      "text": "File permissions live in Postgres; live ops flow through a central collab server. A viewer cannot apply edits even with a crafted WebSocket payload.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "requirements",
+    "WebSocket",
+    "ACL",
+    "OT",
+    "CRDT",
+    "presence"
+  ],
+  "media": {}
+}

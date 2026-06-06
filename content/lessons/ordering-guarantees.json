@@ -1,0 +1,47 @@
+{
+  "id": "ordering-guarantees",
+  "chapterId": "ch09-consistency-and-consensus",
+  "title": "Ordering Guarantees",
+  "summary": "Ordering events is fundamental to consistency, causality, and replication.",
+  "keyTakeaways": [
+    "Causality: if A caused B, every node must see A before B.",
+    "Sequence numbers assign a total order within one leader.",
+    "Total order broadcast delivers the same messages in the same order to all nodes.",
+    "Lamport timestamps provide partial ordering without a central sequencer.",
+    "Consistent ordering simplifies replication and conflict resolution.",
+    "Kafka partition ordering, PostgreSQL LSNs, and Debezium CDC preserve event order."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "If event B depends on event A, all observers must process A before B. Establishing global order in a distributed system requires either a single sequencer (leader) or logical clocks that track causality."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Kafka guarantees order within a partition — so related events (e.g., all updates for user_id=42) must share a partition key. PostgreSQL logical replication streams changes in log sequence number (LSN) order. Debezium CDC publishes database changes to Kafka preserving per-table ordering. Cross-partition causal ordering still requires application-level design.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Uber at scale",
+      "text": "All events for one trip_id share a Kafka partition so pickup → en-route → completed always arrive in causal order. Cross-trip ordering does not matter and stays unordered.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// LinkedIn / Uber-style Kafka consumer with offset tracking\nasync function consumeMessages(groupId: string) {\n  const consumer = kafka.consumer({ groupId });\n  await consumer.subscribe({ topic: \"user-events\" });\n\n  await consumer.run({\n    eachMessage: async ({ partition, message }) => {\n      const event = JSON.parse(message.value!.toString());\n      await processEvent(event); // must be idempotent for at-least-once\n      // offset committed after processing (or in transaction with side effect)\n    },\n  });\n}",
+      "caption": "Kafka consumer with partition ordering"
+    }
+  ],
+  "relatedConcepts": [
+    "causality",
+    "Kafka",
+    "Debezium",
+    "total order broadcast",
+    "Lamport timestamp",
+    "sequence number"
+  ],
+  "media": {}
+}

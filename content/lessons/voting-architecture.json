@@ -1,0 +1,121 @@
+{
+  "id": "voting-architecture",
+  "chapterId": "sd-voting",
+  "title": "Ballots, Tallies, and Audits",
+  "summary": "Append ballots to an immutable log; aggregate counts in stream processors or materialized views.",
+  "keyTakeaways": [
+    "Ballot ingest API validates voter eligibility once, writes immutable record.",
+    "Hash chain or signed events support third-party audit (high-stakes systems).",
+    "Tally service aggregates by choice_id; real-time preview uses stream processor.",
+    "Results page reads materialized count — never COUNT(*) on raw ballots live.",
+    "Idempotency-Key per voter session prevents double submit on retry.",
+    "Geo-distributed read replicas for results; single-region write primary for consistency."
+  ],
+  "body": [
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Voter[\"Voter app\"]\n    Log[(\"Ballot Log<br/>append-only\")]\n    Results[(\"Results Cache<br/>Redis\")]\n    Agg[\"Stream Aggregator\"]\n\n    subgraph writePath [\"Write path — cast ballot (append-only)\"]\n      direction LR\n      API[\"Ballot API<br/>idempotent\"]\n      Voter -->|\"① POST + Idempotency-Key\"| API\n      API -->|\"② INSERT ballot\"| Log\n      API -->|\"③ ballot.cast event\"| Agg\n    end\n\n    subgraph readPath [\"Read path — live totals (never COUNT on log)\"]\n      direction LR\n      Agg -->|\"④ INCR choice_count\"| Results\n      Voter -->|\"⑤ GET /results\"| Results\n    end",
+      "kind": "architecture",
+      "caption": "Votes are append-only writes; live totals are pre-aggregated in Redis — never COUNT(*) on the ballot table at read time."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Write path — cast ballot",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① POST + Idempotency-Key — Voter submits once; retries return the same ballot ID, not a duplicate vote.",
+        "② INSERT ballot — Append-only row in ballot log; ballots are never UPDATEd in place.",
+        "③ ballot.cast event — Stream aggregator notified asynchronously to update live totals."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Read path — live totals",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "④ INCR choice_count — Aggregator increments precomputed counts in Redis on each ballot event.",
+        "⑤ GET /results — Results page reads materialized totals from cache — O(1) per choice, not a table scan."
+      ]
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant V as Voter\n    participant API as Ballot API\n    participant DB as Ballot Log\n    participant Agg as Aggregator\n    participant C as Results Cache\n    V->>API: POST /ballots + Idempotency-Key\n    API->>DB: INSERT ON CONFLICT DO NOTHING\n    DB-->>API: ballotId\n    API->>Agg: ballot.cast event\n    API-->>V: 201 accepted\n    Note over Agg,C: async tally\n    Agg->>C: INCR choice_count\n    V->>C: GET /results\n    C-->>V: live totals",
+      "kind": "sequence",
+      "caption": "Idempotent vote submission and async tally update to results cache."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// One ballot per voter — idempotent submit\nasync function castBallot(electionId: string, voterId: string, choiceId: string) {\n  return prisma.ballot.upsert({\n    where: { electionId_voterId: { electionId, voterId } },\n    create: { electionId, voterId, choiceId, castAt: new Date() },\n    update: {}, // no-op on retry — same result\n  });\n}",
+      "caption": "Idempotent ballot submission"
+    },
+    {
+      "type": "callout",
+      "title": "Slack at scale",
+      "text": "Workspace polls are low-stakes but still use one-vote-per-user keys stored in OLTP with unique indexes — the same pattern at national scale with harder identity proofing.",
+      "variant": "tip"
+    },
+    {
+      "type": "heading",
+      "text": "Why these technologies?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why PostgreSQL (append-only ballot log)?",
+      "text": "UNIQUE (election_id, voter_id) enforces one vote per person at the database layer. Append-only inserts preserve audit trail; tallies are derived, never UPDATE-in-place on ballot rows.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Idempotency-Key header?",
+      "text": "Network retries must not create duplicate ballots — same key returns the same result. Simpler than distributed locks for voter sessions.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Kafka / stream processor?",
+      "text": "Aggregates millions of ballots into live totals without scanning the full table on every results page refresh. Handles write spikes when polls close.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Redis / materialized results cache?",
+      "text": "Results pages are read-heavy during election night — precomputed counts serve sub-ms reads. Eventual consistency of +1–2 seconds is usually acceptable for display.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why API gateway + rate limiting (Cloudflare / WAF)?",
+      "text": "Bot protection and per-IP throttling at the edge before ballots hit your origin. Critical when viral links drive traffic spikes.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Not updating vote counts in the ballot row?",
+      "text": "In-place UPDATE loses auditability and races under concurrency. Event sourcing pattern: insert ballot, derive count.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "ballot",
+    "tally",
+    "Kafka",
+    "idempotency",
+    "materialized view",
+    "Redis",
+    "peak QPS"
+  ],
+  "media": {}
+}

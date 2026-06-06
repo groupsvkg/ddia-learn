@@ -1,0 +1,93 @@
+{
+  "id": "puzzle-estimation",
+  "chapterId": "sd-puzzle-games",
+  "title": "Back-of-the-Envelope Estimation",
+  "summary": "Daily submit QPS, storage growth, and Redis leaderboard sizing for puzzle games.",
+  "keyTakeaways": [
+    "~1.2k peak submit QPS — modest; morning spikes drive sizing.",
+    "Redis ZSET for O(log N) leaderboard queries, not SQL ORDER BY.",
+    "Move log and board state storage in hundreds of GB/year, not PB.",
+    "Push notifications for async turns are low volume (~3/s)."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+    },
+    {
+      "type": "paragraph",
+      "text": "Assume Wordle-scale daily puzzle: 5M DAU, 1 guess per user per day (6 guesses max), 3M monthly active leaderboard, chess-style async: 500k active games, 10 moves/game/day."
+    },
+    {
+      "type": "heading",
+      "text": "Read/write traffic",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Daily puzzle submit: 5M / 86,400 ≈ 58/s average — tiny; peak (morning ×20) ≈ 1,200/s.",
+        "Each submit: 1 read (puzzle id) + 1 idempotent INSERT ≈ 2,400 DB ops/s peak.",
+        "Chess moves: 500k games × 10 moves / 86,400 ≈ 58 moves/s + validation query."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Storage",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Daily submissions: 5M/day × 365 × 200 B ≈ 365 GB/year.",
+        "Move log: 500k games × 10 moves × 100 B × 365 days ≈ 180 GB/year.",
+        "Board state: 500k active × 2 KB ≈ 1 GB — trivial."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Leaderboard & caching",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Redis ZSET: 3M users × (member + score) ≈ 150 MB per daily board.",
+        "Top-100 query: O(log N + 100) — sub-ms; no SQL ORDER BY on millions of rows.",
+        "Cache puzzle answer hash: 1 key per day — singleflight on submit path."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Network",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Submit payload ~500 B × 1,200/s ≈ 600 KB/s — HTTPS is fine; no UDP needed.",
+        "Push notify opponent: 250k moves/day triggering push ≈ 3/s."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Daily puzzle peak submits\nconst dau = 5_000_000;\nconst avgQps = dau / 86_400;\nconst peakQps = avgQps * 20; // morning spike\nconst redisLeaderboardMb = (3_000_000 * 50) / 1e6;\nconsole.log({ peakSubmitQps: Math.round(peakQps), redisLeaderboardMb });",
+      "caption": "Daily puzzle submit QPS"
+    },
+    {
+      "type": "callout",
+      "title": "Order-of-magnitude summary",
+      "text": "~1.2k peak submit QPS, Redis for leaderboards, Postgres for idempotent daily submissions. Correctness over latency — no heavy infra needed at this scale.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "QPS",
+    "Redis",
+    "leaderboard",
+    "idempotency",
+    "PostgreSQL"
+  ],
+  "media": {}
+}

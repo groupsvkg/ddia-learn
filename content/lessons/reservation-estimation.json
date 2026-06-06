@@ -1,0 +1,95 @@
+{
+  "id": "reservation-estimation",
+  "chapterId": "sd-reservation",
+  "title": "Back-of-the-Envelope Estimation",
+  "summary": "Search QPS vs booking commit rate, index size, and why reads and writes need different stores.",
+  "keyTakeaways": [
+    "~350 peak search QPS to Elasticsearch; ~60 peak booking commits/s to Postgres.",
+    "Reads dominate volume; writes are few but must be exactly correct.",
+    "~100 GB Elasticsearch index for listings; inventory rows are small but locked.",
+    "Redis holds are tiny; Kafka events are derived after commit."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+    },
+    {
+      "type": "paragraph",
+      "text": "Assume Airbnb-scale: 150M users, 1M bookings/day, 10M active listings, avg 3 search queries per booking, 14-night avg stay window in inventory index."
+    },
+    {
+      "type": "heading",
+      "text": "Read traffic (search)",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Searches: 1M bookings × 3 ≈ 3M searches/day ≈ 35/s average.",
+        "Peak (evening ×10) ≈ 350 search QPS to Elasticsearch — each query scans inverted index + facets, not OLTP table scan.",
+        "Listing detail pages: ~10M views/day ≈ 115/s — cache hot listings in Redis (top 10% = 1M keys × 5 KB ≈ 5 GB)."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Write traffic (booking)",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Bookings: 1M/day ≈ 11.6/s average — low QPS but strict ACID.",
+        "Peak checkout (hourly spike ×5) ≈ 60 commits/s — each hold + confirm is a short transaction with row lock on inventory night.",
+        "Holds: ~3× booking attempts before success → ~35 hold transactions/s peak."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Storage",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Inventory: 10M listings × 365 nights × 8 B availability bit ≈ 30 GB core calendar (simplified; real model uses date ranges).",
+        "Bookings OLTP: 1M/day × 365 × 1 KB row ≈ 365 GB/year booking history.",
+        "Elasticsearch index: 10M listings × 10 KB doc ≈ 100 GB (+ replicas → 300 GB)."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Network & caching",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Search response ~20 KB JSON × 350 QPS ≈ 7 MB/s — modest; latency is index query time, not bandwidth.",
+        "Redis hold TTL: 1M holds/day × 200 B ≈ 200 MB/day churn — tiny.",
+        "Kafka booking events: 1M/day × 500 B ≈ 500 MB/day for downstream consumers."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Airbnb-scale search vs booking\nconst bookingsPerDay = 1_000_000;\nconst searchesPerBooking = 3;\nconst searchQpsAvg = (bookingsPerDay * searchesPerBooking) / 86_400;\nconst peakSearchQps = searchQpsAvg * 10;\nconst peakBookingQps = (bookingsPerDay / 86_400) * 5;\nconsole.log({ peakSearchQps: Math.round(peakSearchQps), peakBookingQps: Math.round(peakBookingQps) });",
+      "caption": "Reservation search vs booking QPS"
+    },
+    {
+      "type": "callout",
+      "title": "Order-of-magnitude summary",
+      "text": "~350 peak search QPS (Elasticsearch), ~60 peak booking commits/s (Postgres), ~100 GB search index. Reads dominate; writes are few but must be exactly correct.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "QPS",
+    "Elasticsearch",
+    "PostgreSQL",
+    "search",
+    "OLTP",
+    "cache"
+  ],
+  "media": {}
+}

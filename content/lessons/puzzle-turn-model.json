@@ -1,0 +1,40 @@
+{
+  "id": "puzzle-turn-model",
+  "chapterId": "sd-puzzle-games",
+  "title": "Turns, Timers, and Async Play",
+  "summary": "Wordle, chess, and daily puzzles mix turn order, deadlines, and optional async moves.",
+  "keyTakeaways": [
+    "Turn state machine: WAITING → ACTIVE → COMPLETED per player.",
+    "Server validates moves against rules before applying to board.",
+    "Timers use scheduled jobs (SQS delay, Redis TTL) to forfeit on timeout.",
+    "Async mode: push notification when opponent moves.",
+    "Daily puzzles: same seed globally; validate once per user per day.",
+    "Smaller payloads than FPS — HTTPS and WebSocket both fine."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Puzzle games stress correctness over microseconds. A illegal word guess must be rejected; a daily puzzle must not accept two submissions from the same account."
+    },
+    {
+      "type": "callout",
+      "title": "Wordle at scale",
+      "text": "One puzzle ID per calendar day, stored as immutable answer hash. Client submits guess; server returns tile feedback without leaking future answers.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// One submission per user per puzzle day\nasync function submitGuess(userId: string, puzzleDate: string, guess: string) {\n  const existing = await db.submissions.findUnique({\n    where: { userId_puzzleDate: { userId, puzzleDate } },\n  });\n  if (existing) return existing; // idempotent replay\n  const feedback = scoreGuess(puzzleDate, guess);\n  return db.submissions.create({ data: { userId, puzzleDate, guess, feedback } });\n}",
+      "caption": "Daily puzzle idempotency"
+    }
+  ],
+  "relatedConcepts": [
+    "turn-based",
+    "state machine",
+    "timer",
+    "daily puzzle",
+    "validation"
+  ],
+  "media": {}
+}

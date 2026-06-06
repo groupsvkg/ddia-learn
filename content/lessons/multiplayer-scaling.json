@@ -1,0 +1,38 @@
+{
+  "id": "multiplayer-scaling",
+  "chapterId": "sd-multiplayer-games",
+  "title": "Sharding and Matchmaking",
+  "summary": "Scale horizontally by adding game server processes; matchmaking is the control plane.",
+  "keyTakeaways": [
+    "Each match is an isolated process — natural parallelism boundary.",
+    "Matchmaking queues partition by mode/region/rank.",
+    "Backpressure when server pool full: queue wait UX vs degraded bots.",
+    "Cross-region play only when product accepts high ping.",
+    "Telemetry pipeline (Kafka) feeds ranking and crash analytics.",
+    "Stateful sets or Agones allocate UDP ports per pod."
+  ],
+  "body": [
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Call of Duty warzone spins thousands of single-match processes across cloud VMs. Control plane tracks capacity; data plane is ephemeral per round.",
+      "variant": "info"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Regional matchmaking with skill bucket\ntype Ticket = { playerId: string; mmr: number; region: string };\n\nfunction findMatch(queue: Ticket[]): Match | null {\n  const ready = queue.filter((t) => t.region === \"eu-west\");\n  if (ready.length < 10) return null;\n  const avg = ready.reduce((s, t) => s + t.mmr, 0) / ready.length;\n  const picked = ready.filter((t) => Math.abs(t.mmr - avg) < 200).slice(0, 10);\n  return { players: picked.map((t) => t.playerId), serverShard: \"eu-west-3\" };\n}",
+      "caption": "Regional matchmaking queue"
+    }
+  ],
+  "relatedConcepts": [
+    "sharding",
+    "matchmaking",
+    "Agones",
+    "regional",
+    "telemetry",
+    "UDP",
+    "bandwidth"
+  ],
+  "media": {}
+}

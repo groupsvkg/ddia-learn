@@ -1,0 +1,47 @@
+{
+  "id": "unix-tools",
+  "chapterId": "ch10-batch-processing",
+  "title": "Batch Processing with Unix Tools",
+  "summary": "The Unix philosophy — composable tools over monolithic programs — scales to big data.",
+  "keyTakeaways": [
+    "Small tools do one thing well and compose via pipes.",
+    "stdin/stdout as a uniform interface decouples producers and consumers.",
+    "Log analysis with awk, grep, and sort handles surprisingly large datasets.",
+    "Immutability of input files enables retry and recomputation.",
+    "The same patterns underpin Hadoop, Spark, and modern data pipelines.",
+    "grep/awk on logs, DuckDB on Parquet, and Fluent Bit pipelines extend the Unix pattern."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Long before Hadoop, Unix pipelines processed data by chaining simple programs: extract fields with awk, filter with grep, aggregate with sort. Each tool is stateless, reads stdin, writes stdout — a pattern that scales to terabytes when parallelized."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "SREs still debug production with grep and jq on JSON logs. DuckDB queries Parquet files on S3 like a local Unix tool — no cluster required. Fluent Bit and Vector collect container logs on Kubernetes nodes and pipe them to Elasticsearch or S3. The composable-pipeline idea survived; only the scale and storage changed.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Google at scale",
+      "text": "Google's early MapReduce paper explicitly credits Unix pipelines as inspiration — small composable tools over monolithic programs. SRE log triage still chains grep, awk, and sort before reaching for a cluster.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Google SRE log triage — composable Unix-style pipeline\n// cat access.log | grep '\" 5' | awk '{print $7}' | sort | uniq -c | sort -rn\nconst lines = await readFile(\"access.log\", \"utf8\");\nconst errors = lines.split(\"\\n\")\n  .filter((l) => l.includes('\" 5'))\n  .map((l) => l.split(\" \")[6]);\nconst counts = Object.fromEntries(\n  [...new Set(errors)].map((p) => [p, errors.filter((e) => e === p).length])\n);",
+      "caption": "Unix-style log pipeline"
+    }
+  ],
+  "relatedConcepts": [
+    "Unix philosophy",
+    "DuckDB",
+    "Fluent Bit",
+    "batch processing",
+    "pipeline",
+    "immutability"
+  ],
+  "media": {}
+}

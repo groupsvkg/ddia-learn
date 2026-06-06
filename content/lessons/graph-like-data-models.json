@@ -1,0 +1,64 @@
+{
+  "id": "graph-like-data-models",
+  "chapterId": "ch02-data-models-query-languages",
+  "title": "Graph-Like Data Models",
+  "summary": "When connections between entities matter more than the entities themselves, graph models are the natural fit.",
+  "keyTakeaways": [
+    "Property graphs store nodes, edges, and properties — ideal for social networks and recommendations.",
+    "Triple-stores represent facts as (subject, predicate, object) for semantic web data.",
+    "Graph traversals replace expensive multi-table joins in relational schemas.",
+    "Cypher and SPARQL express path queries declaratively.",
+    "Graph databases trade specialized traversal for weaker bulk analytics.",
+    "Neo4j and Amazon Neptune power fraud detection and knowledge graphs in production."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Many domains are inherently connected: social graphs, supply chains, knowledge bases, fraud detection. Representing these as relational tables with join tables works but makes traversal queries verbose and slow."
+    },
+    {
+      "type": "heading",
+      "text": "Property Graphs",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "In a property graph, vertices represent entities and edges represent relationships, both carrying key-value properties. Finding friends-of-friends or shortest paths becomes a native index traversal rather than a recursive SQL query."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "LinkedIn's early social graph used custom graph storage; today Neo4j, Amazon Neptune, and Azure Cosmos DB (Gremlin API) handle relationship-heavy workloads. Banks use graph queries to trace money-laundering rings across accounts — a multi-hop traversal that would require recursive CTEs in PostgreSQL.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "LinkedIn at scale",
+      "text": "People You May Know and connection suggestions traverse multi-hop paths over billions of edges. A property graph makes friends-of-friends a native index walk instead of a four-table SQL join.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// LinkedIn-style graph traversal (Cypher / Neo4j pattern)\nconst mutualConnections = await graph.run(`\n  MATCH (me:User {id: $userId})-[:CONNECTED_TO]-(friend)-[:CONNECTED_TO]-(fof)\n  WHERE fof.id <> $userId AND NOT (me)-[:CONNECTED_TO]-(fof)\n  RETURN DISTINCT fof.id, fof.name LIMIT 50\n`, { userId });\n// Multi-hop in one declarative query — expensive as SQL recursive CTE",
+      "caption": "Graph pattern query (Cypher)"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Cypher (Neo4j): pattern-matching syntax for graph traversal.",
+        "SPARQL: W3C standard for RDF triple-stores.",
+        "Datalog: logic-based queries with recursive rules."
+      ]
+    }
+  ],
+  "relatedConcepts": [
+    "property graph",
+    "Neo4j",
+    "Neptune",
+    "Cypher",
+    "SPARQL",
+    "graph traversal"
+  ],
+  "media": {}
+}

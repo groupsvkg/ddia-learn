@@ -1,0 +1,47 @@
+{
+  "id": "aiming-for-correctness",
+  "chapterId": "ch12-future-of-data-systems",
+  "title": "Aiming for Correctness",
+  "summary": "End-to-end guarantees, constraints, and verification — correctness requires deliberate design.",
+  "keyTakeaways": [
+    "The end-to-end argument: low-level reliability alone does not ensure application correctness.",
+    "Enforce constraints at the data layer where possible (unique, foreign key, check).",
+    "Timeliness and integrity: data must be correct and arrive when needed.",
+    "Audit trails and checksums enable trust-but-verify patterns.",
+    "Formal verification and testing at the system boundary catch integration bugs.",
+    "Stripe idempotency keys, PostgreSQL constraints, and SAGA patterns enforce correctness end-to-end."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Correctness is not accidental. It requires end-to-end reasoning: the database can enforce constraints, but the application must define invariants. Auditing, idempotency, and deterministic replay help verify that derived systems match the source of truth."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Stripe's API requires Idempotency-Key headers so network retries never double-charge. PostgreSQL UNIQUE and FOREIGN KEY constraints catch bugs at the database layer. In microservices, the SAGA pattern coordinates multi-service transactions with compensating actions (cancel shipment if payment fails). OpenTelemetry traces verify that an event published to Kafka was processed by every downstream consumer.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Stripe at scale",
+      "text": "Every charge API call accepts an Idempotency-Key header — network retries return the original result instead of double-charging. Correctness is enforced end-to-end, not just at the TCP layer.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Stripe-style idempotency — safe retries over unreliable networks\nasync function chargeCard(req: Request) {\n  const idempotencyKey = req.headers.get(\"Idempotency-Key\");\n  const existing = await redis.get(`idem:${idempotencyKey}`);\n  if (existing) return JSON.parse(existing);\n\n  const result = await paymentService.charge(/* ... */);\n  await redis.setex(`idem:${idempotencyKey}`, 86400, JSON.stringify(result));\n  return result;\n}",
+      "caption": "Idempotent payment retries"
+    }
+  ],
+  "relatedConcepts": [
+    "end-to-end argument",
+    "idempotency",
+    "PostgreSQL",
+    "SAGA",
+    "OpenTelemetry",
+    "correctness"
+  ],
+  "media": {}
+}

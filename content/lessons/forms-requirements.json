@@ -1,0 +1,35 @@
+{
+  "id": "forms-requirements",
+  "chapterId": "sd-multistep-forms",
+  "title": "Requirements and Constraints",
+  "summary": "Long-running forms need durable drafts, per-step validation, and async verification.",
+  "keyTakeaways": [
+    "Users pause for hours or days — progress must survive browser close and device switch.",
+    "Autosave on a timer dominates write traffic; final submit is rare.",
+    "Server-side validation is authoritative on every step and on submit.",
+    "Large attachments upload direct-to-S3; draft stores a pointer only.",
+    "Async vendor steps (credit check, identity) complete via webhook days later.",
+    "PII fields need encryption at rest; resume links must not leak secrets in URLs."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Mortgage, visa, and merchant onboarding forms are state machines measured in days, not milliseconds. Session cookies are insufficient — drafts live in the database."
+    },
+    {
+      "type": "callout",
+      "title": "Stripe at scale",
+      "text": "Connect onboarding saves partial KYC progress. Merchants resume on a new device without re-entering verified fields.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "requirements",
+    "draft",
+    "autosave",
+    "validation",
+    "PII",
+    "webhook"
+  ],
+  "media": {}
+}

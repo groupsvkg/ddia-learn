@@ -1,0 +1,63 @@
+{
+  "id": "modes-of-dataflow",
+  "chapterId": "ch04-encoding-and-evolution",
+  "title": "Modes of Dataflow",
+  "summary": "Data moves between processes via databases, service calls, and message queues — each with different trade-offs.",
+  "keyTakeaways": [
+    "Database-as-mediator: processes write and read shared tables asynchronously.",
+    "REST and RPC: synchronous request/response between services.",
+    "Message queues: asynchronous, buffered delivery with at-least-once semantics.",
+    "Event-driven architectures decouple producers and consumers in time.",
+    "The encoding format must be agreed upon across all participants.",
+    "nginx/Envoy reverse proxies front gRPC services; Kafka and SQS carry async events."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "When one process needs to share data with another, the dataflow pattern matters. Writing to a shared database is the oldest integration pattern. RPC calls offer synchronous coupling. Message queues add buffering and decouple availability."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "A typical AWS microservice stack: services call each other via gRPC behind an Envoy or nginx reverse proxy, share state in PostgreSQL, cache hot reads in Redis, and publish domain events to Kafka or AWS SQS. WebSockets and Server-Sent Events (SSE) push real-time updates to browsers — another dataflow mode for live dashboards and notifications.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Airbnb at scale",
+      "text": "A booking spans listings, calendar, payments, and notifications — each a separate service. Synchronous gRPC checks availability; Kafka events notify hosts asynchronously when a reservation confirms.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Airbnb microservices — synchronous gRPC between booking services\nconst listing = await listingsClient.getListing({ id: listingId });\nconst availability = await calendarClient.checkDates({\n  listingId,\n  checkIn,\n  checkOut,\n});\n// REST/GraphQL for browsers; gRPC for internal service-to-service calls",
+      "caption": "Synchronous gRPC between services"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Client[\"Mobile / Web\"]\n    GW[\"API Gateway<br/>Envoy / nginx\"]\n    Listings[Listings svc]\n    Bookings[Bookings svc]\n    Payments[Payments svc]\n    Search[Search svc]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    Kafka[[Kafka]]\n    ES[(Elasticsearch)]\n    Client --> GW\n    GW --> Listings & Bookings & Payments & Search\n    Bookings --> PG\n    Listings --> Redis\n    Bookings --> Kafka\n    Kafka -.-> ES\n    Search --> ES",
+      "kind": "architecture",
+      "caption": "Transactions and data integration across services: sync RPC for reads, async events for side effects."
+    },
+    {
+      "type": "list",
+      "items": [
+        "Database: simple but creates tight schema coupling.",
+        "REST/RPC: real-time but requires both sides to be available.",
+        "Message queue: resilient to spikes but adds delivery guarantees complexity."
+      ]
+    }
+  ],
+  "relatedConcepts": [
+    "REST",
+    "gRPC",
+    "Kafka",
+    "Redis",
+    "reverse proxy",
+    "WebSocket",
+    "SSE",
+    "message queue"
+  ],
+  "media": {}
+}

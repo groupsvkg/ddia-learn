@@ -1,0 +1,91 @@
+{
+  "id": "multistep-estimation",
+  "chapterId": "sd-multistep-systems",
+  "title": "Back-of-the-Envelope Estimation",
+  "summary": "Peak saga throughput, activity call rate, and workflow history storage growth.",
+  "keyTakeaways": [
+    "~460 peak sagas/s on Black Friday; ~2.3k activity invocations/s.",
+    "Bottleneck is external APIs (Stripe, inventory), not orchestrator QPS.",
+    "~7 TB/year workflow history — Temporal/Step Functions persist full event log.",
+    "Sleeping workflows (24h KYC) need durable timers, not blocked threads."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+    },
+    {
+      "type": "paragraph",
+      "text": "Assume e-commerce: 2M orders/day, 5 saga steps each, 20% failure requiring compensation, 10% of orders wait 24h on KYC step, workflow history 2 KB per step."
+    },
+    {
+      "type": "heading",
+      "text": "Workflow throughput",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Orders: 2M/day ≈ 23/s average, peak (Black Friday ×20) ≈ 460 new sagas/s.",
+        "Steps: 460 × 5 ≈ 2,300 activity invocations/s peak — each idempotent HTTP call to inventory/payment/ship.",
+        "Compensations: 20% × 460 ≈ 92 reverse flows/s on failure spikes."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Storage",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Workflow history: 2M orders × 5 steps × 2 KB ≈ 20 GB/day ≈ 7 TB/year — Temporal/Step Functions persist full event log.",
+        "Sleeping workflows (KYC 24h): 200k in-flight × 2 KB ≈ 400 MB state — durable timers, not blocked threads."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Messaging & network",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Kafka choreography (optional): 2M × 3 events × 500 B ≈ 3 GB/day async side effects.",
+        "Orchestrator ↔ services: 2,300 RPC/s × 5 KB ≈ 11 MB/s — low bandwidth, latency per step dominates (Stripe ~200ms)."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Memory & caching",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Worker memory: replay history on crash — disk-backed in Temporal, not all in RAM.",
+        "Idempotency cache (Redis): 460 new/s × 3600s × 100 B key ≈ 165 MB/hour churn for duplicate detection."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Black Friday checkout sagas\nconst ordersPerDay = 2_000_000;\nconst peakMultiplier = 20;\nconst stepsPerOrder = 5;\nconst peakOrdersPerSec = (ordersPerDay / 86_400) * peakMultiplier;\nconst peakActivitiesPerSec = peakOrdersPerSec * stepsPerOrder;\nconsole.log({ peakSagasPerSec: Math.round(peakOrdersPerSec), peakActivitiesPerSec: Math.round(peakActivitiesPerSec) });",
+      "caption": "Checkout saga peak activities"
+    },
+    {
+      "type": "callout",
+      "title": "Order-of-magnitude summary",
+      "text": "~460 peak sagas/s, ~2.3k activity calls/s, ~7 TB/year workflow history. Bottleneck is external APIs (payment, inventory), not QPS math.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "saga",
+    "QPS",
+    "Temporal",
+    "workflow history",
+    "idempotency"
+  ],
+  "media": {}
+}

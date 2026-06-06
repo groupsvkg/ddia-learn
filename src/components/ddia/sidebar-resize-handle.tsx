@@ -87,7 +87,6 @@ export function SidebarResizeHandle({ width, onWidthChange }: SidebarResizeHandl
 
   if (isMobile) return null;
 
-  const displayWidth = dragWidth ?? width;
   const isDragging = dragWidth !== null;
 
   return (
@@ -98,13 +97,11 @@ export function SidebarResizeHandle({ width, onWidthChange }: SidebarResizeHandl
       title="Drag to resize sidebar"
       onMouseDown={handleMouseDown}
       className={cn(
-        "fixed top-0 z-30 hidden h-svh w-3 md:block",
+        "absolute top-0 right-0 z-20 hidden h-full w-2 -translate-x-1/2 md:block",
         "cursor-col-resize",
         "hover:bg-sidebar-border/60",
         isDragging && "bg-sidebar-border/80",
-        !isDragging && "transition-[left] duration-200 ease-linear",
       )}
-      style={{ left: `calc(${displayWidth}px - 6px)` }}
     />
   );
 }

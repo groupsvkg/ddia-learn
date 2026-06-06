@@ -1,0 +1,112 @@
+{
+  "id": "scalability",
+  "chapterId": "ch01-reliable-scalable-maintainable",
+  "title": "Scalability",
+  "summary": "Scalability is not a single number — it is how a system copes with increased load. The right strategy depends entirely on what \"load\" means for your application.",
+  "keyTakeaways": [
+    "Load must be described with concrete parameters: requests/sec, read/write ratio, cache hit rate, etc.",
+    "Performance is measured in throughput (records/sec) or response time (latency percentiles).",
+    "Percentile metrics (p95, p99) matter more than averages for user experience.",
+    "Scaling can be vertical (bigger machine) or horizontal (more machines) — each has trade-offs.",
+    "Elastic systems automatically add resources under load; manual scaling is simpler but slower.",
+    "Redis caching, Cloudflare CDN, Kubernetes HPA, and PostgreSQL read replicas are common scaling layers."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Scalability describes how performance changes when load increases. A system that handles 10 users beautifully but collapses at 10,000 is not scalable. But \"scalable\" does not mean \"infinitely fast\" — it means you have a reasonable plan for growth."
+    },
+    {
+      "type": "heading",
+      "text": "Describing Load",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Load is not just \"number of users.\" For a social network, it might be posts per second and fan-out reads. For a search engine, it is queries per second and index size. Define the parameters that matter for your system and measure them."
+    },
+    {
+      "type": "callout",
+      "title": "Example: Twitter timelines",
+      "text": "Twitter once reported ~300k requests/sec for home timelines and ~6k tweets/sec for writes. The read/write ratio and fan-out pattern (push vs pull model) dominated architectural choices.",
+      "variant": "info"
+    },
+    {
+      "type": "heading",
+      "text": "Describing Performance",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Throughput tells you how much work a system handles per unit time. Response time (latency) tells you how long an individual request waits. Both matter, but for interactive applications, tail latency — the slowest 1% or 5% of requests — often determines whether users perceive the system as fast."
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart LR\n    subgraph percentiles [\"Response time ms\"]\n      P50[\"p50: 45ms\"]\n      P95[\"p95: 120ms\"]\n      P99[\"p99: 480ms\"]\n      MAX[\"max: 2100ms\"]\n    end\n    AVG[\"avg: 80ms\"]\n    note[\"p99 is 6× average — optimize tail latency\"]\n    P50 ~~~ P95 ~~~ P99 ~~~ MAX",
+      "kind": "diagram",
+      "caption": "Why average latency hides problems: a few slow requests dominate user perception."
+    },
+    {
+      "type": "heading",
+      "text": "Approaches for Coping with Load",
+      "level": 2
+    },
+    {
+      "type": "list",
+      "items": [
+        "Vertical scaling: upgrade CPU, RAM, or disk on one machine. Simple but has hard limits.",
+        "Horizontal scaling: distribute load across many machines. Requires partitioning and coordination.",
+        "Elastic scaling: automatically add/remove capacity. Great for variable load, harder to operate.",
+        "Tuning and optimization: sometimes a 10x improvement comes from a better algorithm, not more hardware."
+      ]
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Most web apps scale in layers: Cloudflare or AWS CloudFront caches static assets at the edge; Redis caches hot database rows (session data, product catalogs); PostgreSQL read replicas offload analytics queries; Kubernetes Horizontal Pod Autoscaler (HPA) adds pods when CPU or request rate spikes. Datadog or Prometheus tracks p95/p99 latency so you scale before users notice.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Facebook at scale",
+      "text": "Meta's home timeline problem is pure scalability engineering: ~300k reads/sec vs ~6k writes/sec drove a hybrid fan-out strategy — precompute feeds for normal users (push), fetch on demand for celebrities with millions of followers (pull). Tail latency matters more than average load.",
+      "variant": "tip"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Post[User posts]\n    DB[(\"Post DB<br/>sharded\")]\n    Fanout[\"Fan-out Service\"]\n    C1[(\"Feed Cache<br/>Redis\")]\n    C2[(\"Feed Cache\")]\n    C3[(\"Feed Cache\")]\n    Post --> DB --> Fanout\n    Fanout --> C1 & C2 & C3",
+      "kind": "architecture",
+      "caption": "Meta precomputes follower feeds in Redis — the push/pull hybrid scales the home timeline."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "caption": "Track p50/p99 latency — averages hide tail problems",
+      "code": "const durations: number[] = [];\n\nfunction percentile(p: number): number {\n  const sorted = [...durations].sort((a, b) => a - b);\n  const idx = Math.ceil((p / 100) * sorted.length) - 1;\n  return sorted[Math.max(0, idx)];\n}\n\n// Google SRE: monitor p99, not just mean\nconsole.log({ p50: percentile(50), p99: percentile(99) });"
+    },
+    {
+      "type": "media",
+      "src": "/media/ch01/scaling-load.png",
+      "alt": "Conceptual illustration of traffic growing across distributed servers",
+      "kind": "image",
+      "caption": "Horizontal scaling spreads load, but introduces coordination challenges."
+    }
+  ],
+  "relatedConcepts": [
+    "throughput",
+    "latency",
+    "percentile",
+    "horizontal scaling",
+    "vertical scaling",
+    "Redis",
+    "Kubernetes",
+    "Cloudflare",
+    "PostgreSQL"
+  ],
+  "media": {
+    "heroImage": "/media/ch01/scaling-load.png",
+    "diagrams": [
+      "latency-percentiles"
+    ]
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "id": "puzzle-conflicts",
+  "chapterId": "sd-puzzle-games",
+  "title": "Merging Moves and Leaderboards",
+  "summary": "Concurrent edits to shared boards need versioning; leaderboards need approximate top-K at scale.",
+  "keyTakeaways": [
+    "Board state version increments on each valid move; stale versions rejected.",
+    "Shared puzzles (collaborative crosswords) may use CRDT grids for cells.",
+    "Leaderboards: Redis sorted sets for real-time; batch reconcile for seasons.",
+    "Anti-cheat: server-side dictionary and move legality only.",
+    "Spectator mode reads immutable move log — same pattern as event sourcing.",
+    "Tie-breakers defined upfront (time, fewer hints)."
+  ],
+  "body": [
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Player[\"Player app\"]\n    API[\"Game API<br/>validate rules\"]\n    Board[(\"Board DB<br/>versioned\")]\n    Log[(\"Move Log<br/>event sourced\")]\n    Redis[(\"Redis ZSET<br/>leaderboard\")]\n\n    subgraph playPath [\"Play path — validate and persist move\"]\n      direction LR\n      Player -->|\"① POST /move\"| API\n      API -->|\"② UPDATE WHERE version=N\"| Board\n      API -->|\"③ append move event\"| Log\n    end\n\n    subgraph scorePath [\"Score path — leaderboard and timers\"]\n      direction LR\n      Timer[\"Scheduler<br/>forfeit on timeout\"]\n      API -->|\"④ ZADD score\"| Redis\n      Timer -.->|\"⑤ trigger forfeit\"| API\n      Player -.->|\"⑥ GET top-100\"| Redis\n    end",
+      "kind": "architecture",
+      "caption": "Puzzle games validate moves against versioned board state, append to a move log, and rank players in Redis — not SQL ORDER BY."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Play path — validate and persist",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① POST /move — Player submits a move; server is authoritative, not the client.",
+        "② UPDATE WHERE version=N — Optimistic lock on board row; stale version rejected with 409 Conflict.",
+        "③ Append move event — Immutable move log supports replay, spectators, and audit."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Score path — leaderboard and timers",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "④ ZADD score — Redis sorted set updated on valid move; top-100 is O(log N + 100).",
+        "⑤ Trigger forfeit — Scheduler fires when turn timer expires; API applies forfeit rule.",
+        "⑥ GET top-100 — Leaderboard reads from Redis, not a full table scan in Postgres."
+      ]
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant P as Player\n    participant API as Game API\n    participant B as Board DB\n    participant L as Move Log\n    participant R as Redis\n    P->>API: POST /move v=7\n    API->>B: UPDATE board WHERE version=7\n    B-->>API: 1 row (ok)\n    API->>L: append move event\n    API->>R: ZADD score\n    API-->>P: 200 new board",
+      "kind": "sequence",
+      "caption": "Validated move with optimistic locking, event log, and score update."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Reject stale concurrent moves\nasync function applyMove(gameId: string, version: number, move: Move) {\n  const updated = await db.games.updateMany({\n    where: { id: gameId, version },\n    data: { board: applyRules(move), version: { increment: 1 } },\n  });\n  if (updated.count === 0) throw new Error(\"STALE_BOARD — refresh and retry\");\n}",
+      "caption": "Optimistic board version check"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Chess.com stores PGN move logs; lichess uses similar event-sourced game records. NYT Games leaderboard uses precomputed daily ranks to avoid scanning all players at read time.",
+      "variant": "info"
+    },
+    {
+      "type": "heading",
+      "text": "Why these technologies?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why PostgreSQL (board state)?",
+      "text": "Turn-based games tolerate 50–200 ms latency — ACID updates with version column prevent stale moves. Simpler than CRDTs for single-writer-per-turn chess.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Append-only move log?",
+      "text": "Replay games, spectator mode, and dispute resolution. Event sourcing lite — board is a projection of moves.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Redis sorted sets (leaderboard)?",
+      "text": "O(log N) rank updates and top-K queries at millions of players. Recomputing ranks in SQL nightly is too slow for live daily puzzles.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Scheduler (SQS delay / Redis TTL / cron)?",
+      "text": "Forfeit players who exceed turn timeout without polling every second in application code.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why HTTPS / WebSocket (not UDP)?",
+      "text": "Puzzle games are not latency-competitive — reliable delivery matters more. JSON payloads are tiny.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Push notifications (APNs/FCM)?",
+      "text": "Async turn games notify opponent it's their move — optional but standard for retention.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "leaderboard",
+    "versioning",
+    "Redis",
+    "event sourcing",
+    "CRDT",
+    "PostgreSQL",
+    "QPS"
+  ],
+  "media": {}
+}

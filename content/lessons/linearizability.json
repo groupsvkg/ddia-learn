@@ -1,0 +1,53 @@
+{
+  "id": "linearizability",
+  "chapterId": "ch09-consistency-and-consensus",
+  "title": "Linearizability",
+  "summary": "Linearizability makes a replicated system behave as if there were only one copy of the data.",
+  "keyTakeaways": [
+    "Every operation appears to take effect atomically at some instant.",
+    "Once a write completes, all subsequent reads see it.",
+    "Compare-and-set and distributed locks require linearizability.",
+    "Implementing linearizability requires coordination — often a single leader.",
+    "The CAP theorem: during a partition, choose consistency or availability.",
+    "etcd, ZooKeeper, and Spanner provide linearizable operations for coordination and storage."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Linearizability (also called strong consistency or atomic consistency) is the strongest single-object guarantee. It makes concurrent operations appear to execute in some sequential order that respects real-time ordering."
+    },
+    {
+      "type": "callout",
+      "title": "Cost",
+      "text": "Linearizability requires consensus on every operation — adding latency and reducing availability during network partitions.",
+      "variant": "warning"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Kubernetes uses etcd for linearizable leader election and config storage. ZooKeeper coordinates Kafka brokers (legacy) and Hadoop. Distributed locks (Redisson on Redis, etcd leases) need linearizable compare-and-set. Spanner offers external linearizable reads globally — rare and costly; most apps settle for per-partition ordering in Kafka instead.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "LinkedIn at scale",
+      "text": "Job-posting deduplication and distributed locks for recruiter workflows require linearizable compare-and-set via etcd — only one worker may hold the lock at a time.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// LinkedIn distributed lock — linearizable compare-and-set\nasync function acquireLock(resource: string): Promise<boolean> {\n  const ok = await etcd.put(resource, nodeId, {\n    prevExist: \"false\", // only succeeds if key absent — atomic\n  });\n  return ok;\n}\n// Stale leader cannot steal lock without seeing current holder",
+      "caption": "Linearizable compare-and-set lock"
+    }
+  ],
+  "relatedConcepts": [
+    "linearizability",
+    "etcd",
+    "ZooKeeper",
+    "CAP theorem",
+    "Spanner",
+    "compare-and-set"
+  ],
+  "media": {}
+}

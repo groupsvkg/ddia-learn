@@ -1,0 +1,59 @@
+{
+  "id": "leaders-and-followers",
+  "chapterId": "ch05-replication",
+  "title": "Leaders and Followers",
+  "summary": "Leader-based replication funnels all writes through one node and copies them to followers.",
+  "keyTakeaways": [
+    "One replica is the leader; all writes go to it.",
+    "Followers replicate the leader's write log and serve read traffic.",
+    "Synchronous replication waits for follower ack before confirming writes.",
+    "Asynchronous replication is faster but risks data loss on leader failure.",
+    "New followers bootstrap by copying a snapshot then tailing the log.",
+    "PostgreSQL streaming replication, MySQL primary-replica, and MongoDB replica sets all use this pattern."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Replication keeps copies of data on multiple machines for fault tolerance and read scaling. The simplest scheme designates one leader that accepts writes and broadcasts changes to follower replicas."
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart LR\n    Client[Client]\n    Leader[(Leader<br/>writes)]\n    F1[(Follower 1)]\n    F2[(Follower 2)]\n    Client -->|write| Leader\n    Leader -->|replicate log| F1 & F2\n    Client -->|read| F1\n    Client -->|read| F2",
+      "kind": "diagram",
+      "caption": "Writes flow to the leader; followers replicate the log and serve reads."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "PostgreSQL streaming replication sends the WAL from primary to standbys. Amazon RDS Multi-AZ runs synchronous replication within an AZ pair. MongoDB replica sets elect a primary; secondaries tail the oplog. Read replicas on AWS Aurora offload analytics queries from the writer.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "WhatsApp at scale",
+      "text": "Message history replicates from a primary shard to followers so reads scale globally. All writes funnel through the leader; followers tail the WAL to stay consistent without accepting direct writes.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// WhatsApp-style leader → follower replication via write-ahead log\nasync function replicateWrite(entry: WalEntry) {\n  await leader.appendWal(entry);\n  for (const follower of followers) {\n    follower.streamWal((e) => follower.apply(e)); // async tail of leader log\n  }\n  return leader.confirmWrite(entry.lsn);\n}",
+      "caption": "Write-ahead log replication"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Sender[\"Sender app\"]\n    Receiver[\"Receiver app\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Redis[(\"Redis<br/>presence + typing\")]\n\n    subgraph sendPath [\"Send path — persist message\"]\n      direction LR\n      Server[\"Chat Server<br/>Erlang/BEAM\"]\n      Sender -->|\"① WebSocket SEND\"| Server\n      Server -->|\"② append seq=N\"| Store\n      Server -->|\"③ update presence\"| Redis\n    end\n\n    subgraph deliverPath [\"Delivery path — online or offline\"]\n      direction LR\n      Push[\"Push Gateway<br/>APNs / FCM\"]\n      Server -->|\"④a online: WebSocket PUSH\"| Receiver\n      Server -.->|\"④b offline: notify\"| Push\n      Push -.->|\"⑤ push alert\"| Receiver\n      Receiver -->|\"⑥ ACK seq\"| Server\n    end",
+      "kind": "architecture",
+      "caption": "Leader-based replication over unreliable networks: one writer, many read replicas tailing the log."
+    }
+  ],
+  "relatedConcepts": [
+    "leader",
+    "follower",
+    "PostgreSQL",
+    "MongoDB",
+    "replication log",
+    "synchronous replication"
+  ],
+  "media": {}
+}

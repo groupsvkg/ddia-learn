@@ -1,0 +1,129 @@
+{
+  "id": "forms-architecture",
+  "chapterId": "sd-multistep-forms",
+  "title": "Backend for Long-Running Applications",
+  "summary": "API design for partial saves, file uploads, and async verification steps.",
+  "keyTakeaways": [
+    "POST /drafts upserts JSON blob; PATCH /steps/:id validates slice only.",
+    "Large uploads direct-to-S3 with signed URLs; draft stores pointer.",
+    "Async steps (credit check) transition draft to PENDING_VERIFICATION.",
+    "Webhook or poll updates UI when vendor returns.",
+    "PII encrypted at rest; field-level encryption for SSN/tax IDs.",
+    "Analytics on funnel drop-off per step drives product iteration."
+  ],
+  "body": [
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    User[\"Applicant\"]\n    API[\"Draft API\"]\n    PG[(\"Postgres<br/>draft JSON\")]\n    S3[(\"S3<br/>documents\")]\n\n    subgraph syncPath [\"Synchronous path — autosave while editing\"]\n      direction LR\n      User -->|\"① PATCH /draft every 30s\"| API\n      API -->|\"② UPSERT JSON\"| PG\n      User -->|\"③ PUT via signed URL\"| S3\n    end\n\n    subgraph asyncPath [\"Async path — submit and verify\"]\n      direction LR\n      Vendor[\"Verify API<br/>KYC / credit\"]\n      User -->|\"④ POST /submit\"| API\n      API -->|\"⑤ start verification\"| Vendor\n      Vendor -.->|\"⑥ webhook result\"| API\n      API -->|\"⑦ status = APPROVED\"| PG\n    end",
+      "kind": "architecture",
+      "caption": "Long forms: autosave dominates the sync path; vendor verification runs async over webhooks after submit."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Synchronous path — autosave while editing",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① PATCH /draft every 30s — Client debounced autosave; dominates write QPS vs final submit.",
+        "② UPSERT JSON — Draft API persists partial answers in Postgres keyed by user + form version.",
+        "③ PUT via signed URL — Large documents (PDF, scans) upload direct-to-S3; draft stores pointer only."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Async path — submit and verify",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "④ POST /submit — Idempotent final submit; draft status moves to PENDING_VERIFICATION.",
+        "⑤ Start verification — API calls external KYC/credit vendor; HTTP returns 202 immediately.",
+        "⑥ Webhook result — Vendor calls back hours later with pass/fail; no long-polling from browser.",
+        "⑦ status = APPROVED — Draft row updated; user notified via email or in-app poll."
+      ]
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant U as Applicant\n    participant API as Draft API\n    participant DB as Postgres\n    participant S3 as S3\n    participant V as Verify API\n    U->>API: PATCH /draft step=2\n    API->>DB: UPSERT draft JSON\n    API-->>U: 204 saved\n    U->>S3: PUT doc.pdf (signed URL)\n    U->>API: POST /submit\n    API->>V: start verification\n    API-->>U: 202 pending\n    V->>API: webhook: verified\n    API->>DB: status=APPROVED",
+      "kind": "sequence",
+      "caption": "Autosave draft, direct S3 upload, submit, and webhook-driven approval."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "TurboTax and government visa portals use identical patterns: session-less drafts in DB, step validators as pure functions, async steps wired to mainframe or vendor APIs.",
+      "variant": "info"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Validate only fields for current step\nconst stepSchemas = {\n  1: z.object({ legalName: z.string().min(2), dob: z.string().date() }),\n  2: z.object({ ssn: z.string().regex(/^\\d{9}$/) }),\n  3: z.object({ income: z.number().positive() }),\n};\n\nfunction validateStep(step: number, payload: unknown) {\n  return stepSchemas[step as keyof typeof stepSchemas].parse(payload);\n}",
+      "caption": "Step validation handler"
+    },
+    {
+      "type": "heading",
+      "text": "Why these technologies?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why PostgreSQL (draft storage)?",
+      "text": "Multi-day forms need durable JSON blobs keyed by user + form version — survives browser close and device switch. Session cookies expire; DB drafts don't.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why S3 pre-signed URLs?",
+      "text": "Large documents (PDFs, scans) upload directly to object storage — API servers don't proxy gigabyte files. Draft row stores S3 key pointer only.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Step-scoped validation API?",
+      "text": "Validate only fields for current step — faster UX and clearer errors than validating entire 50-field form on every keystroke.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Async verification vendor + webhook?",
+      "text": "Credit checks and identity verification take seconds to days — cannot block HTTP request. Webhook transitions draft from PENDING to APPROVED.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Idempotent final submit?",
+      "text": "Double-click submit must not create two loan applications — same pattern as Stripe idempotency keys.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Field-level encryption?",
+      "text": "SSN and tax IDs encrypted at rest in Postgres — defense in depth beyond disk encryption.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Not a workflow engine for simple 3-step forms?",
+      "text": "Temporal is overkill for a checkout wizard — Postgres draft + state machine in application code suffices until human review gates appear.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "draft API",
+    "S3",
+    "webhook",
+    "PII",
+    "funnel analytics",
+    "PostgreSQL",
+    "autosave QPS"
+  ],
+  "media": {}
+}

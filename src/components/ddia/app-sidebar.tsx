@@ -30,24 +30,36 @@ type AppSidebarProps = {
   onSidebarWidthChange: (width: number) => void;
 };
 
+const DEFAULT_OPEN_CHAPTERS = [
+  "ch01-reliable-scalable-maintainable",
+  "sd-foundations",
+] as const;
+
+function getOpenChapters(pathname: string, curriculum: Curriculum): string[] {
+  const open = new Set<string>(DEFAULT_OPEN_CHAPTERS);
+  const activeChapter = curriculum.parts
+    .flatMap((part) => part.chapters)
+    .find((chapter) => pathname.startsWith(`/chapters/${chapter.id}`));
+
+  if (activeChapter) {
+    open.add(activeChapter.id);
+  }
+
+  return [...open];
+}
+
 export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: AppSidebarProps) {
   const pathname = usePathname();
-  const [openChapters, setOpenChapters] = useState<string[]>([
-    "ch01-reliable-scalable-maintainable",
-    "sd-foundations",
-  ]);
+  const [openChapters, setOpenChapters] = useState<string[]>(() =>
+    getOpenChapters(pathname, curriculum),
+  );
 
   useEffect(() => {
-    const activeChapter = curriculum.parts
-      .flatMap((part) => part.chapters)
-      .find((chapter) => pathname.startsWith(`/chapters/${chapter.id}`));
-
-    if (!activeChapter) return;
-
-    setOpenChapters((prev) =>
-      prev.includes(activeChapter.id) ? prev : [...prev, activeChapter.id],
-    );
-  }, [pathname, curriculum.parts]);
+    setOpenChapters((prev) => {
+      const next = getOpenChapters(pathname, curriculum);
+      return next.every((id) => prev.includes(id)) && prev.length === next.length ? prev : next;
+    });
+  }, [pathname, curriculum]);
 
   const setChapterOpen = (chapterId: string, open: boolean) => {
     setOpenChapters((prev) =>
@@ -82,7 +94,7 @@ export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: A
                   <SidebarMenuItem key={chapter.id}>
                     {/* Collapsed sidebar: chapter number only */}
                     <SidebarMenuButton
-                      render={<Link href={`/chapters/${chapter.id}`} />}
+                      render={<Link href={`/chapters/${chapter.id}`} prefetch={false} />}
                       isActive={pathname.startsWith(`/chapters/${chapter.id}`)}
                       tooltip={`${formatChapterLabel(chapter, part)}: ${chapter.title}`}
                       className="hidden group-data-[collapsible=icon]:flex"
@@ -101,7 +113,7 @@ export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: A
                           <ChevronRight className="size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-90" />
                         </CollapsibleTrigger>
                         <SidebarMenuButton
-                          render={<Link href={`/chapters/${chapter.id}`} />}
+                          render={<Link href={`/chapters/${chapter.id}`} prefetch={false} />}
                           isActive={pathname.startsWith(`/chapters/${chapter.id}`)}
                           className="h-auto min-h-8 flex-1 gap-1.5 py-1.5"
                         >
@@ -120,17 +132,22 @@ export function AppSidebar({ curriculum, sidebarWidth, onSidebarWidthChange }: A
                       </div>
                       <CollapsibleContent className="overflow-hidden">
                         <SidebarMenuSub className="gap-0.5 py-1">
-                          {chapter.sections.map((section) => (
-                            <SidebarMenuSubItem key={section.id}>
-                              <SidebarMenuSubButton
-                                render={<Link href={`/chapters/${chapter.id}/${section.id}`} />}
-                                isActive={pathname === `/chapters/${chapter.id}/${section.id}`}
-                                className="h-auto min-h-7 items-start py-1.5 leading-snug"
-                              >
-                                <span className="line-clamp-2">{section.title}</span>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
+                          {chapter.sections.map((section) => {
+                            const href = `/chapters/${chapter.id}/${section.id}`;
+                            const isActive = pathname === href;
+
+                            return (
+                              <SidebarMenuSubItem key={section.id}>
+                                <SidebarMenuSubButton
+                                  render={(props) => <Link {...props} href={href} prefetch={false} />}
+                                  isActive={isActive}
+                                  className="h-auto min-h-7 items-start py-1.5 leading-snug"
+                                >
+                                  <span className="line-clamp-2">{section.title}</span>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            );
+                          })}
                         </SidebarMenuSub>
                       </CollapsibleContent>
                     </Collapsible>

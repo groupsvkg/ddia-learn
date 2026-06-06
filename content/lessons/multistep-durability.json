@@ -1,0 +1,42 @@
+{
+  "id": "multistep-durability",
+  "chapterId": "sd-multistep-systems",
+  "title": "Durable Execution and Retries",
+  "summary": "Workflow state must survive process crashes. Durable timers and replayable history are the answer.",
+  "keyTakeaways": [
+    "Workflow engine persists event history before calling external APIs.",
+    "Activities retry with exponential backoff; non-retryable errors branch to compensate.",
+    "Exactly-once illusion via idempotent activity implementations.",
+    "Human tasks (KYC review) park workflow for days without holding threads.",
+    "Visibility APIs show ops which step failed and with what payload.",
+    "Version workflows carefully — running instances use old definition."
+  ],
+  "body": [
+    {
+      "type": "callout",
+      "title": "Uber at scale",
+      "text": "A trip saga spans matching, driver en route, payment capture, and receipt email. Temporal replays from history if the worker crashes mid-step.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Temporal-style durable step (conceptual)\nasync function onboardMerchant(merchantId: string) {\n  await activities.verifyIdentity(merchantId); // retried automatically\n  await activities.linkBankAccount(merchantId);\n  await sleep(\"7 days\"); // durable timer — survives worker crash\n  await activities.enablePayouts(merchantId);\n}",
+      "caption": "Durable workflow stub"
+    },
+    {
+      "type": "callout",
+      "title": "Outbox + inbox",
+      "text": "Combine sagas with transactional outbox so 'charge card' and 'mark order paid' never diverge.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "Temporal",
+    "durable execution",
+    "retry",
+    "idempotency",
+    "outbox"
+  ],
+  "media": {}
+}

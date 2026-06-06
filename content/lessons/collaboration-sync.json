@@ -1,0 +1,42 @@
+{
+  "id": "collaboration-sync",
+  "chapterId": "sd-collaboration",
+  "title": "OT, CRDTs, and Conflict-Free Editing",
+  "summary": "Concurrent edits merge without a single global lock. OT needs a server; CRDTs can peer-sync.",
+  "keyTakeaways": [
+    "Operational Transformation: server transforms concurrent ops against each other.",
+    "CRDTs: mathematically merge without central coordinator (Yjs, Automerge).",
+    "Choose OT for rich text with complex intent; CRDTs for JSON/tree structures.",
+    "Periodic snapshots bound replay time on reconnect.",
+    "Comment threads attach to stable anchors (block IDs), not byte offsets.",
+    "Offline edit queues flush on reconnect with merge."
+  ],
+  "body": [
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant A as User A\n    participant WS as Collab Server\n    participant B as User B\n    participant DB as Postgres\n    A->>WS: WS connect + auth\n    B->>WS: WS connect + auth\n    A->>WS: OP insert('hello')\n    WS->>DB: persist op\n    WS->>B: BROADCAST op\n    B->>WS: ACK\n    B->>WS: OP cursor move\n    WS->>A: presence update",
+      "kind": "sequence",
+      "caption": "Edit operation broadcast and optional persistence to Postgres."
+    },
+    {
+      "type": "callout",
+      "title": "Figma at scale",
+      "text": "Multiplayer editing uses a central server to order operations and broadcast deltas. CRDT research powers newer whiteboard features with less server coupling.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// CRDT document sync (Yjs-style conceptual)\nimport * as Y from \"yjs\";\nconst doc = new Y.Doc();\nconst text = doc.getText(\"content\");\ntext.insert(0, \"Hello\");\nconst update = Y.encodeStateAsUpdate(doc);\n// Broadcast update to peers; merge is commutative — no central lock",
+      "caption": "Yjs-style document update"
+    }
+  ],
+  "relatedConcepts": [
+    "OT",
+    "CRDT",
+    "Yjs",
+    "Figma",
+    "offline sync"
+  ],
+  "media": {}
+}

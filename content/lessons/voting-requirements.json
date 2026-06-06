@@ -1,0 +1,40 @@
+{
+  "id": "voting-requirements",
+  "chapterId": "sd-voting",
+  "title": "Requirements and Constraints",
+  "summary": "Voting systems must prevent duplicate ballots, resist tampering, and survive traffic spikes on election night.",
+  "keyTakeaways": [
+    "One voter → one ballot: unique constraint on (election_id, voter_id).",
+    "Ballots should be append-only; tallies derived, not edited in place.",
+    "Secret ballot vs verifiability is a product/legal trade-off.",
+    "Rate limiting and bot detection at the edge.",
+    "Audit logs: who cast when (metadata), not necessarily how they voted.",
+    "Read scaling for results pages; write spike at poll close."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Unlike likes on a post, votes are legally and socially sensitive. The architecture must make certain attacks impossible (double vote) and others detectable (ballot box stuffing at scale)."
+    },
+    {
+      "type": "callout",
+      "title": "Threat model first",
+      "text": "Define adversaries: duplicate voter, admin tampering, DDoS, network partition during close. Each drives different controls.",
+      "variant": "warning"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Estonia's i-Voting uses cryptographic protocols; US precinct systems often air-gap tallies. Product web polls (Twitter, Slack) use idempotent voter keys and Redis rate limits — weaker but appropriate for low stakes.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "integrity",
+    "audit",
+    "rate limiting",
+    "append-only",
+    "threat model"
+  ],
+  "media": {}
+}

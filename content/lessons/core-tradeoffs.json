@@ -1,0 +1,52 @@
+{
+  "id": "core-tradeoffs",
+  "chapterId": "sd-foundations",
+  "title": "Latency, Throughput, and Consistency",
+  "summary": "Every system design picks a point on the latency–throughput–consistency triangle. Name your choice explicitly.",
+  "keyTakeaways": [
+    "Strong consistency simplifies application logic but adds coordination latency.",
+    "Eventual consistency scales reads but requires idempotency and conflict handling.",
+    "Tail latency (p99) matters more than averages for interactive products.",
+    "Async pipelines improve throughput at the cost of visible lag.",
+    "CAP is a reminder to plan for partitions — not a menu with three equal options.",
+    "DDIA Part II concepts map directly to these product-level decisions."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "A reservation system needs linearizable inventory decrements. A YouTube view counter can be approximate. A voting system needs auditability stronger than either. The 'right' consistency level is domain-specific."
+    },
+    {
+      "type": "callout",
+      "title": "Pick your guarantees",
+      "text": "Write down what must never happen (double booking, duplicate vote) before choosing databases. The invariant picks the consistency model.",
+      "variant": "tip"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Instagram tolerates slightly stale like counts (approximate aggregation) but not duplicate posts on retry (idempotent write IDs). Google Spanner pays latency for global consistency where ads billing requires it.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "WhatsApp at scale",
+      "text": "Message ordering within a chat is strict; global search across chats is weaker or absent. The product promise determines per-feature consistency.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Facebook / Instagram: route reads to primary after posting\nasync function createPost(userId: string, text: string) {\n  const post = await db.primary.posts.create({ data: { userId, text } });\n  // Sticky session: next reads hit primary or caught-up replica\n  session.set(\"readFromPrimaryUntil\", Date.now() + 5_000);\n  return post;\n}\n\nasync function getFeed(userId: string) {\n  const client = session.get(\"readFromPrimaryUntil\") > Date.now()\n    ? db.primary\n    : db.replica;\n  return client.feed.findMany({ where: { userId } });\n}",
+      "caption": "Read-your-writes vs eventual feed"
+    }
+  ],
+  "relatedConcepts": [
+    "consistency",
+    "latency",
+    "throughput",
+    "CAP",
+    "idempotency"
+  ],
+  "media": {}
+}

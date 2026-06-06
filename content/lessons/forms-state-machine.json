@@ -1,0 +1,40 @@
+{
+  "id": "forms-state-machine",
+  "chapterId": "sd-multistep-forms",
+  "title": "Steps, Drafts, and Validation",
+  "summary": "Wizards span sessions and devices. Persist partial progress; validate per step and on submit.",
+  "keyTakeaways": [
+    "Explicit step graph: some steps skippable based on prior answers.",
+    "Draft record keyed by user + form version; autosave debounced.",
+    "Server-side validation authoritative — client hints are UX only.",
+    "Schema versioning: in-flight drafts pinned to form version they started.",
+    "Resume token in email link maps to draft without exposing PII in URL.",
+    "Final submit is idempotent — duplicate clicks do not create two applications."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Mortgage and insurance forms take days. Users expect to pause on mobile and finish on desktop. That requires durable draft storage, not session cookies."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Autosave wizard draft across sessions\nasync function saveDraft(userId: string, formVersion: number, step: number, data: Json) {\n  await db.formDrafts.upsert({\n    where: { userId_formVersion: { userId, formVersion } },\n    create: { userId, formVersion, step, data, updatedAt: new Date() },\n    update: { step, data, updatedAt: new Date() },\n  });\n}",
+      "caption": "Multistep draft autosave"
+    },
+    {
+      "type": "callout",
+      "title": "Stripe at scale",
+      "text": "Connect onboarding is a hosted multistep form with saved progress — merchants resume KYC without re-entering verified fields.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "wizard",
+    "draft",
+    "validation",
+    "state machine",
+    "autosave"
+  ],
+  "media": {}
+}

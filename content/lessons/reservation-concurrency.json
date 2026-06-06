@@ -1,0 +1,52 @@
+{
+  "id": "reservation-concurrency",
+  "chapterId": "sd-reservation",
+  "title": "Preventing Double Booking",
+  "summary": "Use database constraints, compare-and-swap, or dedicated inventory services — never 'check then insert' without locking.",
+  "keyTakeaways": [
+    "Pessimistic locking (SELECT FOR UPDATE) on inventory rows is simple and strong.",
+    "Optimistic concurrency with version columns works when conflicts are rare.",
+    "Distributed locks (Redis Redlock) only if DB row is unavailable — know the risks.",
+    "Hold tokens expire via TTL job to release abandoned carts.",
+    "Idempotent booking API keys prevent duplicate charges on retry.",
+    "Outbox pattern publishes booking events after commit."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Two users booking the last seat is a race. The fix is atomic decrement: one transaction wins, the other gets a clear 'sold out' error — not two confirmations."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Atomic inventory — prevent double booking\nawait prisma.$transaction(async (tx) => {\n  const slot = await tx.inventory.findUnique({\n    where: { listingId_date: { listingId, date } },\n  });\n  if (!slot || slot.available < 1) throw new Error(\"SOLD_OUT\");\n  await tx.inventory.update({\n    where: { listingId_date: { listingId, date }, version: slot.version },\n    data: { available: { decrement: 1 }, version: { increment: 1 } },\n  });\n});",
+      "caption": "Atomic inventory decrement"
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant G as Guest\n    participant API as Booking API\n    participant Inv as Inventory DB\n    participant St as Stripe\n    G->>API: POST /confirm\n    API->>St: charge\n    St-->>API: card_declined\n    API->>Inv: release hold (compensate)\n    Inv-->>API: slot available\n    API-->>G: 402 retry payment",
+      "kind": "sequence",
+      "caption": "When payment fails, the saga releases the inventory hold before returning an error."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "OpenTable and Ticketmaster use inventory partitions per venue/show time. Airbnb shards booking writes by listing ID. All share: single writer per inventory cell at commit time.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Hold vs confirm",
+      "text": "A hold reserves inventory temporarily; confirm converts hold to sale after payment. Never confirm without checking hold ownership.",
+      "variant": "warning"
+    }
+  ],
+  "relatedConcepts": [
+    "locking",
+    "serializable",
+    "idempotency",
+    "hold",
+    "outbox"
+  ],
+  "media": {}
+}

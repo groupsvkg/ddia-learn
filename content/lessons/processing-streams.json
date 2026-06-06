@@ -1,0 +1,48 @@
+{
+  "id": "processing-streams",
+  "chapterId": "ch11-stream-processing",
+  "title": "Processing Streams",
+  "summary": "Stream processors apply transformations to unbounded data — windowing time is the hard part.",
+  "keyTakeaways": [
+    "Uses: notifications, search indexing, metrics, fraud detection, recommendations.",
+    "Event time (when it happened) vs processing time (when observed) diverge.",
+    "Windowing groups events by time ranges for aggregation.",
+    "Stream joins combine two streams or a stream with a table.",
+    "Fault tolerance via checkpointing and replay from durable logs.",
+    "Apache Flink, Kafka Streams, ksqlDB, and Materialize process streams in production."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Stream processing applies computations to data in motion. Unlike batch, the input is unbounded. Key challenges: handling out-of-order events, defining time windows, and maintaining state across failures."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Flink powers real-time fraud detection at banks — joining a payment stream against a Redis feature store within millisecond windows. Kafka Streams embeds processing in JVM microservices without a separate cluster. ksqlDB lets analysts write SQL over Kafka topics. Materialize maintains incrementally updated SQL views — like a live data warehouse fed by streams.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Uber at scale",
+      "text": "Surge pricing aggregates ride demand in 5-minute tumbling windows over a geo-partitioned event stream — event time, not processing time, defines when a window closes.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Uber surge pricing — Flink tumbling window on ride stream\nstream\n  .keyBy((event) => event.geoHash)\n  .window(TumblingEventTimeWindows.of(Time.minutes(5)))\n  .aggregate({\n    add: (acc, ride) => ({ count: acc.count + 1, fare: acc.fare + ride.fare }),\n    getResult: (acc) => acc,\n  })\n  .filter((stats) => stats.count > demandThreshold)\n  .map((stats) => ({ geoHash: stats.key, surgeMultiplier: 1.5 }));",
+      "caption": "Flink tumbling window aggregation"
+    }
+  ],
+  "relatedConcepts": [
+    "Flink",
+    "Kafka Streams",
+    "ksqlDB",
+    "Materialize",
+    "stream processing",
+    "windowing",
+    "checkpoint"
+  ],
+  "media": {}
+}

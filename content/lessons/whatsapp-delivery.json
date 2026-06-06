@@ -1,0 +1,83 @@
+{
+  "id": "whatsapp-delivery",
+  "chapterId": "sd-whatsapp",
+  "title": "Delivery, Ordering, and Groups",
+  "summary": "Per-chat ordering, presence, and group fan-out define the server-side data model.",
+  "keyTakeaways": [
+    "Each chat has a monotonic server or hybrid logical clock for ordering.",
+    "Acks from clients let servers trim durable queues.",
+    "Group messages: write once, fan out to member inboxes or connection maps.",
+    "Large groups may use partial fan-out + pull on open (hybrid like Meta feeds).",
+    "Presence (online/typing) is ephemeral — Redis with TTL, not Postgres.",
+    "Multi-device sync shares the same message log keyed by account."
+  ],
+  "body": [
+    {
+      "type": "heading",
+      "text": "Group fan-out strategies",
+      "level": 2
+    },
+    {
+      "type": "list",
+      "items": [
+        "Small groups (< 256): push to every member inbox on send.",
+        "Large groups: store single copy; members pull on chat open.",
+        "Typing indicators: gossip or pub/sub channel, lossy is acceptable."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Per-chat ordering with client ack\ntype ChatMessage = { id: string; chatId: string; seq: number; ciphertext: Buffer };\n\nasync function onClientAck(chatId: string, upToSeq: number) {\n  await db.messages.deleteQueued({ chatId, seq: { lte: upToSeq } });\n}\n// Server assigns monotonic seq per chat; client dedupes by message id",
+      "caption": "Per-chat sequence and ack"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Sender[\"Sender app\"]\n    Receiver[\"Receiver app\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Redis[(\"Redis<br/>presence + typing\")]\n\n    subgraph sendPath [\"Send path — persist message\"]\n      direction LR\n      Server[\"Chat Server<br/>Erlang/BEAM\"]\n      Sender -->|\"① WebSocket SEND\"| Server\n      Server -->|\"② append seq=N\"| Store\n      Server -->|\"③ update presence\"| Redis\n    end\n\n    subgraph deliverPath [\"Delivery path — online or offline\"]\n      direction LR\n      Push[\"Push Gateway<br/>APNs / FCM\"]\n      Server -->|\"④a online: WebSocket PUSH\"| Receiver\n      Server -.->|\"④b offline: notify\"| Push\n      Push -.->|\"⑤ push alert\"| Receiver\n      Receiver -->|\"⑥ ACK seq\"| Server\n    end",
+      "kind": "architecture",
+      "caption": "WhatsApp persists every message once, then delivers online via WebSocket or offline via push — same store, two routes."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Send path — persist message",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① WebSocket SEND — Sender posts ciphertext over an open connection; payload stays small (no JSON bloat).",
+        "② Append seq=N — Chat server assigns a monotonic sequence number and appends to the replicated message store.",
+        "③ Update presence — Sender marked online in Redis with TTL; typing indicators use the same channel."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Delivery path — online or offline",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "④a Online: WebSocket PUSH — If receiver is connected, server pushes the message on their socket immediately.",
+        "④b Offline: notify — If receiver is disconnected, server triggers APNs/FCM instead of holding sockets open.",
+        "⑤ Push alert — Mobile OS shows notification; message ciphertext waits in the durable store.",
+        "⑥ ACK seq — Receiver acknowledges; server trims delivered messages from the hot queue."
+      ]
+    }
+  ],
+  "relatedConcepts": [
+    "fan-out",
+    "sequence",
+    "groups",
+    "presence",
+    "Redis",
+    "QPS",
+    "connections"
+  ],
+  "media": {}
+}

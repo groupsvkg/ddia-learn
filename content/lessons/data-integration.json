@@ -1,0 +1,54 @@
+{
+  "id": "data-integration",
+  "chapterId": "ch12-future-of-data-systems",
+  "title": "Data Integration",
+  "summary": "Modern architectures combine specialized tools by deriving data through unbundled pipelines.",
+  "keyTakeaways": [
+    "No single database does everything well — compose specialized systems.",
+    "Derive views, indexes, and analytics from an immutable event log.",
+    "Batch and stream processing both feed derived data systems.",
+    "Unbundling the database separates storage, indexing, querying, and processing.",
+    "Dataflow-oriented design makes integration explicit in the architecture.",
+    "Lambda → Kappa architecture with Kafka; microservices with Postgres + Elasticsearch + Redis + Snowflake."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "The future is not one database to rule them all. Instead, systems specialize: OLTP for transactions, search index for full-text, warehouse for analytics, cache for speed. An event log connects them, and derived data flows keep views consistent."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "A modern e-commerce stack: PostgreSQL for orders, Redis for session cache and rate limiting, Elasticsearch for product search, Kafka for order events, Snowflake for analytics, and S3 for image storage — all synced via CDC and stream processors. Kubernetes and Docker package each service; Envoy or nginx routes traffic at the edge. Authentication flows through OAuth 2.0 / OpenID Connect (Auth0, Keycloak, AWS Cognito).",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Airbnb at scale",
+      "text": "Listings live in PostgreSQL, search in Elasticsearch, sessions in Redis, analytics in Snowflake — all derived from an immutable Kafka event log via CDC. No single database does everything.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Transactional outbox — Airbnb / Shopify event publishing\nawait prisma.$transaction(async (tx) => {\n  const order = await tx.order.create({ data: orderInput });\n  await tx.outboxEvent.create({\n    data: {\n      aggregateId: order.id,\n      type: \"OrderPlaced\",\n      payload: JSON.stringify(order),\n    },\n  });\n});\n// Separate relay process reads outbox → publishes to Kafka",
+      "caption": "CDC outbox to Kafka"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Clients[\"Clients<br/>web + mobile\"]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    ES[(Elasticsearch)]\n    Kafka[[Kafka]]\n    SF[(Snowflake)]\n\n    subgraph syncPath [\"Synchronous request path\"]\n      direction LR\n      CDN[\"CDN + Reverse Proxy<br/>Cloudflare / nginx\"]\n      API[\"API Services<br/>Docker / K8s\"]\n      Clients -->|\"① HTTPS\"| CDN\n      CDN -->|\"② REST/gRPC\"| API\n      API -->|\"③ OLTP read/write\"| PG\n      API -->|\"④ cache hot keys\"| Redis\n      API -->|\"⑤ search query\"| ES\n    end\n\n    API -->|\"⑥ publish events\"| Kafka\n    Kafka -.->|\"⑦ ETL / CDC\"| SF\n    Kafka -.->|\"⑧ index sync\"| ES",
+      "kind": "architecture",
+      "caption": "Unbundled data stack: specialized stores connected by event log and derived pipelines."
+    }
+  ],
+  "relatedConcepts": [
+    "data integration",
+    "PostgreSQL",
+    "Kafka",
+    "Elasticsearch",
+    "Redis",
+    "Snowflake",
+    "unbundling"
+  ],
+  "media": {}
+}

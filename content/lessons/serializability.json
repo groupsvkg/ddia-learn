@@ -1,0 +1,47 @@
+{
+  "id": "serializability",
+  "chapterId": "ch07-transactions",
+  "title": "Serializability",
+  "summary": "The strongest isolation guarantee: transactions execute as if they ran one at a time.",
+  "keyTakeaways": [
+    "Actual serial execution: run transactions on a single thread — simple but limited throughput.",
+    "Two-phase locking (2PL): readers and writers acquire locks; risk of deadlocks.",
+    "Serializable Snapshot Isolation (SSI): optimistic detection of conflicts at commit.",
+    "Serializability prevents all anomalies but costs latency and throughput.",
+    "Distributed serializability requires coordination across partitions.",
+    "PostgreSQL SSI, Google Spanner, and CockroachDB target serializable distributed transactions."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Serializable isolation is the gold standard: the result is identical to some serial execution order. Achieving it without sacrificing all concurrency is one of database engineering's hardest problems."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "PostgreSQL offers SERIALIZABLE via Serializable Snapshot Isolation (SSI) — good for low-contention workloads. Google Spanner and CockroachDB use TrueTime and distributed consensus for serializable transactions across regions — at the cost of higher write latency. Redis single-threaded execution is effectively serial for one key — which is why simple counters work reliably.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Google at scale",
+      "text": "Spanner offers externally serializable transactions globally by combining TrueTime timestamps with Paxos replication. Ad auction bidding and financial ledger rows cannot tolerate write skew across regions.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Google Spanner / PostgreSQL SSI — detect conflicts at commit time\nawait db.query(\"BEGIN ISOLATION LEVEL SERIALIZABLE\");\nconst seats = await db.query(\n  \"SELECT COUNT(*) FROM bookings WHERE flight_id = $1 AND seat_taken = true\", [flightId]\n);\nif (seats.count >= maxSeats) throw new Error(\"flight full\");\nawait db.query(\"INSERT INTO bookings (flight_id, user_id) VALUES ($1, $2)\", [flightId, userId]);\nawait db.query(\"COMMIT\"); // aborts if concurrent txn created a serializability conflict",
+      "caption": "Serializable Snapshot Isolation"
+    }
+  ],
+  "relatedConcepts": [
+    "serializability",
+    "PostgreSQL",
+    "Spanner",
+    "CockroachDB",
+    "SSI",
+    "two-phase locking"
+  ],
+  "media": {}
+}

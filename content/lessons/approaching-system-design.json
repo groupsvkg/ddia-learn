@@ -1,0 +1,170 @@
+{
+  "id": "approaching-system-design",
+  "chapterId": "sd-foundations",
+  "title": "How to Approach System Design",
+  "summary": "Start with users and constraints — not databases. Clarify functional needs, non-functional targets, and what you can defer.",
+  "keyTakeaways": [
+    "Separate functional requirements (what) from non-functional ones (how well).",
+    "Identify actors: mobile clients, admins, third-party integrations, batch jobs.",
+    "Sketch read vs write ratio, consistency needs, and acceptable downtime.",
+    "Defer deep dives until the happy path and failure modes are clear.",
+    "Name concrete products (YouTube, WhatsApp) to anchor estimations and trade-offs.",
+    "Interview and production design both reward structured thinking over memorized diagrams."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "System design is the practice of mapping product requirements to components that store, move, and transform data. The same DDIA concepts — replication, partitioning, streams — appear in every case study; the skill is knowing which ones matter for each problem."
+    },
+    {
+      "type": "heading",
+      "text": "A repeatable framework",
+      "level": 2
+    },
+    {
+      "type": "list",
+      "items": [
+        "Clarify scope: MVP vs full product, geography, scale today vs in 12 months.",
+        "Functional requirements: core user journeys in plain language.",
+        "Non-functional: latency targets, durability, consistency, cost, compliance.",
+        "High-level diagram: clients → API → services → data stores → async pipelines.",
+        "Deep dives: bottlenecks, failure modes, scaling levers.",
+        "Trade-offs: what you optimize for and what you explicitly sacrifice."
+      ]
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Stripe's design reviews start with the user promise ('charge once, never double-charge') before picking Postgres vs DynamoDB. Netflix capacity plans assume regional failure. The framework is universal; the storage engines change.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Airbnb at scale",
+      "text": "Before sharding listings search, the team nailed booking invariants: a night cannot be sold twice, payments must match reservations, and cancellations must release inventory. Those constraints drove PostgreSQL transactions and Kafka outbox patterns.",
+      "variant": "tip"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Clients[\"Clients<br/>web + mobile\"]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    ES[(Elasticsearch)]\n    Kafka[[Kafka]]\n    SF[(Snowflake)]\n\n    subgraph syncPath [\"Synchronous request path\"]\n      direction LR\n      CDN[\"CDN + Reverse Proxy<br/>Cloudflare / nginx\"]\n      API[\"API Services<br/>Docker / K8s\"]\n      Clients -->|\"① HTTPS\"| CDN\n      CDN -->|\"② REST/gRPC\"| API\n      API -->|\"③ OLTP read/write\"| PG\n      API -->|\"④ cache hot keys\"| Redis\n      API -->|\"⑤ search query\"| ES\n    end\n\n    API -->|\"⑥ publish events\"| Kafka\n    Kafka -.->|\"⑦ ETL / CDC\"| SF\n    Kafka -.->|\"⑧ index sync\"| ES",
+      "kind": "architecture",
+      "caption": "Typical SaaS stack: synchronous request path through CDN and API to specialized stores; async path via Kafka for derived data."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Synchronous request path",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① HTTPS — Browser or mobile client hits the CDN / reverse proxy (TLS termination, DDoS shield).",
+        "② REST/gRPC — Proxy forwards API calls to stateless application pods behind the load balancer.",
+        "③ OLTP read/write — API reads and writes authoritative rows in PostgreSQL (orders, accounts, inventory).",
+        "④ Cache hot keys — Sessions, rate counters, and hot reads go through Redis with TTL.",
+        "⑤ Search query — Full-text and facet queries hit Elasticsearch, not a table scan on Postgres."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Async derived-data path (dashed arrows)",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "⑥ Publish events — After a successful commit, the API appends a domain event to Kafka (outbox pattern).",
+        "⑦ ETL / CDC — Stream consumers copy changes into Snowflake for analytics and BI dashboards.",
+        "⑧ Index sync — Search index updates from the same event log — never dual-write to ES and Postgres in one request."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Frame the problem before picking databases\ntype SystemDesignBrief = {\n  actors: (\"mobile\" | \"web\" | \"admin\" | \"partner\")[];\n  functional: string[]; // \"upload video\", \"send message\"\n  nonFunctional: {\n    p99LatencyMs?: number;\n    availability?: string; // \"99.9%\"\n    consistency: \"strong\" | \"eventual\" | \"per-feature\";\n  };\n  scaleToday: { dau: number; peakQps: number };\n  invariants: string[]; // \"no double booking\"\n};",
+      "caption": "Requirements checklist as types"
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant C as Client\n    participant CDN as CDN\n    participant API as API\n    participant R as Redis\n    participant DB as Postgres\n    C->>CDN: GET /static\n    CDN-->>C: cached assets\n    C->>API: GET /api/resource\n    API->>R: GET cache key\n    R-->>API: miss\n    API->>DB: SELECT rows\n    DB-->>API: rows\n    API->>R: SETEX result\n    API-->>C: 200 JSON",
+      "kind": "sequence",
+      "caption": "End-to-end request path: CDN for static assets, API through cache to database."
+    },
+    {
+      "type": "heading",
+      "text": "Why common infrastructure building blocks?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why CDN (Cloudflare / CloudFront)?",
+      "text": "Static assets (JS, CSS, images) are identical for every user — perfect for edge caching. A CDN also absorbs DDoS and terminates TLS close to users, shrinking latency and origin load. You would skip it only for a purely internal API with no browser clients.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Load balancer / reverse proxy (nginx, Envoy, ALB)?",
+      "text": "Distributes traffic across many stateless API pods, performs health checks, and can enforce rate limits and auth before requests hit application code. Required once you run more than one API instance — which is effectively always in production.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why API gateway?",
+      "text": "Single front door for clients: routing to microservices, JWT validation, request shaping, and API versioning. Alternatives: embed routing in the load balancer (simpler monolith) or use a service mesh (Istio) for east-west traffic between services.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why PostgreSQL?",
+      "text": "Default choice when you need ACID transactions, joins, foreign keys, and ad-hoc queries — bookings, accounts, permissions. Poor fit for billion-row append-only logs, video blobs, or sub-millisecond leaderboard hot paths.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Redis?",
+      "text": "In-memory speed for hot keys: sessions, rate counters, presence, leaderboards (sorted sets), and short-lived holds. Data is ephemeral or cache-aside — never the sole source of truth for money or inventory unless you accept loss on restart.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Kafka (or SQS / Pub/Sub)?",
+      "text": "Buffers spikes, decouples producers from consumers, and lets you add subscribers (search index, email, analytics) without changing the write API. Use when work can be asynchronous; skip when the user waits for the result in the same HTTP request.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Elasticsearch (or OpenSearch)?",
+      "text": "Full-text search, fuzzy matching, facets, and geo filters at scale. Indexes are derived from an OLTP source of truth via CDC — never the system of record for payments or inventory.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Object storage (S3 / GCS)?",
+      "text": "Cheap, durable storage for large immutable blobs: video, images, PDFs, backups. Not for low-latency row lookups — pair with a database for metadata pointers.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Kubernetes (Docker)?",
+      "text": "Packages services consistently and scales stateless pods horizontally. Agones extends K8s for game servers; batch workers and functions (Lambda) replace K8s when you want zero cluster management.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "requirements",
+    "non-functional",
+    "trade-offs",
+    "scope",
+    "failure modes",
+    "CDN",
+    "PostgreSQL",
+    "Redis",
+    "Kafka"
+  ],
+  "media": {}
+}

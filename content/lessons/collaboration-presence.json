@@ -1,0 +1,40 @@
+{
+  "id": "collaboration-presence",
+  "chapterId": "sd-collaboration",
+  "title": "Presence and Permissions",
+  "summary": "See who is online, what they are editing, and whether they may change it — without leaking document content.",
+  "keyTakeaways": [
+    "Presence heartbeats in Redis with TTL; disconnect clears avatar.",
+    "Document ACLs: owner, editor, commenter, viewer enforced on every op.",
+    "Cursors and selections are ephemeral broadcast, not durable history.",
+    "Share links map tokens to roles with expiration.",
+    "Audit log records permission changes, not every keystroke.",
+    "Google Docs 'anonymous animals' are presence UX on top of WebSocket fan-out."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Collaboration tools combine real-time transport with authorization. A user without edit permission must not apply operations even if they bypass the UI."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Figma stores file permissions in Postgres; presence in Redis. Notion blocks embed share settings per page tree. All validate ops server-side against ACL snapshot.",
+      "variant": "info"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Redis presence with TTL heartbeat\nasync function heartbeat(docId: string, userId: string, cursor: Cursor) {\n  await redis.setex(`presence:${docId}:${userId}`, 30, JSON.stringify(cursor));\n  await redis.publish(`doc:${docId}`, JSON.stringify({ type: \"cursor\", userId, cursor }));\n}",
+      "caption": "Presence heartbeat"
+    }
+  ],
+  "relatedConcepts": [
+    "presence",
+    "ACL",
+    "Redis",
+    "permissions",
+    "WebSocket"
+  ],
+  "media": {}
+}

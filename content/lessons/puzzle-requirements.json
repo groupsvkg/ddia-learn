@@ -1,0 +1,40 @@
+{
+  "id": "puzzle-requirements",
+  "chapterId": "sd-puzzle-games",
+  "title": "Requirements and Constraints",
+  "summary": "Puzzle games prioritize correctness and idempotency over sub-millisecond latency.",
+  "keyTakeaways": [
+    "Server validates every move against game rules — client hints are not authoritative.",
+    "Daily puzzles: one submission per user per calendar day (idempotent).",
+    "Async play: opponents may move hours apart; push on turn notification.",
+    "Timers and forfeits need durable scheduled jobs, not in-memory only.",
+    "Leaderboards need fast top-K reads at millions of players.",
+    "HTTPS suffices — payloads are small; UDP is unnecessary."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Wordle, chess, and crosswords share a pattern: low write QPS, strict correctness, and leaderboard reads that must not scan every player row at request time."
+    },
+    {
+      "type": "callout",
+      "title": "Wordle at scale",
+      "text": "One puzzle ID per day with server-side answer validation. A second submit from the same account must return the original result, not a duplicate score.",
+      "variant": "tip"
+    },
+    {
+      "type": "callout",
+      "title": "Correctness over speed",
+      "text": "An illegal move rejected in 50 ms beats a wrong move accepted in 5 ms. Budget infra for validation and idempotency, not UDP fleets.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "requirements",
+    "validation",
+    "idempotency",
+    "daily puzzle",
+    "leaderboard"
+  ],
+  "media": {}
+}

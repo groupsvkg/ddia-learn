@@ -1,0 +1,31 @@
+{
+  "id": "multistep-examples",
+  "chapterId": "sd-multistep-systems",
+  "title": "Real-World Workflow Stacks",
+  "summary": "Compare how production companies implement the same pattern with different engines.",
+  "keyTakeaways": [
+    "E-commerce checkout: cart → hold inventory → charge → fulfill → notify.",
+    "Onboarding KYC: upload ID → vendor verify → manual review → activate.",
+    "Loan origination: apply → credit pull → underwrite → fund → servicer handoff.",
+    "Each step is a service boundary; workflow engine is the spine.",
+    "Observability: trace ID per saga instance across all HTTP and queue hops.",
+    "Dead-letter queues capture poison steps without losing the saga context."
+  ],
+  "body": [
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Stripe Checkout is a hosted multistep UI over PaymentIntents sagas. Airbnb host onboarding chains identity, payout, and listing steps with manual gates. Banks use Camunda or custom mainframes with the same state-machine thinking.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "checkout",
+    "KYC",
+    "workflow",
+    "observability",
+    "DLQ",
+    "saga QPS"
+  ],
+  "media": {}
+}

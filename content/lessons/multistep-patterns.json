@@ -1,0 +1,132 @@
+{
+  "id": "multistep-patterns",
+  "chapterId": "sd-multistep-systems",
+  "title": "Sagas and Orchestration",
+  "summary": "Long-running flows span services. Sagas coordinate forward steps and compensating rollbacks.",
+  "keyTakeaways": [
+    "Choreography: each service emits events; others react (loose coupling).",
+    "Orchestration: central workflow engine calls services in order (clear visibility).",
+    "Each step idempotent; correlation ID ties the saga together.",
+    "Compensating transactions undo prior steps (cancel shipment, refund hold).",
+    "Timeouts trigger automatic compensation or human escalation.",
+    "Shopify checkout and Uber trip lifecycle are canonical sagas."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "A multistep checkout is not one database transaction — payment, inventory, shipping, and email span systems. Sagas make partial failure explicit instead of hoping for the best."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Hold → pay → confirm with compensation\nasync function bookingSaga(bookingId: string) {\n  const hold = await inventory.hold(bookingId);\n  try {\n    const charge = await stripe.charge({ idempotencyKey: bookingId });\n    await inventory.confirm(hold.id);\n    await kafka.publish(\"booking.confirmed\", { bookingId, chargeId: charge.id });\n  } catch (err) {\n    await inventory.release(hold.id); // compensating action\n    throw err;\n  }\n}",
+      "caption": "Saga step with compensation"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Client[\"Client\"]\n    Inv[\"Inventory svc\"]\n    Pay[\"Payments<br/>Stripe\"]\n    Ship[\"Shipping svc\"]\n\n    subgraph forwardPath [\"Forward saga — happy path\"]\n      direction LR\n      Orch[\"Orchestrator<br/>Temporal\"]\n      Client -->|\"① start checkout\"| Orch\n      Orch -->|\"② reserve stock\"| Inv\n      Orch -->|\"③ capture payment\"| Pay\n      Orch -->|\"④ create shipment\"| Ship\n      Orch -->|\"⑤ order complete\"| Client\n    end\n\n    Pay -.->|\"FAILED\"| Orch\n    Orch -.->|\"⑥ compensate: release hold\"| Inv",
+      "kind": "architecture",
+      "caption": "Checkout saga: orchestrator calls each service in order; payment failure triggers compensating inventory release."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Forward saga — happy path",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① Start checkout — Client kicks off a durable workflow with a correlation ID.",
+        "② Reserve stock — Orchestrator calls inventory service; hold ID returned and persisted in workflow history.",
+        "③ Capture payment — Payments service charges card; idempotent on retry with same key.",
+        "④ Create shipment — Shipping service creates label only after payment succeeds.",
+        "⑤ Order complete — Client notified; workflow marked succeeded in orchestrator history."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Compensation — payment failure",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "FAILED — Stripe returns card_declined; orchestrator branches to compensate, not retry forever.",
+        "⑥ Compensate: release hold — Inventory hold released before error returned to client — no orphaned locks."
+      ]
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant C as Client\n    participant O as Orchestrator\n    participant I as Inventory\n    participant P as Payments\n    participant S as Shipping\n    C->>O: start checkout\n    O->>I: reserve stock\n    I-->>O: holdId\n    O->>P: capture payment\n    P-->>O: chargeId\n    O->>S: create shipment\n    S-->>O: trackingId\n    O-->>C: order complete",
+      "kind": "sequence",
+      "caption": "Forward saga steps from cart to shipment with durable orchestration."
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant O as Orchestrator\n    participant I as Inventory\n    participant P as Payments\n    O->>I: reserve stock\n    I-->>O: holdId\n    O->>P: capture payment\n    P-->>O: FAILED\n    O->>I: release hold (compensate)\n    I-->>O: stock restored",
+      "kind": "sequence",
+      "caption": "Payment failure triggers compensating release of inventory hold."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Temporal, AWS Step Functions, and Cadence power durable workflows at Uber, Netflix, and Stripe. Kafka-only choreography works until you need a human-readable workflow graph.",
+      "variant": "info"
+    },
+    {
+      "type": "heading",
+      "text": "Why these technologies?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why Temporal / Step Functions / Cadence?",
+      "text": "Durable workflow state survives worker crashes. Timers (wait 7 days for KYC) without holding threads. Replay history for debugging failed checkouts.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Saga pattern (not 2PC)?",
+      "text": "Payment, inventory, and shipping are separate services — XA transactions across Stripe and your DB don't exist. Compensating actions (release hold) are explicit.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Kafka (choreography option)?",
+      "text": "Services react to events without a central orchestrator — looser coupling, harder to visualize. Many teams start with orchestration, add events for notifications.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Per-service PostgreSQL?",
+      "text": "Each bounded context owns its data — inventory service DB, payment service ledger. Shared monolith DB creates deployment coupling.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Idempotent activity implementations?",
+      "text": "Retries are guaranteed — charge API must accept same idempotency key, ship API must tolerate duplicate create with same correlation ID.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Dead-letter queue?",
+      "text": "Poison messages (bad payload) isolate without blocking the whole saga — ops can inspect and replay.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "saga",
+    "orchestration",
+    "choreography",
+    "Temporal",
+    "compensation",
+    "Kafka"
+  ],
+  "media": {}
+}

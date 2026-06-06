@@ -1,0 +1,63 @@
+{
+  "id": "data-structures",
+  "chapterId": "ch03-storage-and-retrieval",
+  "title": "Data Structures That Power Your Database",
+  "summary": "Under every database API lies a storage engine choosing between log-structured and B-tree designs.",
+  "keyTakeaways": [
+    "Hash indexes suit exact key lookups on memory-resident data.",
+    "SSTables and LSM-trees batch writes into sorted segments for high write throughput.",
+    "B-trees maintain sorted pages on disk for balanced read/write performance.",
+    "LSM-trees trade read amplification for write throughput; B-trees do the opposite.",
+    "Compaction in LSM-trees merges segments in the background.",
+    "RocksDB backs Cassandra and Kafka Streams state; PostgreSQL and MySQL InnoDB use B-trees."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Storage engines are the library components that databases use to store and retrieve bytes on disk. The two dominant families are log-structured merge (LSM) trees and B-trees — each optimizing for different workloads."
+    },
+    {
+      "type": "heading",
+      "text": "LSM-Trees vs B-Trees",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "B-trees update pages in place — predictable read latency, but random writes can be slow on spinning disks. LSM-trees append writes to a log, then compact sorted segments — excellent write throughput at the cost of occasional read amplification during compaction."
+    },
+    {
+      "type": "callout",
+      "title": "Real-world engines",
+      "text": "RocksDB and LevelDB use LSM-trees. PostgreSQL and MySQL InnoDB use B-trees. Choosing an engine is choosing a read/write trade-off.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Cassandra, ScyllaDB, and RocksDB-backed stores favor LSM-trees for high write throughput. PostgreSQL, MySQL InnoDB, and SQL Server use B-tree variants for predictable OLTP reads. Redis keeps everything in memory with hash tables and skip lists — a different trade-off entirely.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Google at scale",
+      "text": "Bigtable and LevelDB pioneered LSM-trees for Google's indexing and analytics pipelines — append-heavy writes with background compaction. Spanner layers B-tree pages on top of a distributed LSM for OLTP with global consistency.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Storage engine trade-off: LSM append vs B-tree in-place update\n// LSM (RocksDB / Cassandra): batch writes to memtable → SSTable segments\nawait rocksdb.put(key, value); // append-only, compaction merges later\n\n// B-tree (PostgreSQL InnoDB): update page in place on disk\nawait db.query(\"UPDATE users SET balance = $1 WHERE id = $2\", [newBal, id]);\n// Predictable reads; random writes cost more on spinning disks",
+      "caption": "LSM append vs B-tree in-place update"
+    }
+  ],
+  "relatedConcepts": [
+    "LSM-tree",
+    "B-tree",
+    "RocksDB",
+    "PostgreSQL",
+    "SSTable",
+    "storage engine",
+    "compaction"
+  ],
+  "media": {}
+}

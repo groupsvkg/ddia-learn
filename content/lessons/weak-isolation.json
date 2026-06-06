@@ -1,0 +1,52 @@
+{
+  "id": "weak-isolation",
+  "chapterId": "ch07-transactions",
+  "title": "Weak Isolation Levels",
+  "summary": "Most databases default to weak isolation for performance — accepting anomalies most apps never notice.",
+  "keyTakeaways": [
+    "Read committed: no dirty reads; each query sees only committed data.",
+    "Snapshot isolation: each transaction sees a consistent point-in-time snapshot.",
+    "Repeatable read prevents non-repeatable reads within a transaction.",
+    "Write skew: two transactions read overlapping data and write disjoint rows.",
+    "Phantoms: new rows appear in a re-executed range query.",
+    "PostgreSQL defaults to READ COMMITTED; SERIALIZABLE uses SSI for stronger guarantees."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Serial execution of transactions is safe but slow. Weak isolation levels allow concurrency by permitting certain anomalies. Understanding which anomalies your application can tolerate is essential."
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    RC[Read Committed]\n    RR[Repeatable Read]\n    SER[Serializable]\n    RC -->|prevents dirty read| RC\n    RR -->|prevents non-repeatable read| RR\n    SER -->|prevents phantom read| SER\n    note[\"Stronger isolation → less concurrency\"]",
+      "kind": "diagram",
+      "caption": "Stronger isolation prevents more anomalies but reduces concurrency."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "PostgreSQL's default READ COMMITTED is fine for most web apps. Inventory systems prone to write skew might need SERIALIZABLE or explicit row locks (SELECT FOR UPDATE). MySQL InnoDB uses REPEATABLE READ with next-key locking to reduce phantoms — behavior differs from PostgreSQL, so isolation level names are not portable across databases.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Airbnb at scale",
+      "text": "Double-booking the same listing date is a write-skew anomaly — two guests read available=true concurrently and both commit. Inventory systems need SERIALIZABLE or SELECT FOR UPDATE, not default READ COMMITTED.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// PostgreSQL isolation — pick the weakest level that is safe\nawait db.query(\"BEGIN ISOLATION LEVEL READ COMMITTED\");\nconst row = await db.query(\"SELECT stock FROM inventory WHERE sku = $1\", [sku]);\nif (row.stock < qty) throw new Error(\"insufficient stock\");\nawait db.query(\"UPDATE inventory SET stock = stock - $1 WHERE sku = $2\", [qty, sku]);\nawait db.query(\"COMMIT\");\n// SERIALIZABLE or SELECT FOR UPDATE needed to prevent write skew",
+      "caption": "Choosing an isolation level"
+    }
+  ],
+  "relatedConcepts": [
+    "read committed",
+    "PostgreSQL",
+    "snapshot isolation",
+    "write skew",
+    "phantom read"
+  ],
+  "media": {}
+}

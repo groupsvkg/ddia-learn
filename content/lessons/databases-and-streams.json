@@ -1,0 +1,53 @@
+{
+  "id": "databases-and-streams",
+  "chapterId": "ch11-stream-processing",
+  "title": "Databases and Streams",
+  "summary": "Databases and streams are two views of the same data — and keeping them in sync is the integration challenge.",
+  "keyTakeaways": [
+    "Change Data Capture (CDC) streams database writes to downstream systems.",
+    "Event sourcing stores state changes as an immutable log of events.",
+    "The log is the system of record; materialized views are derived state.",
+    "Dual writes to database and queue risk inconsistency.",
+    "Transactional outbox pattern writes events atomically with state changes.",
+    "Debezium, Kafka Connect, and the transactional outbox with PostgreSQL are production CDC patterns."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "A database holds current state; a stream holds the history of changes. CDC bridges them by tailing the replication log. Event sourcing inverts the model: the log is primary, and current state is a derived view rebuilt by replay."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Debezium reads PostgreSQL WAL changes and publishes to Kafka — powering search index updates, cache invalidation, and data warehouses without dual writes. The transactional outbox pattern writes events to an outbox table in the same PostgreSQL transaction as the business row, then a relay process publishes to Kafka. EventStoreDB and Marten (.NET) implement full event sourcing for audit-heavy domains.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Shopify at scale",
+      "text": "Order rows and outbox events commit in the same PostgreSQL transaction — a relay publishes OrderPlaced to Kafka for search indexing and warehouse sync without risky dual writes.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Transactional outbox — Airbnb / Shopify event publishing\nawait prisma.$transaction(async (tx) => {\n  const order = await tx.order.create({ data: orderInput });\n  await tx.outboxEvent.create({\n    data: {\n      aggregateId: order.id,\n      type: \"OrderPlaced\",\n      payload: JSON.stringify(order),\n    },\n  });\n});\n// Separate relay process reads outbox → publishes to Kafka",
+      "caption": "Transactional outbox pattern"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Client[\"Mobile / Web\"]\n    GW[\"API Gateway<br/>Envoy / nginx\"]\n    Listings[Listings svc]\n    Bookings[Bookings svc]\n    Payments[Payments svc]\n    Search[Search svc]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    Kafka[[Kafka]]\n    ES[(Elasticsearch)]\n    Client --> GW\n    GW --> Listings & Bookings & Payments & Search\n    Bookings --> PG\n    Listings --> Redis\n    Bookings --> Kafka\n    Kafka -.-> ES\n    Search --> ES",
+      "kind": "architecture",
+      "caption": "Database state and event streams stay in sync: CDC and outbox relay derived views without dual-write races."
+    }
+  ],
+  "relatedConcepts": [
+    "CDC",
+    "Debezium",
+    "Kafka",
+    "PostgreSQL",
+    "event sourcing",
+    "transactional outbox"
+  ],
+  "media": {}
+}

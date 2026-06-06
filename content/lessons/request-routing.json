@@ -1,0 +1,47 @@
+{
+  "id": "request-routing",
+  "chapterId": "ch06-partitioning",
+  "title": "Request Routing",
+  "summary": "Clients must find the right partition for each request — via routing tier, gateway, or aware clients.",
+  "keyTakeaways": [
+    "Naive approach: send all requests to a routing tier that forwards to the right node.",
+    "Gateway: stateless proxy that knows the partition map.",
+    "Partition-aware clients cache the routing table and connect directly.",
+    "The partition map must update when rebalancing occurs.",
+    "ZooKeeper, gossip protocols, or config services distribute routing metadata.",
+    "nginx, Envoy, AWS ALB, and MongoDB mongos are production routing layers."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Given a key, which node owns it? A routing layer answers this question. Centralized gateways are simple but can bottleneck. Smart clients avoid the hop but must handle map updates."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "MongoDB mongos routers sit between apps and shards, caching the chunk map from the config servers. Kafka clients fetch partition leadership metadata from the broker controller. In Kubernetes, an nginx or Envoy ingress acts as a reverse proxy — routing HTTP/gRPC to the right pod. AWS ALB does the same at the cloud edge, with health checks and cross-AZ failover.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Twitter/X at scale",
+      "text": "Timeline and user-data requests route through a gateway that caches the partition map. When a shard rebalances, the routing tier updates so clients always hit the node that owns a given user_id.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Twitter/X routing — gateway caches partition map, forwards by key\nfunction routeRequest(userId: string, partitionMap: Map<number, string>) {\n  const partition = hashPartition(userId, partitionMap.size);\n  const host = partitionMap.get(partition)!;\n  return proxy.forward(host, { userId }); // mongos / Envoy style\n}",
+      "caption": "Gateway partition routing"
+    }
+  ],
+  "relatedConcepts": [
+    "request routing",
+    "nginx",
+    "Envoy",
+    "reverse proxy",
+    "mongos",
+    "partition map"
+  ],
+  "media": {}
+}

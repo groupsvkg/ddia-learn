@@ -443,4 +443,9 @@ for (const lesson of [...newLessons, ...systemDesignLessons]) {
 }
 
 writeFileSync(path.join(lessonsDir, "index.json"), JSON.stringify(index, null, 2) + "\n");
-console.log(`Wrote ${Object.keys(index).length} lessons to content/lessons/index.json`);
+
+for (const [id, lesson] of Object.entries(index)) {
+  writeFileSync(path.join(lessonsDir, `${id}.json`), JSON.stringify(lesson, null, 2) + "\n");
+}
+
+console.log(`Wrote ${Object.keys(index).length} lessons to content/lessons/index.json and per-lesson JSON files`);

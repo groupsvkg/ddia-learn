@@ -1,0 +1,61 @@
+{
+  "id": "column-oriented-storage",
+  "chapterId": "ch03-storage-and-retrieval",
+  "title": "Column-Oriented Storage",
+  "summary": "Column stores excel at analytics by reading only the columns a query needs.",
+  "keyTakeaways": [
+    "Row-oriented storage reads entire rows even when you need one column.",
+    "Column-oriented storage stores each column contiguously on disk.",
+    "Column compression is far more effective due to similar values in a column.",
+    "Sort order in column storage enables efficient range scans and merges.",
+    "Materialized views and data cubes pre-aggregate common queries.",
+    "Snowflake, ClickHouse, and Apache Parquet on S3 are column-oriented in production."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "In a row store, all fields of a record sit together — great for fetching a whole user profile. In a column store, all values for a given field sit together — great for SUM(revenue) across millions of rows."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Snowflake and ClickHouse store columns separately for analytics queries that touch few fields across billions of rows. Apache Parquet files on AWS S3 use columnar layout for cheap cold storage. PostgreSQL remains row-oriented — which is why you offload analytics to a warehouse instead of scanning production tables.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Google at scale",
+      "text": "Google's web index and ad analytics read only the columns each query needs — URL, rank, bid price — across petabytes. Columnar Parquet on GCS and BigQuery column stores are the production descendants of this layout.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Google BigQuery / Snowflake — declarative OLAP over columnar storage\nconst revenueByRegion = await snowflake.execute(`\n  SELECT d.region, SUM(f.revenue_cents) AS total\n  FROM fact_orders f\n  JOIN dim_date d ON f.order_date = d.date_key\n  WHERE d.year = 2025\n  GROUP BY d.region\n  ORDER BY total DESC\n`);\n// Optimizer reads only region + revenue columns — not full rows",
+      "caption": "Column-pruned warehouse query"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart LR\n    Crawler[Crawler]\n    GFS[(\"GFS / S3\")]\n    MR[MapReduce]\n    Index[(\"Index\")]\n    Query[Query svc]\n    User[User]\n    Crawler --> GFS --> MR --> Index\n    User -->|query| Query\n    Query --> Index",
+      "kind": "architecture",
+      "caption": "Batch indexing and column-oriented storage: read a few fields across billions of rows without touching full records."
+    },
+    {
+      "type": "list",
+      "items": [
+        "Read only columns referenced in SELECT — less I/O.",
+        "Run-length and dictionary encoding compress repetitive column data.",
+        "Vectorized execution processes columns in SIMD-friendly batches."
+      ]
+    }
+  ],
+  "relatedConcepts": [
+    "column store",
+    "Snowflake",
+    "ClickHouse",
+    "Parquet",
+    "column compression",
+    "materialized view"
+  ],
+  "media": {}
+}

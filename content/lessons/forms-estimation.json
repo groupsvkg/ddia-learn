@@ -1,0 +1,93 @@
+{
+  "id": "forms-estimation",
+  "chapterId": "sd-multistep-forms",
+  "title": "Back-of-the-Envelope Estimation",
+  "summary": "Autosave write storm, draft storage, and S3 attachment growth for long forms.",
+  "keyTakeaways": [
+    "~6.7k peak autosave PATCH/s — debounce to halve if UX allows.",
+    "Postgres holds JSON drafts; S3 holds multi-MB attachments via signed URLs.",
+    "Final submit ~0.016/s average — negligible vs autosave.",
+    "Vendor webhooks ~1/s — async path, no peak concern."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+    },
+    {
+      "type": "paragraph",
+      "text": "Assume mortgage applications: 500k submitted/year, 12 steps, autosave every 30s while active, 200k concurrent draft sessions peak, 2 MB avg attachment, 50 KB draft JSON."
+    },
+    {
+      "type": "heading",
+      "text": "Write traffic (autosave)",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Autosave: 200k sessions / 30s ≈ 6,700 PATCH/s peak to draft API.",
+        "Each upsert: 50 KB JSON → 6,700 × 50 KB ≈ 335 MB/s write bandwidth to Postgres (batch or debounce to reduce).",
+        "Final submit: 500k/year ≈ 0.016/s average — negligible vs autosave."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Read traffic",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Resume session: ~same rate as autosave on open ≈ 6,700 reads/s peak for draft fetch.",
+        "Step validation: 6,700 × 12 fields checked server-side — CPU bound, not I/O."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Storage",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Draft JSON: 200k active × 50 KB ≈ 10 GB hot; completed 500k × 50 KB ≈ 25 GB/year retained.",
+        "S3 attachments: 500k × 2 MB ≈ 1 TB/year new blobs — pre-signed PUT, not through API.",
+        "Verification vendor refs: 500k × 200 B ≈ 100 MB metadata."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Network & caching",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Debounce autosave to 60s → halve writes to ~3,350/s — UX trade-off.",
+        "Redis draft lock: 200k × 100 B ≈ 20 MB for optimistic concurrency tokens.",
+        "Webhook inbound: 500k verifications/year ≈ 1/s async — no peak concern."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Mortgage form autosave storm\nconst concurrentDrafts = 200_000;\nconst autosaveIntervalSec = 30;\nconst peakAutosaveQps = concurrentDrafts / autosaveIntervalSec;\nconst writeMbps = (peakAutosaveQps * 50 * 1024 * 8) / 1e6; // 50 KB draft\nconsole.log({ peakAutosaveQps: Math.round(peakAutosaveQps), writeMbps: Math.round(writeMbps) });",
+      "caption": "Form autosave write QPS"
+    },
+    {
+      "type": "callout",
+      "title": "Order-of-magnitude summary",
+      "text": "~6.7k peak autosave writes/s dominates traffic — debounce, S3 for files, Postgres for JSON drafts. Submit is rare; autosave drives sizing.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "autosave QPS",
+    "PostgreSQL",
+    "S3",
+    "bandwidth",
+    "webhook"
+  ],
+  "media": {}
+}

@@ -1,0 +1,54 @@
+{
+  "id": "partitioning-key-value",
+  "chapterId": "ch06-partitioning",
+  "title": "Partitioning of Key-Value Data",
+  "summary": "Partitioning splits a dataset across nodes so each machine handles a manageable subset.",
+  "keyTakeaways": [
+    "Partitioning by key range assigns contiguous key ranges to nodes — risk of hot spots.",
+    "Hash partitioning distributes keys evenly but loses range-scan efficiency.",
+    "Skewed workloads need composite keys or random suffixes to spread hot keys.",
+    "Partitioning is almost always combined with replication for fault tolerance.",
+    "The partition function is hard to change after deployment.",
+    "Kafka partitions, MongoDB sharded clusters, and DynamoDB partition keys all shard by key."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "A single machine cannot hold all data forever. Partitioning (sharding) divides the key space so each node owns a subset. The partition scheme determines load balance and query efficiency."
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart LR\n    K1[key: user_A] -->|hash % 4 = 0| P0[P0]\n    K2[key: user_B] -->|hash % 4 = 2| P2[P2]\n    K3[key: user_C] -->|hash % 4 = 1| P1[P1]\n    K4[key: user_D] -->|hash % 4 = 3| P3[P3]",
+      "kind": "diagram",
+      "caption": "Each key hashes to one partition index; different keys spread across P0–P3."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Kafka topics split into partitions for parallelism — each partition is an ordered log. MongoDB sharding routes documents by shard key through mongos routers. DynamoDB partitions by primary key hash; a hot partition (e.g., celebrity user ID) can throttle the whole table until you add a random suffix.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Uber at scale",
+      "text": "Trip events partition by ride_id so all state transitions for one trip land on the same Kafka partition — preserving order. Driver location updates hash by geo-cell to spread load across shards.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Kafka / DynamoDB-style partition routing\nfunction partitionForKey(userId: string, partitionCount: number): number {\n  let hash = 0;\n  for (const ch of userId) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;\n  return hash % partitionCount;\n}\n\n// WhatsApp routes messages by chat_id to the same shard for ordering\nconst partition = partitionForKey(chatId, 128);",
+      "caption": "Hash partition routing"
+    }
+  ],
+  "relatedConcepts": [
+    "partitioning",
+    "sharding",
+    "Kafka",
+    "MongoDB",
+    "DynamoDB",
+    "hash partitioning",
+    "hot spot"
+  ],
+  "media": {}
+}

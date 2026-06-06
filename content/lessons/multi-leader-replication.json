@@ -1,0 +1,53 @@
+{
+  "id": "multi-leader-replication",
+  "chapterId": "ch05-replication",
+  "title": "Multi-Leader Replication",
+  "summary": "Multiple leaders accept writes in different datacenters — but conflict resolution becomes necessary.",
+  "keyTakeaways": [
+    "Each datacenter has a local leader for low-latency writes.",
+    "Leaders replicate to each other asynchronously.",
+    "Concurrent writes to the same record on different leaders create conflicts.",
+    "Conflict resolution: last-write-wins, custom merge, or conflict-free replicated data types.",
+    "Multi-leader suits multi-datacenter deployments with offline tolerance.",
+    "CouchDB, Cassandra multi-DC, and CRDTs in collaborative apps use multi-leader patterns."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Single-leader replication means cross-datacenter writes traverse WAN latency. Multi-leader allows each site to write locally, then replicate. The cost is write conflicts when two leaders modify the same data concurrently."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "CouchDB replicates bidirectionally between edge nodes and cloud — ideal for offline-first mobile apps. Cassandra's multi-datacenter replication lets each region write locally. Figma-style collaborative editors use CRDTs so concurrent edits merge without a single leader bottleneck.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Canva at scale",
+      "text": "Collaborative design editing lets multiple users write concurrently from different regions. CRDTs and operational transforms merge conflicting layer edits without funneling every keystroke through one global leader.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Canva-style real-time collaboration over WebSocket\nconst wss = new WebSocketServer({ port: 8080 });\n\nwss.on(\"connection\", (ws, req) => {\n  const designId = new URL(req.url!, \"http://x\").searchParams.get(\"designId\");\n  ws.on(\"message\", (raw) => {\n    const op = JSON.parse(raw.toString()) as DesignOperation;\n    // Apply CRDT / OT merge, then broadcast to all peers on this design\n    const merged = collabEngine.apply(designId!, op);\n    broadcast(designId!, { type: \"sync\", state: merged });\n  });\n});",
+      "caption": "Real-time collaboration over WebSocket"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    PG[(\"PostgreSQL<br/>metadata + ACL\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n\n    subgraph realtimePath [\"Real-time path — live editing\"]\n      direction LR\n      UA <-->|\"① send/receive ops\"| WS\n      UB <-->|\"② send/receive ops\"| WS\n      WS -->|\"③ heartbeat + cursors\"| Redis\n    end\n\n    WS -->|\"④ persist ops + snapshots\"| PG\n    WS -->|\"⑤ asset metadata\"| S3\n    UA -.->|\"⑥ signed URL upload\"| S3",
+      "kind": "architecture",
+      "caption": "Multi-leader-style concurrent writes: each client edits locally; merge engine reconciles conflicts in real time."
+    }
+  ],
+  "relatedConcepts": [
+    "multi-leader",
+    "Cassandra",
+    "CouchDB",
+    "CRDT",
+    "write conflict",
+    "last-write-wins"
+  ],
+  "media": {}
+}

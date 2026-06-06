@@ -1,0 +1,94 @@
+{
+  "id": "collaboration-estimation",
+  "chapterId": "sd-collaboration",
+  "title": "Back-of-the-Envelope Estimation",
+  "summary": "Peak ops/s, active document RAM, and why op logs need compaction.",
+  "keyTakeaways": [
+    "~500k peak ops/s WebSocket — sticky routing by document ID.",
+    "~100 GB active document RAM fleet-wide; S3 holds blobs, not Postgres.",
+    "Op log raw volume ~900 GB/hour without compaction — snapshot frequently.",
+    "Doc opens are low QPS; export jobs are async workers."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+    },
+    {
+      "type": "paragraph",
+      "text": "Assume 50M docs, 2M DAU, 50k docs edited concurrently peak, 5 editors/doc avg, 2 ops/s/editor, 500 B/op, 5 MB avg asset per doc, 100 KB metadata."
+    },
+    {
+      "type": "heading",
+      "text": "Real-time ops (WebSocket)",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Ops/s: 50k docs × 5 editors × 2 ops/s ≈ 500k ops/s globally.",
+        "Per collab server (10k docs): 50k ops/s — sticky routing by doc_id.",
+        "Broadcast fan-out: 500k ops × 4 peers avg × 500 B ≈ 1 GB/s WebSocket egress fleet-wide."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Storage",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Metadata (Postgres): 50M × 100 KB ≈ 5 TB (+ indexes → 15 TB).",
+        "Assets (S3): 50M × 5 MB ≈ 250 PB total — CDN for export/download; uploads direct to S3.",
+        "Op log (before compaction): 500k ops/s × 500 B × 3600 ≈ 900 GB/hour raw — snapshot every 5 min, compact to 100 KB snapshots."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Memory & caching",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Active doc in RAM (CRDT/OT): 50k × 2 MB working set ≈ 100 GB across collab fleet.",
+        "Presence (Redis): 2M DAU × 150 B ≈ 300 MB with TTL.",
+        "ACL cache: 50k hot docs × 1 KB permission snapshot ≈ 50 MB."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Read traffic",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Doc open: 2M opens/day ≈ 23/s — load snapshot + replay tail of op log since snapshot.",
+        "Export PDF (async): 100k/day ≈ 1/s — separate worker queue, not collab hot path."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Figma-scale collaboration ops\nconst concurrentDocs = 50_000;\nconst editorsPerDoc = 5;\nconst opsPerEditorPerSec = 2;\nconst peakOpsPerSec = concurrentDocs * editorsPerDoc * opsPerEditorPerSec;\nconst activeDocRamGb = (concurrentDocs * 2) / 1000; // 2 MB/doc\nconsole.log({ peakOpsPerSec, activeDocRamGb });",
+      "caption": "Collaboration ops per second"
+    },
+    {
+      "type": "callout",
+      "title": "Order-of-magnitude summary",
+      "text": "~500k peak ops/s WebSocket, ~100 GB active doc RAM, S3 for blobs not Postgres. Op log compaction is mandatory — never insert every keystroke into OLTP forever.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "ops/s",
+    "WebSocket",
+    "S3",
+    "PostgreSQL",
+    "compaction",
+    "Redis"
+  ],
+  "media": {}
+}

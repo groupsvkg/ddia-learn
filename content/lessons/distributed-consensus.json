@@ -1,0 +1,53 @@
+{
+  "id": "distributed-consensus",
+  "chapterId": "ch09-consistency-and-consensus",
+  "title": "Distributed Transactions and Consensus",
+  "summary": "Consensus protocols let nodes agree on a value despite failures — powering distributed transactions.",
+  "keyTakeaways": [
+    "Two-phase commit (2PC) coordinates atomic commit across participants.",
+    "2PC blocks if the coordinator fails after prepare.",
+    "Fault-tolerant consensus (Raft, Paxos, Zab) elects a leader and replicates a log.",
+    "Consensus is required for leader election, atomic commit, and membership changes.",
+    "Coordination services (ZooKeeper, etcd) provide consensus as a service.",
+    "Raft in etcd/Consul, Kafka KRaft, and XA transactions across PostgreSQL show consensus in production."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Getting multiple nodes to agree on a single value — who is leader, whether to commit, what the next log entry is — is the consensus problem. Algorithms like Raft make this practical for production systems."
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant C as Coordinator\n    participant P1 as Participant 1\n    participant P2 as Participant 2\n    C->>P1: PREPARE\n    C->>P2: PREPARE\n    P1-->>C: READY\n    P2-->>C: READY\n    C->>P1: COMMIT\n    C->>P2: COMMIT",
+      "kind": "diagram",
+      "caption": "Coordinator asks participants to prepare, then commits or aborts."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "etcd and HashiCorp Consul use Raft for leader election and consistent key-value storage — the backbone of Kubernetes control planes. Kafka replaced ZooKeeper with KRaft (internal Raft) for broker metadata. Cross-database 2PC (XA transactions) exists in Java EE but is fragile; the saga pattern with compensating transactions in microservices is more common today.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Google at scale",
+      "text": "Chubby (precursor to etcd) provided distributed consensus for Google's internal infrastructure — leader election, lock service, and membership. Kubernetes today relies on etcd's Raft implementation for the same guarantees.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Microservice SAGA — compensate if payment fails (Airbnb-style)\nasync function bookListing(input: BookingInput) {\n  const hold = await inventoryService.reserve(input); // step 1\n  try {\n    const payment = await paymentService.charge(input); // step 2\n    await notificationService.sendConfirmation(input); // step 3\n    return { hold, payment };\n  } catch (err) {\n    await inventoryService.release(hold.id); // compensating transaction\n    throw err;\n  }\n}",
+      "caption": "SAGA compensating transaction"
+    }
+  ],
+  "relatedConcepts": [
+    "consensus",
+    "Raft",
+    "etcd",
+    "Kafka",
+    "two-phase commit",
+    "ZooKeeper"
+  ],
+  "media": {}
+}

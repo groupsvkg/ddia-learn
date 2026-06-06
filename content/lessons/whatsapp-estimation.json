@@ -1,0 +1,94 @@
+{
+  "id": "whatsapp-estimation",
+  "chapterId": "sd-whatsapp",
+  "title": "Back-of-the-Envelope Estimation",
+  "summary": "Message write QPS, connection fan-in, hot storage, and presence memory at WhatsApp scale.",
+  "keyTakeaways": [
+    "~2.3M peak message writes/s globally — partition by chat_id.",
+    "200M concurrent WebSocket connections dominate RAM, not SQL joins.",
+    "~1 PB order-of-magnitude hot queue storage with short retention.",
+    "Presence and typing belong in Redis with TTL, not Postgres."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+    },
+    {
+      "type": "paragraph",
+      "text": "Assume 2B MAU, 500M DAU, 100B messages/day, avg message 2 KB ciphertext, 200M concurrent connections peak, 7-day server-side retention for offline delivery."
+    },
+    {
+      "type": "heading",
+      "text": "Write traffic",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Messages: 100B / 86,400 ≈ 1.16M messages/s average.",
+        "Peak (2× average) ≈ 2.3M writes/s globally — partitioned by chat_id across message store clusters.",
+        "Group fan-out: 1 write → N deliveries; a 256-member group multiplies connection writes (hybrid pull model essential for large groups)."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Read traffic",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Delivery: roughly 1:1 with sends for online users; offline users read on reconnect (sync from last acked seq).",
+        "Connection fan-in: 200M concurrent WebSockets — ~2M connections per chat server at 100 machines (order-of-magnitude).",
+        "Push notifications: ~30% offline → 350M pushes/day ≈ 4,000/s to APNs/FCM."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Storage",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Hot queue (7-day retention): 100B/day × 7 × 2 KB ≈ 1.4 PB — in practice most messages delivered and trimmed faster; plan hundreds of TB.",
+        "Long-term: E2E encrypted blobs on device; server storage is routing + short retention, not infinite archive."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Memory & caching",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Presence (Redis): 500M DAU × 100 B presence key ≈ 50 GB with TTL — sharded Redis clusters.",
+        "Connection state: 200M × ~4 KB session ≈ 800 GB RAM fleet-wide for routing tables.",
+        "Per-chat sequence counters: in-memory on chat server partition — negligible vs connection RAM."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// WhatsApp-scale message writes\nconst messagesPerDay = 100_000_000_000;\nconst avgWriteQps = messagesPerDay / 86_400;\nconst peakWriteQps = avgWriteQps * 2;\nconst concurrentConnections = 200_000_000;\nconst hotStorageTb = (messagesPerDay * 7 * 2 * 1024) / 1e12; // 7d × 2KB\nconsole.log({ peakWriteQps: Math.round(peakWriteQps), concurrentConnections, hotStorageTb });",
+      "caption": "WhatsApp message write QPS"
+    },
+    {
+      "type": "callout",
+      "title": "Order-of-magnitude summary",
+      "text": "~2.3M peak message writes/s, 200M concurrent connections, ~1 PB order-of-magnitude hot storage, presence in Redis not Postgres. Optimize connection fan-in, not SQL joins.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "QPS",
+    "WebSocket",
+    "connections",
+    "storage",
+    "Redis",
+    "fan-out"
+  ],
+  "media": {}
+}

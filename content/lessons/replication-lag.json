@@ -1,0 +1,64 @@
+{
+  "id": "replication-lag",
+  "chapterId": "ch05-replication",
+  "title": "Problems with Replication Lag",
+  "summary": "Asynchronous followers may lag behind the leader, creating stale reads and subtle consistency bugs.",
+  "keyTakeaways": [
+    "Read-your-own-writes: users must see their own recent changes.",
+    "Monotonic reads: users never see time go backward across requests.",
+    "Consistent prefix reads: causal order of writes is preserved.",
+    "Replication lag is normal — applications must explicitly handle it.",
+    "Sticky sessions route a user to one replica to improve consistency.",
+    "Session cookies, Redis-backed sessions, and read-after-write routing fix common lag bugs."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "When followers lag seconds behind the leader, users experience anomalies: posting a comment and not seeing it, or seeing newer data followed by older data. These are not failures — they are consequences of eventual consistency."
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant C as Client\n    participant L as Leader\n    participant F as Follower\n    C->>L: WRITE x=1\n    L-->>C: ACK (immediate)\n    C->>F: READ x\n    Note over F: lag 2s\n    F-->>C: x=0 stale",
+      "kind": "diagram",
+      "caption": "A write reaches the leader immediately but followers may serve stale data for seconds."
+    },
+    {
+      "type": "callout",
+      "title": "Fixes",
+      "text": "Read from leader after writes, use sticky sessions, or wait for follower catch-up before serving reads.",
+      "variant": "tip"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "After posting a tweet, Twitter routes your next read to the leader or a caught-up replica. E-commerce apps using PostgreSQL read replicas often force read-your-own-writes by querying the primary after checkout. HAProxy or AWS ALB sticky sessions keep a user on one replica for monotonic reads.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Instagram at scale",
+      "text": "After you post a story, the next feed load must include it — even if replicas lag milliseconds behind. Meta routes post-write reads to the primary or enforces a short read-from-leader window per session.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Facebook / Instagram: route reads to primary after posting\nasync function createPost(userId: string, text: string) {\n  const post = await db.primary.posts.create({ data: { userId, text } });\n  // Sticky session: next reads hit primary or caught-up replica\n  session.set(\"readFromPrimaryUntil\", Date.now() + 5_000);\n  return post;\n}\n\nasync function getFeed(userId: string) {\n  const client = session.get(\"readFromPrimaryUntil\") > Date.now()\n    ? db.primary\n    : db.replica;\n  return client.feed.findMany({ where: { userId } });\n}",
+      "caption": "Read-your-own-writes routing"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Post[User posts]\n    DB[(\"Post DB<br/>sharded\")]\n    Fanout[\"Fan-out Service\"]\n    C1[(\"Feed Cache<br/>Redis\")]\n    C2[(\"Feed Cache\")]\n    C3[(\"Feed Cache\")]\n    Post --> DB --> Fanout\n    Fanout --> C1 & C2 & C3",
+      "kind": "architecture",
+      "caption": "Partitioned feed storage with replication lag: writes hit the leader; reads may see stale followers."
+    }
+  ],
+  "relatedConcepts": [
+    "replication lag",
+    "read-your-own-writes",
+    "monotonic reads",
+    "Redis",
+    "eventual consistency"
+  ],
+  "media": {}
+}

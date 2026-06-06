@@ -1,0 +1,48 @@
+{
+  "id": "youtube-scaling",
+  "chapterId": "sd-youtube",
+  "title": "Caching, Popularity, and Cost",
+  "summary": "Virality shifts traffic from long-tail to hot objects. Design caching and storage tiers for both.",
+  "keyTakeaways": [
+    "Long-tail videos: CDN still helps, but most bytes sit cold in cheap storage.",
+    "Viral videos: push to more edge POPs; protect origin with shield tiers.",
+    "Popular metadata (trending page) needs application-level cache + singleflight.",
+    "Recommendation features precomputed offline; online path does light reranking.",
+    "Cost control: transcode once, store lifecycle policies for unwatched uploads.",
+    "Multi-region metadata replicas with sticky routing for editors."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "A video with 10 views and one with 10M views share the same architecture but wildly different cache hit ratios. Popularity-aware prefetch and tiered storage prevent paying CDN prices for cold content."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Netflix Open Connect caches hot titles on ISP appliances. YouTube's long tail lives in cheaper storage classes; only trending manifests get aggressive edge warming.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Google at scale",
+      "text": "Search ranking and YouTube recommendations share DNA: offline batch features + online low-latency scoring. The serving path never scans raw watch history per request.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Prevent thundering herd on trending metadata\nconst inflight = new Map<string, Promise<TrendingPage>>();\n\nasync function getTrending(region: string): Promise<TrendingPage> {\n  const cached = await redis.get(`trending:${region}`);\n  if (cached) return JSON.parse(cached);\n  if (!inflight.has(region)) {\n    inflight.set(region, loadTrendingFromDb(region).finally(() => inflight.delete(region)));\n  }\n  return inflight.get(region)!;\n}",
+      "caption": "Singleflight for trending metadata"
+    }
+  ],
+  "relatedConcepts": [
+    "CDN",
+    "cache",
+    "long tail",
+    "recommendations",
+    "cost",
+    "QPS",
+    "bandwidth"
+  ],
+  "media": {}
+}

@@ -1,0 +1,62 @@
+{
+  "id": "query-languages",
+  "chapterId": "ch02-data-models-query-languages",
+  "title": "Query Languages for Data",
+  "summary": "Declarative query languages let you describe what you want; the engine figures out how to get it.",
+  "keyTakeaways": [
+    "SQL is the canonical declarative language — describe the result, not the algorithm.",
+    "MapReduce expresses batch computation as map and reduce phases over datasets.",
+    "Graph query languages (Cypher, SPARQL) traverse relationships declaratively.",
+    "Imperative code in application layers duplicates logic that belongs in the data layer.",
+    "Choosing a query language constrains which access patterns are efficient.",
+    "GraphQL and gRPC sit above storage engines — they are API layers, not database query languages."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "A query language defines how applications read and transform data. Declarative languages like SQL separate the what from the how: you specify the desired result set, and the query optimizer chooses indexes, join order, and execution plan."
+    },
+    {
+      "type": "heading",
+      "text": "Declarative vs Imperative",
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "text": "Imperative code fetches rows and loops in application memory. Declarative queries push work to the database where indexes and statistics enable efficient execution. This separation is why SQL survived decades of hype cycles."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "PostgreSQL and Snowflake both speak SQL but optimize for different workloads. MongoDB uses its aggregation pipeline ($match, $group) for server-side transforms. Neo4j uses Cypher for graph patterns. In microservices, REST/GraphQL fetch data imperatively in app code — often reimplementing logic the database could handle more efficiently.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Google at scale",
+      "text": "BigQuery and Snowflake let analysts write declarative SQL while the engine chooses partition pruning, join order, and columnar scans. Google's internal Dremel paper inspired the separation of what from how at warehouse scale.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Google BigQuery / Snowflake — declarative OLAP over columnar storage\nconst revenueByRegion = await snowflake.execute(`\n  SELECT d.region, SUM(f.revenue_cents) AS total\n  FROM fact_orders f\n  JOIN dim_date d ON f.order_date = d.date_key\n  WHERE d.year = 2025\n  GROUP BY d.region\n  ORDER BY total DESC\n`);\n// Optimizer reads only region + revenue columns — not full rows",
+      "caption": "Declarative OLAP query"
+    },
+    {
+      "type": "callout",
+      "title": "MapReduce",
+      "text": "MapReduce brought declarative batch processing to distributed files: map functions extract key-value pairs, shuffle groups by key, reduce aggregates. Modern engines (Spark, Flink) evolved beyond the strict two-phase model.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "SQL",
+    "PostgreSQL",
+    "MongoDB",
+    "declarative query",
+    "MapReduce",
+    "query optimizer"
+  ],
+  "media": {}
+}

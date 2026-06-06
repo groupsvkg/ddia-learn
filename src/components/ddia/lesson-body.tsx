@@ -2,7 +2,7 @@ import type { ContentBlock } from "@/types/content";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ddia/code-block";
 import { MediaFigure } from "@/components/ddia/media-figure";
-import { MermaidDiagram } from "@/components/ddia/mermaid-diagram";
+import { MermaidDiagramLazy } from "@/components/ddia/mermaid-diagram-lazy";
 import { TechnicalDiagram } from "@/components/ddia/technical-diagram";
 
 type LessonBodyProps = {
@@ -63,7 +63,7 @@ export function LessonBody({ blocks }: LessonBodyProps) {
             );
           case "mermaid":
             return (
-              <MermaidDiagram
+              <MermaidDiagramLazy
                 key={index}
                 source={block.source}
                 kind={block.kind}

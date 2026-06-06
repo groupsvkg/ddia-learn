@@ -1,0 +1,87 @@
+{
+  "id": "reservation-architecture",
+  "chapterId": "sd-reservation",
+  "title": "End-to-End Booking Flow",
+  "summary": "Search, hold, pay, confirm — orchestrated with sagas and clear compensation if payment fails.",
+  "keyTakeaways": [
+    "API gateway routes search to read services, booking to write service.",
+    "Hold service writes to inventory DB; payment service calls Stripe.",
+    "On payment success: confirm hold; on failure: release hold (compensating action).",
+    "Kafka events update search index and send confirmation emails async.",
+    "Read replicas serve 'my trips'; primary handles commits.",
+    "Admin overrides need audit log separate from user-facing booking row."
+  ],
+  "body": [
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Guest[\"Guest app\"]\n    Inv[(\"Inventory DB<br/>PostgreSQL\")]\n    ES[(\"Elasticsearch<br/>listings index\")]\n    Redis[(\"Redis<br/>hot listing cache\")]\n\n    subgraph readPath [\"Read path — search and browse\"]\n      direction LR\n      SearchAPI[\"Search API\"]\n      Guest -->|\"① browse / filter\"| SearchAPI\n      SearchAPI -->|\"② query index\"| ES\n      SearchAPI -.->|\"③ cache hit\"| Redis\n      Guest -->|\"④ GET listing detail\"| SearchAPI\n    end\n\n    subgraph writePath [\"Write path — hold, pay, confirm\"]\n      direction LR\n      BookAPI[\"Booking API\"]\n      Stripe[\"Stripe\"]\n      Kafka[[Kafka]]\n      Guest -->|\"⑤ POST /hold\"| BookAPI\n      BookAPI -->|\"⑥ lock slot\"| Inv\n      Guest -->|\"⑦ POST /confirm\"| BookAPI\n      BookAPI -->|\"⑧ charge card\"| Stripe\n      BookAPI -->|\"⑨ confirm → COMMIT\"| Inv\n      BookAPI -->|\"⑩ booking.confirmed\"| Kafka\n      Kafka -.->|\"⑪ async index update\"| ES\n    end",
+      "kind": "architecture",
+      "caption": "Reservations split fuzzy search (Elasticsearch) from exact booking (PostgreSQL + Stripe). Kafka updates the index after commit."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Read path — search and browse",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① Browse / filter — Guest runs date, price, and location filters against the Search API.",
+        "② Query index — Search API queries Elasticsearch inverted index — never scans inventory rows.",
+        "③ Cache hit — Hot listing cards served from Redis when the same queries repeat.",
+        "④ GET listing detail — Guest opens a listing page; photos and description from search index or cache."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Write path — hold, pay, confirm",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "⑤ POST /hold — Guest reserves a slot; Booking API starts a short transaction.",
+        "⑥ Lock slot — Inventory row locked in PostgreSQL (SELECT FOR UPDATE or serializable isolation).",
+        "⑦ POST /confirm — Guest submits payment with Idempotency-Key to prevent double charge on retry.",
+        "⑧ Charge card — Booking API calls Stripe; payment success required before confirm.",
+        "⑨ Confirm → COMMIT — Hold converted to sale in one atomic transaction.",
+        "⑩ booking.confirmed — Event published to Kafka after commit (outbox pattern).",
+        "⑪ Async index update — Consumer updates Elasticsearch availability — derived data, not dual-write."
+      ]
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant G as Guest\n    participant API as Booking API\n    participant Inv as Inventory DB\n    participant St as Stripe\n    participant K as Kafka\n    G->>API: POST /holds\n    API->>Inv: BEGIN txn, lock slot\n    Inv-->>API: holdId\n    API-->>G: hold expires 15m\n    G->>API: POST /confirm + Idempotency-Key\n    API->>St: charge\n    St-->>API: paymentId\n    API->>Inv: confirm hold and COMMIT\n    API->>K: booking.confirmed\n    API-->>G: 201 confirmed",
+      "kind": "sequence",
+      "caption": "Happy-path sequence from hold through payment to confirmed booking."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Hold → pay → confirm with compensation\nasync function bookingSaga(bookingId: string) {\n  const hold = await inventory.hold(bookingId);\n  try {\n    const charge = await stripe.charge({ idempotencyKey: bookingId });\n    await inventory.confirm(hold.id);\n    await kafka.publish(\"booking.confirmed\", { bookingId, chargeId: charge.id });\n  } catch (err) {\n    await inventory.release(hold.id); // compensating action\n    throw err;\n  }\n}",
+      "caption": "Booking saga with compensation"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Expedia and Booking.com pipelines mirror this: Elasticsearch for discovery, PostgreSQL for reservations, Stripe/Adyen for payments, Temporal or custom sagas for multi-step checkout.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "saga",
+    "Stripe",
+    "Elasticsearch",
+    "PostgreSQL",
+    "compensation",
+    "Kafka",
+    "API gateway",
+    "QPS"
+  ],
+  "media": {}
+}

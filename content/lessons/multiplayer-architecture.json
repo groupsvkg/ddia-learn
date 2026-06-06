@@ -1,0 +1,134 @@
+{
+  "id": "multiplayer-architecture",
+  "chapterId": "sd-multiplayer-games",
+  "title": "Game Servers and State Sync",
+  "summary": "Dedicated simulation loop owns truth; clients send inputs, receive state deltas.",
+  "keyTakeaways": [
+    "Lobby service assigns players to a game server instance.",
+    "Server sim loop: inputs in → physics/rules → state snapshot out.",
+    "Delta compression sends only changed entities to clients.",
+    "Redis or in-memory store for session; periodic checkpoint to DB for stats.",
+    "Dedicated servers vs P2P: commercial titles choose servers for anti-cheat.",
+    "Agones on Kubernetes scales game server pods per match."
+  ],
+  "body": [
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    PA[\"Player A\"]\n    PB[\"Player B\"]\n    Redis[(\"Redis<br/>match queue\")]\n    Kafka[[Kafka<br/>telemetry]]\n\n    subgraph controlPlane [\"Control plane — matchmaking\"]\n      direction LR\n      MM[\"Matchmaker\"]\n      K8s[\"Agones / K8s\"]\n      PA -->|\"① enqueue ticket\"| MM\n      PB -->|\"① enqueue ticket\"| MM\n      MM -->|\"② skill + region bucket\"| Redis\n      MM -->|\"③ allocate pod\"| K8s\n      MM -->|\"④ return host:port\"| PA\n      MM -->|\"④ return host:port\"| PB\n    end\n\n    subgraph dataPlane [\"Data plane — live match (UDP, in-memory)\"]\n      direction LR\n      GS[\"Game Server<br/>60 Hz tick\"]\n      K8s --> GS\n      PA <-->|\"⑤ input / state delta\"| GS\n      PB <-->|\"⑤ input / state delta\"| GS\n      GS -.->|\"⑥ fire-and-forget events\"| Kafka\n    end",
+      "kind": "architecture",
+      "caption": "Matchmaking is the control plane (HTTP/Redis/K8s); live gameplay is the data plane (UDP, in-memory, no Postgres per tick)."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Control plane — matchmaking",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① Enqueue ticket — Each player submits skill rating and region preference to the matchmaker.",
+        "② Skill + region bucket — Matchmaker groups compatible players in Redis sorted sets.",
+        "③ Allocate pod — Agones/Kubernetes spins up or assigns a dedicated game server pod.",
+        "④ Return host:port — Players receive UDP endpoint; RTT kept low by regional placement."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Data plane — live match",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "⑤ Input / state delta — Clients send inputs at 20–128 Hz; server broadcasts compressed state deltas.",
+        "⑥ Fire-and-forget events — Telemetry (kills, crashes) streams to Kafka without blocking the tick loop."
+      ]
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant P as Player\n    participant MM as Matchmaker\n    participant K8s as Agones/K8s\n    participant GS as Game Server\n    P->>MM: enqueue(ticket)\n    Note over MM: skill + region bucket\n    MM->>K8s: allocate pod\n    K8s-->>MM: host:port\n    MM-->>P: match found\n    P->>GS: CONNECT UDP\n    GS-->>P: world snapshot",
+      "kind": "sequence",
+      "caption": "Queue to matchmaker, pod allocation, then UDP connect to game server."
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant A as Player A\n    participant S as Game Server\n    participant B as Player B\n    A->>S: INPUT tick=42 (UDP)\n    B->>S: INPUT tick=42 (UDP)\n    Note over S: simulate physics @ 60 Hz\n    S->>A: STATE delta tick=42\n    S->>B: STATE delta tick=42\n    A->>S: ACK tick=42",
+      "kind": "sequence",
+      "caption": "Clients send inputs; server simulates and broadcasts state deltas."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Authoritative server simulation loop\nlet tick = 0;\nconst inputs: Input[] = [];\n\nfunction simLoop() {\n  const snapshot = applyPhysics(world, inputs.splice(0));\n  broadcastDelta(clients, diff(previous, snapshot));\n  previous = snapshot;\n  tick++;\n}\nsetInterval(simLoop, 1000 / 60); // 60 Hz",
+      "caption": "Authoritative tick with input buffer"
+    },
+    {
+      "type": "callout",
+      "title": "Fortnite at scale",
+      "text": "Epic runs regional game server fleets; matchmaking minimizes RTT. Client sends inputs; server corrects position if client prediction diverges.",
+      "variant": "tip"
+    },
+    {
+      "type": "heading",
+      "text": "Why these technologies?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why UDP (game traffic)?",
+      "text": "TCP head-of-line blocking adds latency unsuitable for 60 Hz shooters. UDP drops packets — game state corrects on next tick. TCP/HTTP fine for lobby and matchmaking.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Authoritative game server?",
+      "text": "Server simulates truth; clients predict locally then reconcile. Prevents speed hacks and wall hacks — P2P cannot enforce fairness in competitive games.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Matchmaker service?",
+      "text": "Groups players by skill (MMR) and region (ping). Separate from game simulation — queue logic changes without redeploying game binaries.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Agones / Kubernetes game pods?",
+      "text": "Each match is an isolated process with dedicated CPU — natural scale unit. Spin up pod per match, tear down after. StatefulSet assigns stable UDP ports.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why In-memory state (not Postgres during match)?",
+      "text": "Sub-16 ms tick loops cannot round-trip to disk. Checkpoint stats to DB only after match ends. Redis optional for cross-service lobby state.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Kafka (telemetry)?",
+      "text": "Fire-and-forget analytics: kills, crashes, latency histograms. Never blocks the game tick loop.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Not a single global game database?",
+      "text": "Game state is ephemeral and regional — sharding by match ID, not user ID.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "game server",
+    "delta compression",
+    "Agones",
+    "Kubernetes",
+    "prediction",
+    "UDP",
+    "Kafka"
+  ],
+  "media": {}
+}

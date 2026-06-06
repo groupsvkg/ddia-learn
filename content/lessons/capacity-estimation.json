@@ -1,0 +1,96 @@
+{
+  "id": "capacity-estimation",
+  "chapterId": "sd-foundations",
+  "title": "Back-of-the-Envelope Estimation",
+  "summary": "Rough numbers prevent impossible architectures. Estimate QPS, storage, bandwidth, and cache size before you draw shards.",
+  "keyTakeaways": [
+    "Convert daily active users into peak requests per second with a burst factor.",
+    "Storage = records × average object size × replication factor × retention.",
+    "Video and images dominate bandwidth — metadata is usually smaller.",
+    "1 day of write volume often fits in RAM; plan for 30–90 days on disk.",
+    "Estimates justify CDN, batch transcoding, and read replicas early.",
+    "Google, Meta, and AWS whitepapers all start with napkin math."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "You do not need exact numbers. Order-of-magnitude checks catch designs that cannot work: serving 4K video from a single Postgres row, or indexing every WhatsApp message in Elasticsearch in real time."
+    },
+    {
+      "type": "heading",
+      "text": "Worked example: short-video app",
+      "level": 2
+    },
+    {
+      "type": "list",
+      "items": [
+        "50M DAU, each watches 20 videos/day → 1B views/day ≈ 12k views/s average.",
+        "Peak ≈ 5× average → ~60k read QPS for metadata; bytes served mostly from CDN.",
+        "100k uploads/day, 50 MB average raw → 5 TB/day ingest; keep hot in object storage.",
+        "Metadata row ~2 KB × 500M videos → ~1 TB before indexes and replicas."
+      ]
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "YouTube and TikTok napkin math drove separate upload paths (write-heavy) from feed reads (CDN-heavy). WhatsApp optimized for small text payloads and connection fan-in, not storage per message.",
+      "variant": "info"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Napkin math: DAU → peak QPS\nconst DAU = 50_000_000;\nconst actionsPerUserPerDay = 20;\nconst avgQps = (DAU * actionsPerUserPerDay) / 86_400;\nconst peakQps = avgQps * 5; // burst factor for prime time\nconsole.log({ avgQps: Math.round(avgQps), peakQps: Math.round(peakQps) });",
+      "caption": "Peak QPS from DAU"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Creator[\"Creator app\"]\n    Viewer[\"Viewer app\"]\n    S3[(\"Object Storage<br/>S3 / GCS\")]\n    MetaDB[(\"Metadata DB<br/>PostgreSQL\")]\n\n    subgraph writePath [\"Write path — upload and transcode\"]\n      direction LR\n      UploadAPI[\"Upload API<br/>resumable multipart\"]\n      Kafka[[Kafka<br/>video.uploaded]]\n      Transcoder[\"Transcoder fleet<br/>FFmpeg workers\"]\n      Creator -->|\"① upload chunks\"| UploadAPI\n      UploadAPI -->|\"② PUT raw video\"| S3\n      UploadAPI -->|\"③ INSERT status=PROCESSING\"| MetaDB\n      UploadAPI -->|\"④ publish event\"| Kafka\n      Kafka -->|\"⑤ transcode job\"| Transcoder\n      Transcoder -->|\"⑥ read raw / write HLS\"| S3\n      Transcoder -->|\"⑦ UPDATE status=READY\"| MetaDB\n    end\n\n    subgraph readPath [\"Read path — metadata and playback\"]\n      direction LR\n      MetaAPI[\"Metadata API<br/>Redis cache\"]\n      CDN[\"CDN Edge<br/>CloudFront / Akamai\"]\n      Viewer -->|\"① GET /videos/:id\"| MetaAPI\n      MetaAPI -->|\"② SELECT title, manifest URL\"| MetaDB\n      Viewer -->|\"③ GET .m3u8 + .ts segments\"| CDN\n      CDN -.->|\"cache miss → origin\"| S3\n    end",
+      "kind": "architecture",
+      "caption": "YouTube splits write (upload + transcode) and read (metadata + CDN playback). Object Storage and Metadata DB are shared between both paths."
+    },
+    {
+      "type": "heading",
+      "text": "Step-by-step walkthrough",
+      "level": 2
+    },
+    {
+      "type": "heading",
+      "text": "Write path — upload and transcode",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① Upload chunks — Creator sends resumable multipart uploads; API never buffers the full file in RAM.",
+        "② PUT raw video — Upload API streams bytes directly to Object Storage (S3/GCS).",
+        "③ INSERT status=PROCESSING — Metadata DB row created so creators see upload received, not yet playable.",
+        "④ Publish event — video.uploaded event to Kafka; upload HTTP response returns immediately.",
+        "⑤ Transcode job — FFmpeg worker consumes the event from the queue.",
+        "⑥ Read raw / write HLS — Worker reads original, writes adaptive bitrate segments back to Object Storage.",
+        "⑦ UPDATE status=READY — Metadata row updated; manifest URL becomes valid for viewers."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Read path — metadata and playback",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "① GET /videos/:id — Viewer requests title, channel, and manifest URL from Metadata API.",
+        "② SELECT title, manifest URL — API reads Postgres; hot rows cached in Redis.",
+        "③ GET .m3u8 + .ts segments — Player fetches HLS manifest and video segments from CDN edge.",
+        "Cache miss → origin — CDN pulls segment from Object Storage on miss; viral content stays at the edge."
+      ]
+    }
+  ],
+  "relatedConcepts": [
+    "estimation",
+    "QPS",
+    "storage",
+    "bandwidth",
+    "CDN"
+  ],
+  "media": {}
+}

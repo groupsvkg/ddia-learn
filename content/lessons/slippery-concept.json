@@ -1,0 +1,54 @@
+{
+  "id": "slippery-concept",
+  "chapterId": "ch07-transactions",
+  "title": "The Slippery Concept of a Transaction",
+  "summary": "Transactions group operations into atomic units — but the guarantees vary widely across systems.",
+  "keyTakeaways": [
+    "ACID: Atomicity, Consistency, Isolation, Durability — the classic transaction contract.",
+    "Atomicity: all-or-nothing — partial failures roll back.",
+    "Consistency: invariants hold (often enforced by application logic, not the DB).",
+    "Isolation: concurrent transactions do not interfere.",
+    "Durability: committed data survives crashes.",
+    "Single-object vs multi-object transactions have very different costs.",
+    "PostgreSQL and MySQL offer full multi-row ACID; MongoDB added multi-document transactions in v4.0."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "A transaction is a logical unit of work that succeeds or fails as a whole. ACID properties define the promise, but real systems implement them with varying strictness — especially in distributed settings."
+    },
+    {
+      "type": "callout",
+      "title": "Consistency in ACID",
+      "text": "Unlike the other three properties, consistency depends on application-defined invariants (e.g., account balance >= 0). The database provides tools; the application defines the rules.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "A bank transfer in PostgreSQL wraps debit and credit in BEGIN/COMMIT — both rows update or neither does. Stripe uses idempotency keys with PostgreSQL to make retried API calls safe. MongoDB multi-document transactions work across collections but cost more than single-document atomic writes in DynamoDB.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Stripe at scale",
+      "text": "A payment capture debits the customer, records the charge, and updates the merchant balance in one PostgreSQL transaction — partial failure rolls back all three writes.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Airbnb booking: debit guest + credit host atomically\nawait prisma.$transaction(async (tx) => {\n  const booking = await tx.booking.create({\n    data: { listingId, guestId, checkIn, checkOut },\n  });\n  await tx.payment.create({\n    data: { bookingId: booking.id, amountCents, status: \"CAPTURED\" },\n  });\n  await tx.availability.update({\n    where: { listingId_date: { listingId, date: checkIn } },\n    data: { available: false },\n  });\n});",
+      "caption": "Multi-step booking transaction"
+    }
+  ],
+  "relatedConcepts": [
+    "ACID",
+    "PostgreSQL",
+    "MongoDB",
+    "atomicity",
+    "transaction",
+    "durability"
+  ],
+  "media": {}
+}

@@ -1,0 +1,95 @@
+{
+  "id": "youtube-requirements",
+  "chapterId": "sd-youtube",
+  "title": "Requirements and Constraints",
+  "summary": "YouTube must ingest massive files, serve globally with low startup latency, and recommend the next clip — all profitably.",
+  "keyTakeaways": [
+    "Upload: resumable, durable, survive client crashes mid-transfer.",
+    "Processing: transcode to many resolutions and codecs (ABR ladder).",
+    "Delivery: edge caching; adaptive bitrate for variable networks.",
+    "Metadata: title, channel, stats, comments — OLTP with heavy read caching.",
+    "Recommendations: batch + stream features; personalization is derived data.",
+    "Copyright and moderation pipelines are async consumers of upload events."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Video is the bulk of bytes; metadata is the bulk of queries. Treating them as one system fails — upload and transcode are write pipelines, playback is a CDN problem, home feed is a ranking problem."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "YouTube stores originals in durable object storage (GCS-style), serves via Google's CDN, and keeps metadata in sharded databases. Creators see processing state; viewers see p95 startup time under a few seconds on good networks.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "YouTube at scale",
+      "text": "A 2 GB upload cannot block a synchronous API thread. Resumable uploads land in object storage; a job queue fans out transcoding workers that write HLS/DASH segments back to the bucket.",
+      "variant": "tip"
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant Cr as Creator\n    participant Up as Upload API\n    participant S3 as Object Store\n    participant K as Kafka\n    participant W as Transcoder\n    Cr->>Up: POST /uploads (multipart)\n    Up->>S3: PUT raw chunks\n    S3-->>Up: ETag\n    Up->>K: video.uploaded event\n    Up-->>Cr: 201 videoId\n    Note over K,W: async workers\n    K->>W: consume job\n    W->>S3: read raw / write HLS\n    W->>K: video.ready event",
+      "kind": "sequence",
+      "caption": "Time-ordered upload flow from creator through object storage to async transcoding."
+    },
+    {
+      "type": "heading",
+      "text": "Why these technologies?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why Object storage (S3 / GCS)?",
+      "text": "Video files are gigabytes — storing them in Postgres or on API servers is impossible at scale. Object storage offers pennies-per-GB durability with multipart/resumable upload APIs. Metadata (title, status) lives elsewhere.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Upload API (stateless service)?",
+      "text": "Accepts chunked uploads, validates auth, and issues pre-signed URLs so bytes stream directly to object storage without proxying through app servers. Keeps API pods memory-light.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Kafka / Pub/Sub?",
+      "text": "Transcoding takes minutes and must not block the upload response. An event ('video.uploaded') fans out to worker pools that scale independently. Also feeds moderation, thumbnails, and search indexing.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Transcoder workers (FFmpeg fleet)?",
+      "text": "CPU-heavy, embarrassingly parallel — one job per resolution. Run on spot instances or batch queues, not on request-serving API pods. Output is immutable HLS/DASH segments back to object storage.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why CDN?",
+      "text": "99% of bytes are video segments served repeatedly — edge caching cuts origin egress cost and startup latency. Adaptive bitrate manifests let players switch quality without new API calls.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Metadata database (PostgreSQL / sharded SQL)?",
+      "text": "Titles, channels, comments, and processing state need joins, indexes, and transactions. Sharded or regional when single-node Postgres saturates — not replaced by object storage.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Stream processor (Flink / Dataflow) for view counts?",
+      "text": "Exact per-view counts are unnecessary; approximate aggregation at millions of events/sec is cheaper than row-level UPDATE on a video table.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "video",
+    "upload",
+    "CDN",
+    "transcoding",
+    "metadata",
+    "S3",
+    "Kafka"
+  ],
+  "media": {}
+}

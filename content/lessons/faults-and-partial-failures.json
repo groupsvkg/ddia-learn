@@ -1,0 +1,47 @@
+{
+  "id": "faults-and-partial-failures",
+  "chapterId": "ch08-trouble-with-distributed-systems",
+  "title": "Faults and Partial Failures",
+  "summary": "In distributed systems, only part of the system can fail — making failures harder to reason about.",
+  "keyTakeaways": [
+    "Single-machine systems fail entirely; distributed systems have partial failures.",
+    "Cloud datacenters have better redundancy than single machines but shared failure domains.",
+    "Supercomputers assume reliable components; cloud systems assume failure is routine.",
+    "You cannot assume a remote node is alive without evidence.",
+    "Design for the case where any node, link, or rack can fail independently.",
+    "Kubernetes pod crashes, AWS AZ outages, and Redis sentinel failover are everyday partial failures."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "On one machine, a crash stops everything — easy to detect. In a distributed system, one node may crash while others continue. A network link may drop while processes on both ends are healthy. This ambiguity makes distributed failure modes uniquely subtle."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "A Kubernetes cluster might lose one pod while others keep serving traffic — but now load is uneven and downstream caches may be stale. An AWS Availability Zone outage takes out some RDS replicas but not the whole region. Docker containers restart on failure, but that does not replace distributed coordination for data consistency.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Netflix at scale",
+      "text": "Chaos Monkey deliberately kills instances during business hours to prove partial failures are survivable. A single API pod crash must not corrupt shared state — only reduce capacity until Kubernetes reschedules.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Uber microservices — gRPC deadlines detect slow/dead peers\nconst deadline = Date.now() + 3_000;\nconst trip = await tripClient.getTrip(\n  { tripId },\n  { deadline }, // client aborts after 3s — cannot distinguish slow vs dead\n);\n// Envoy retry policy + circuit breaker stops cascading timeouts",
+      "caption": "gRPC deadline on partial failure"
+    }
+  ],
+  "relatedConcepts": [
+    "partial failure",
+    "Kubernetes",
+    "AWS",
+    "Docker",
+    "fault tolerance",
+    "failure domain"
+  ],
+  "media": {}
+}

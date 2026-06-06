@@ -1,0 +1,59 @@
+{
+  "id": "mapreduce",
+  "chapterId": "ch10-batch-processing",
+  "title": "MapReduce and Distributed Filesystems",
+  "summary": "MapReduce brought Unix-style batch processing to clusters with automatic parallelization and fault tolerance.",
+  "keyTakeaways": [
+    "Input files are split across cluster nodes; each runs a map function.",
+    "Shuffle sorts and groups intermediate key-value pairs by key.",
+    "Reduce functions aggregate all values for each key.",
+    "Failed map/reduce tasks are automatically retried on other nodes.",
+    "HDFS stores large immutable files replicated across the cluster.",
+    "Hadoop MapReduce on HDFS is legacy; S3 + Spark replaced it in most cloud stacks."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "MapReduce wraps the Unix pipeline in a fault-tolerant distributed runtime. Map tasks extract data in parallel; shuffle groups by key; reduce tasks aggregate. The runtime handles scheduling, retries, and data locality."
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart LR\n    Input[(\"Input files<br/>HDFS/S3\")]\n    Map[Map workers]\n    Shuffle[Shuffle by key]\n    Reduce[Reduce workers]\n    Output[(\"Output\")]\n    Input --> Map --> Shuffle --> Reduce --> Output",
+      "kind": "diagram",
+      "caption": "Map → Shuffle → Reduce over a distributed filesystem."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Early Twitter and LinkedIn analytics ran on Hadoop MapReduce over HDFS. Today AWS EMR and Databricks run Spark over S3 — same map-shuffle-reduce idea, but in-memory stages avoid writing every intermediate to disk. Immutable Parquet files on S3 replaced HDFS for most new data lakes.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "LinkedIn at scale",
+      "text": "Early member analytics and ad targeting ran on Hadoop MapReduce over HDFS — immutable input files, parallel map tasks, shuffle by key, reduce aggregates. The pattern scaled to petabytes before Spark replaced disk-bound intermediates.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// LinkedIn analytics — Spark batch over immutable Parquet on S3\nconst dailyActive = spark.read.parquet(\"s3://events/dt=2025-06-01/\")\n  .filter(col(\"event\") === \"login\")\n  .groupBy(\"user_id\")\n  .agg(count(\"*\").as(\"logins\"));\ndailyActive.write.mode(\"overwrite\").parquet(\"s3://metrics/dau/\");\n// Lineage graph retries failed stages — no full job restart",
+      "caption": "Spark batch over immutable Parquet"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart LR\n    Crawler[Crawler]\n    GFS[(\"GFS / S3\")]\n    MR[MapReduce]\n    Index[(\"Index\")]\n    Query[Query svc]\n    User[User]\n    Crawler --> GFS --> MR --> Index\n    User -->|query| Query\n    Query --> Index",
+      "kind": "architecture",
+      "caption": "Batch indexing pipeline: map-shuffle-reduce over distributed storage — the Google-scale pattern behind web crawls and analytics."
+    }
+  ],
+  "relatedConcepts": [
+    "MapReduce",
+    "Spark",
+    "HDFS",
+    "S3",
+    "shuffle",
+    "batch job"
+  ],
+  "media": {}
+}

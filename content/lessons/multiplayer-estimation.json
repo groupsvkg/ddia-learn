@@ -1,0 +1,94 @@
+{
+  "id": "multiplayer-estimation",
+  "chapterId": "sd-multiplayer-games",
+  "title": "Back-of-the-Envelope Estimation",
+  "summary": "UDP bandwidth per match, fleet-wide RAM, and why live ticks stay off Postgres.",
+  "keyTakeaways": [
+    "500k concurrent matches require regional UDP fleets — not one global cluster.",
+    "~50 MB RAM per match in-process; Postgres only for post-game stats.",
+    "Matchmaker queues in Redis sorted sets by MMR and region.",
+    "Telemetry to Kafka is fire-and-forget; never block the tick loop."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+    },
+    {
+      "type": "paragraph",
+      "text": "Assume 50M DAU, 5M concurrent players peak, 500k concurrent matches, 100 players/match max (battle royale), 60 Hz tick, 50 B input + 200 B state delta per player per tick."
+    },
+    {
+      "type": "heading",
+      "text": "Network (UDP)",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Per match (100 players): 100 inputs/s × 50 B + 100 deltas/s × 200 B × 100 recipients ≈ 2 MB/s per match (simplified fan-out).",
+        "500k matches × 2 MB/s ≈ 1 TB/s game traffic — regional shards mandatory; global single cluster impossible.",
+        "Per player: ~20 KB/s down, ~5 KB/s up — fits home broadband; mobile is the constraint."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Compute & memory",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Game server RAM: ~50 MB world state per match × 500k ≈ 25 TB fleet-wide — each pod handles 1–10 matches, not 500k on one machine.",
+        "Tick CPU: 60 Hz × 500k matches ≈ 30M simulations/s — GPU/CPU physics is the bottleneck, not database.",
+        "Matchmaker: 5M players / 100 per match ≈ 50k match formations in a few minutes at peak — queue in Redis sorted sets by MMR."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Storage & writes",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Live state: zero disk writes during match — all in-memory.",
+        "Post-match stats: 500k matches/day × 5 KB ≈ 2.5 GB/day to Postgres for leaderboards.",
+        "Telemetry (Kafka): 5M players × 1 KB event/min ≈ 83 MB/s fire-and-forget."
+      ]
+    },
+    {
+      "type": "heading",
+      "text": "Caching",
+      "level": 3
+    },
+    {
+      "type": "list",
+      "items": [
+        "Lobby/player profile: Redis 5M × 2 KB ≈ 10 GB for matchmaking context.",
+        "No CDN for game state — UDP is point-to-point."
+      ]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Battle royale: 100 players, 60 Hz, 200 B delta\nconst players = 100;\nconst tickHz = 60;\nconst deltaBytes = 200;\nconst bytesPerMatchPerSec = players * tickHz * deltaBytes * players;\nconst concurrentMatches = 500_000;\nconst totalGbps = (bytesPerMatchPerSec * concurrentMatches * 8) / 1e9;\nconsole.log({ bytesPerMatchPerSec, totalTbps: (totalGbps / 1000).toFixed(1) });",
+      "caption": "Multiplayer match network bandwidth"
+    },
+    {
+      "type": "callout",
+      "title": "Order-of-magnitude summary",
+      "text": "500k concurrent matches → regional UDP fleets, ~50 MB RAM per match in-process, matchmaker in Redis. Postgres only for post-game stats, not live ticks.",
+      "variant": "tip"
+    }
+  ],
+  "relatedConcepts": [
+    "UDP",
+    "bandwidth",
+    "matchmaking",
+    "Redis",
+    "Agones",
+    "memory"
+  ],
+  "media": {}
+}

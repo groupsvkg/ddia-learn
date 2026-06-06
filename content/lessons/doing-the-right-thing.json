@@ -1,0 +1,53 @@
+{
+  "id": "doing-the-right-thing",
+  "chapterId": "ch12-future-of-data-systems",
+  "title": "Doing the Right Thing",
+  "summary": "Data systems have societal impact — predictive analytics, privacy, and the ethics of data collection.",
+  "keyTakeaways": [
+    "Predictive systems amplify biases present in training data.",
+    "Privacy requires limiting collection, retention, and correlation of personal data.",
+    "Tracking and surveillance capitalism erode user trust.",
+    "Engineers have responsibility for how data is used, not just how it is stored.",
+    "Regulation (GDPR) and privacy-by-design are becoming engineering requirements.",
+    "GDPR, AWS data residency, and on-device ML (Apple) reflect engineering responses to privacy."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Building data systems is not value-neutral. Recommendation engines shape behavior. Predictive policing encodes historical bias. Tracking infrastructure enables surveillance. Engineers must consider who benefits, who is harmed, and what data is truly necessary."
+    },
+    {
+      "type": "callout",
+      "title": "Privacy by design",
+      "text": "Collect minimum data, encrypt at rest and in transit, provide deletion mechanisms, and make data practices transparent to users.",
+      "variant": "warning"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "GDPR requires deletion APIs and data processing agreements — engineering teams implement right-to-erasure in PostgreSQL with soft-delete + purge jobs. AWS offers region-locked storage (data residency) for regulated industries. Snowflake column masking and row access policies enforce authorization at the warehouse layer. Recommendation systems at Netflix and TikTok raise ongoing questions about filter bubbles and engagement optimization vs user wellbeing.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Netflix at scale",
+      "text": "Recommendation models trained on viewing history must honor GDPR deletion requests — purge user rows from warehouses and retrain without retained PII. OAuth scopes limit which services access profile data.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Netflix / Auth0 — OAuth 2.0 authorization code flow for user identity\nconst authUrl = oauth.authorizeUrl({\n  clientId: process.env.OAUTH_CLIENT_ID!,\n  redirectUri: \"https://app.example/callback\",\n  scope: \"openid profile email\",\n  state: crypto.randomUUID(),\n});\n// Token exchange happens server-side; access token scoped to minimum permissions",
+      "caption": "OAuth 2.0 authorization flow"
+    }
+  ],
+  "relatedConcepts": [
+    "privacy",
+    "GDPR",
+    "AWS",
+    "Snowflake",
+    "authorization",
+    "ethics"
+  ],
+  "media": {}
+}

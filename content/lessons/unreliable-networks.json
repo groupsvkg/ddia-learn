@@ -1,0 +1,59 @@
+{
+  "id": "unreliable-networks",
+  "chapterId": "ch08-trouble-with-distributed-systems",
+  "title": "Unreliable Networks",
+  "summary": "Network packets get lost, delayed, and reordered — and you often cannot tell which happened.",
+  "keyTakeaways": [
+    "TCP provides reliable delivery within a connection but cannot detect peer crashes.",
+    "Timeouts are the only way to detect failure — but choosing the right timeout is hard.",
+    "Network partitions split the cluster into islands that cannot communicate.",
+    "Synchronous networks (e.g., internal datacenter) are more predictable than the public internet.",
+    "You must design for messages that never arrive or arrive twice.",
+    "gRPC deadlines, Envoy retries, and circuit breakers handle unreliable networks in microservices."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "The network is not reliable. Packets drop, switches fail, and congestion causes unbounded delays. Distributed protocols must handle lost messages, duplicate messages, and the inability to distinguish slow responses from dead nodes."
+    },
+    {
+      "type": "callout",
+      "title": "The two generals problem",
+      "text": "Two armies must agree to attack simultaneously via messengers who may be captured. Proves that consensus is impossible with unreliable communication.",
+      "variant": "warning"
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "gRPC clients set deadlines; Envoy or nginx reverse proxies configure retry policies with backoff. Istio circuit breakers stop hammering a failing service. AWS ALB health checks eject unhealthy targets. Mobile clients on flaky networks must use idempotent APIs (Stripe idempotency keys) because TCP reliability does not survive application-level timeouts.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Uber at scale",
+      "text": "Driver matching RPCs run over mobile networks with unpredictable latency. gRPC deadlines abort hung calls after 3 seconds; idempotent retries prevent duplicate trip assignments when packets are lost.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "// Uber microservices — gRPC deadlines detect slow/dead peers\nconst deadline = Date.now() + 3_000;\nconst trip = await tripClient.getTrip(\n  { tripId },\n  { deadline }, // client aborts after 3s — cannot distinguish slow vs dead\n);\n// Envoy retry policy + circuit breaker stops cascading timeouts",
+      "caption": "gRPC client deadline"
+    },
+    {
+      "type": "mermaid",
+      "source": "flowchart TB\n    Sender[\"Sender app\"]\n    Receiver[\"Receiver app\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Redis[(\"Redis<br/>presence + typing\")]\n\n    subgraph sendPath [\"Send path — persist message\"]\n      direction LR\n      Server[\"Chat Server<br/>Erlang/BEAM\"]\n      Sender -->|\"① WebSocket SEND\"| Server\n      Server -->|\"② append seq=N\"| Store\n      Server -->|\"③ update presence\"| Redis\n    end\n\n    subgraph deliverPath [\"Delivery path — online or offline\"]\n      direction LR\n      Push[\"Push Gateway<br/>APNs / FCM\"]\n      Server -->|\"④a online: WebSocket PUSH\"| Receiver\n      Server -.->|\"④b offline: notify\"| Push\n      Push -.->|\"⑤ push alert\"| Receiver\n      Receiver -->|\"⑥ ACK seq\"| Server\n    end",
+      "kind": "architecture",
+      "caption": "Unreliable networks between mobile clients and regional datacenters: timeouts, retries, and idempotency are mandatory."
+    }
+  ],
+  "relatedConcepts": [
+    "network partition",
+    "gRPC",
+    "Envoy",
+    "timeout",
+    "TCP",
+    "circuit breaker"
+  ],
+  "media": {}
+}

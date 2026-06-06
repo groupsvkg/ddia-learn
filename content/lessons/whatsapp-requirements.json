@@ -1,0 +1,95 @@
+{
+  "id": "whatsapp-requirements",
+  "chapterId": "sd-whatsapp",
+  "title": "Requirements and Constraints",
+  "summary": "Billions of users expect near-instant delivery, offline support, and privacy — on unreliable mobile networks.",
+  "keyTakeaways": [
+    "Delivery semantics: at-least-once with client-side deduplication by message ID.",
+    "Ordering: per-chat sequence numbers, not global total order.",
+    "Offline users: store-and-forward plus push notifications (APNs/FCM).",
+    "Groups fan out one write to many recipients — hotspot risk.",
+    "E2E encryption: servers route ciphertext; metadata still visible.",
+    "Low payload size favors custom protocols over verbose JSON."
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Chat apps are connection-heavy. A user with one WebSocket can receive thousands of messages per day; the hard part is routing each message to the right connection set with minimal latency."
+    },
+    {
+      "type": "mermaid",
+      "source": "sequenceDiagram\n    participant S as Sender\n    participant Srv as Chat Server\n    participant St as Message Store\n    participant R as Receiver\n    participant P as APNs/FCM\n    S->>Srv: SEND msg (WebSocket)\n    Srv->>St: append seq=N\n    St-->>Srv: ACK\n    Srv-->>S: delivered ✓\n    alt receiver online\n      Srv->>R: PUSH msg (WebSocket)\n      R->>Srv: ACK seq=N\n    else receiver offline\n      Srv->>P: notify\n      P->>R: push alert\n    end",
+      "kind": "sequence",
+      "caption": "Message send, persist, online delivery, or push notification when offline."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "WhatsApp famously runs Erlang/BEAM for massive connection counts. Message IDs are client-generated UUIDs so retries do not duplicate chats. Signal protocol handles E2E on devices.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "WhatsApp at scale",
+      "text": "When the receiver is offline, the server persists ciphertext and triggers APNs/FCM. On reconnect, the client syncs from its last acked sequence — no message loss without unbounded server memory.",
+      "variant": "tip"
+    },
+    {
+      "type": "heading",
+      "text": "Why these technologies?",
+      "level": 2
+    },
+    {
+      "type": "callout",
+      "title": "Why Erlang/BEAM or similar (chat server)?",
+      "text": "Millions of concurrent WebSocket connections per machine with preemptive scheduling and hot code reload. Node.js or Go work at smaller scale; BEAM is proven for telco-grade connection fan-in.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why WebSocket (not HTTP polling)?",
+      "text": "Bi-directional, low-overhead channel for instant delivery and typing indicators. Long polling wastes bandwidth; SSE is server→client only.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Durable message store (Cassandra / HBase / custom)?",
+      "text": "Append-heavy writes at massive QPS with partition by chat_id. PostgreSQL struggles with write fan-out to billions of messages; the store optimizes for log-like access, not complex joins.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why APNs / FCM (push gateway)?",
+      "text": "Mobile OSes kill background apps — you cannot hold a WebSocket forever on a phone. Push wakes the app to pull pending messages when offline.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Redis (presence & typing)?",
+      "text": "Ephemeral state with TTL: online status, typing indicators, connection routing hints. Loss on restart is acceptable — users reconnect. Wrong tool for durable message history.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Client-side E2E encryption (Signal protocol)?",
+      "text": "Servers route ciphertext they cannot read — privacy promise. Trade-off: server-side search and moderation become harder.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Why Not Elasticsearch for every message?",
+      "text": "Full-text search across all chats is expensive and often not a product requirement. WhatsApp optimizes delivery, not global search.",
+      "variant": "info"
+    }
+  ],
+  "relatedConcepts": [
+    "messaging",
+    "WebSocket",
+    "push",
+    "E2E encryption",
+    "ordering",
+    "Redis",
+    "Cassandra"
+  ],
+  "media": {}
+}
