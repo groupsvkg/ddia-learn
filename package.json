@@ -10,7 +10,8 @@
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
-    "content:build": "bun scripts/generate-all-lessons.ts",
+    "content:build": "bun scripts/validate-mermaid.ts && bun scripts/generate-all-lessons.ts",
+    "content:validate": "bun scripts/validate-mermaid.ts",
     "content:media": "bun scripts/generate-media.ts"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
+    "happy-dom": "^20.10.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.98.0"

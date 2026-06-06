@@ -2426,7 +2426,7 @@
       },
       {
         "type": "mermaid",
-        "source": "sequenceDiagram\n    participant C as Client\n    participant CDN as CDN\n    participant API as API\n    participant R as Redis\n    participant DB as Postgres\n    C->>CDN: GET /static\n    CDN-->>C: cached assets\n    C->>API: GET /api/resource\n    API->>R: GET cache key\n    R-->>API: miss\n    API->>DB: SELECT …\n    DB-->>API: rows\n    API->>R: SETEX result\n    API-->>C: 200 JSON",
+        "source": "sequenceDiagram\n    participant C as Client\n    participant CDN as CDN\n    participant API as API\n    participant R as Redis\n    participant DB as Postgres\n    C->>CDN: GET /static\n    CDN-->>C: cached assets\n    C->>API: GET /api/resource\n    API->>R: GET cache key\n    R-->>API: miss\n    API->>DB: SELECT rows\n    DB-->>API: rows\n    API->>R: SETEX result\n    API-->>C: 200 JSON",
         "kind": "sequence",
         "caption": "End-to-end request path: CDN for static assets, API through cache to database."
       },
@@ -3294,7 +3294,7 @@
       },
       {
         "type": "mermaid",
-        "source": "sequenceDiagram\n    participant G as Guest\n    participant API as Booking API\n    participant Inv as Inventory DB\n    participant St as Stripe\n    participant K as Kafka\n    G->>API: POST /holds\n    API->>Inv: BEGIN; lock slot\n    Inv-->>API: holdId\n    API-->>G: hold expires 15m\n    G->>API: POST /confirm + Idempotency-Key\n    API->>St: charge\n    St-->>API: paymentId\n    API->>Inv: confirm hold → COMMIT\n    API->>K: booking.confirmed\n    API-->>G: 201 confirmed",
+        "source": "sequenceDiagram\n    participant G as Guest\n    participant API as Booking API\n    participant Inv as Inventory DB\n    participant St as Stripe\n    participant K as Kafka\n    G->>API: POST /holds\n    API->>Inv: BEGIN txn, lock slot\n    Inv-->>API: holdId\n    API-->>G: hold expires 15m\n    G->>API: POST /confirm + Idempotency-Key\n    API->>St: charge\n    St-->>API: paymentId\n    API->>Inv: confirm hold and COMMIT\n    API->>K: booking.confirmed\n    API-->>G: 201 confirmed",
         "kind": "sequence",
         "caption": "Happy-path sequence from hold through payment to confirmed booking."
       },
@@ -3907,7 +3907,7 @@
       },
       {
         "type": "mermaid",
-        "source": "sequenceDiagram\n    participant P as Player\n    participant API as Game API\n    participant B as Board DB\n    participant L as Move Log\n    participant R as Redis\n    P->>API: POST /move v=7\n    API->>B: UPDATE … WHERE version=7\n    B-->>API: 1 row (ok)\n    API->>L: append move event\n    API->>R: ZADD score\n    API-->>P: 200 new board",
+        "source": "sequenceDiagram\n    participant P as Player\n    participant API as Game API\n    participant B as Board DB\n    participant L as Move Log\n    participant R as Redis\n    P->>API: POST /move v=7\n    API->>B: UPDATE board WHERE version=7\n    B-->>API: 1 row (ok)\n    API->>L: append move event\n    API->>R: ZADD score\n    API-->>P: 200 new board",
         "kind": "sequence",
         "caption": "Validated move with optimistic locking, event log, and score update."
       },

@@ -288,7 +288,7 @@ export const MERMAID_SEQ: Record<string, string> = {
     C->>API: GET /api/resource
     API->>R: GET cache key
     R-->>API: miss
-    API->>DB: SELECT …
+    API->>DB: SELECT rows
     DB-->>API: rows
     API->>R: SETEX result
     API-->>C: 200 JSON`,
@@ -348,13 +348,13 @@ export const MERMAID_SEQ: Record<string, string> = {
     participant St as Stripe
     participant K as Kafka
     G->>API: POST /holds
-    API->>Inv: BEGIN; lock slot
+    API->>Inv: BEGIN txn, lock slot
     Inv-->>API: holdId
     API-->>G: hold expires 15m
     G->>API: POST /confirm + Idempotency-Key
     API->>St: charge
     St-->>API: paymentId
-    API->>Inv: confirm hold → COMMIT
+    API->>Inv: confirm hold and COMMIT
     API->>K: booking.confirmed
     API-->>G: 201 confirmed`,
 
@@ -417,7 +417,7 @@ export const MERMAID_SEQ: Record<string, string> = {
     participant L as Move Log
     participant R as Redis
     P->>API: POST /move v=7
-    API->>B: UPDATE … WHERE version=7
+    API->>B: UPDATE board WHERE version=7
     B-->>API: 1 row (ok)
     API->>L: append move event
     API->>R: ZADD score
