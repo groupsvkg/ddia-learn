@@ -1,6 +1,17 @@
 import type { LessonSection } from "../src/types/content";
 import { rw, app, code, seq, sys, TS } from "./lesson-snippets";
 import {
+  collaborationEstimates,
+  multiplayerEstimates,
+  multistepFormEstimates,
+  multistepWorkflowEstimates,
+  puzzleEstimates,
+  reservationEstimates,
+  votingEstimates,
+  whatsappEstimates,
+  youtubeEstimates,
+} from "./capacity-estimates";
+import {
   collaborationStack,
   foundationsStack,
   multiplayerStack,
@@ -218,8 +229,9 @@ export const systemDesignLessons: L[] = [
       rw("Netflix Open Connect caches hot titles on ISP appliances. YouTube's long tail lives in cheaper storage classes; only trending manifests get aggressive edge warming."),
       app("Google", "Search ranking and YouTube recommendations share DNA: offline batch features + online low-latency scoring. The serving path never scans raw watch history per request."),
       code("Singleflight for trending metadata", TS.trendingCacheSingleflight),
+      ...youtubeEstimates(),
     ],
-    ["CDN", "cache", "long tail", "recommendations", "cost"],
+    ["CDN", "cache", "long tail", "recommendations", "cost", "QPS", "bandwidth"],
   ),
 
   // ── WhatsApp ─────────────────────────────────────────────────────────────
@@ -275,8 +287,9 @@ export const systemDesignLessons: L[] = [
       },
       code("Per-chat sequence and ack", TS.whatsappSequence),
       sys("system-whatsapp", "Online WebSocket delivery; offline path through push + sync."),
+      ...whatsappEstimates(),
     ],
-    ["fan-out", "sequence", "groups", "presence", "Redis"],
+    ["fan-out", "sequence", "groups", "presence", "Redis", "QPS", "connections"],
   ),
 
   // ── Reservation ──────────────────────────────────────────────────────────
@@ -349,8 +362,9 @@ export const systemDesignLessons: L[] = [
       seq("seq-reservation-booking", "Happy-path sequence from hold through payment to confirmed booking."),
       code("Booking saga with compensation", TS.bookingSaga),
       rw("Expedia and Booking.com pipelines mirror this: Elasticsearch for discovery, PostgreSQL for reservations, Stripe/Adyen for payments, Temporal or custom sagas for multi-step checkout."),
+      ...reservationEstimates(),
     ],
-    ["saga", "Stripe", "Elasticsearch", "PostgreSQL", "compensation", "Kafka", "API gateway"],
+    ["saga", "Stripe", "Elasticsearch", "PostgreSQL", "compensation", "Kafka", "API gateway", "QPS"],
   ),
 
   // ── Voting ───────────────────────────────────────────────────────────────
@@ -397,8 +411,9 @@ export const systemDesignLessons: L[] = [
       code("Idempotent ballot submission", TS.votingBallot),
       app("Slack", "Workspace polls are low-stakes but still use one-vote-per-user keys stored in OLTP with unique indexes — the same pattern at national scale with harder identity proofing."),
       ...votingStack(),
+      ...votingEstimates(),
     ],
-    ["ballot", "tally", "Kafka", "idempotency", "materialized view", "Redis"],
+    ["ballot", "tally", "Kafka", "idempotency", "materialized view", "Redis", "peak QPS"],
   ),
 
   // ── Multiplayer games ────────────────────────────────────────────────────
@@ -465,8 +480,9 @@ export const systemDesignLessons: L[] = [
     [
       rw("Call of Duty warzone spins thousands of single-match processes across cloud VMs. Control plane tracks capacity; data plane is ephemeral per round."),
       code("Regional matchmaking queue", TS.matchmakingQueue),
+      ...multiplayerEstimates(),
     ],
-    ["sharding", "matchmaking", "Agones", "regional", "telemetry"],
+    ["sharding", "matchmaking", "Agones", "regional", "telemetry", "UDP", "bandwidth"],
   ),
 
   // ── Puzzle games ─────────────────────────────────────────────────────────
@@ -513,8 +529,9 @@ export const systemDesignLessons: L[] = [
       code("Optimistic board version check", TS.puzzleBoardVersion),
       rw("Chess.com stores PGN move logs; lichess uses similar event-sourced game records. NYT Games leaderboard uses precomputed daily ranks to avoid scanning all players at read time."),
       ...puzzleStack(),
+      ...puzzleEstimates(),
     ],
-    ["leaderboard", "versioning", "Redis", "event sourcing", "CRDT", "PostgreSQL"],
+    ["leaderboard", "versioning", "Redis", "event sourcing", "CRDT", "PostgreSQL", "QPS"],
   ),
 
   // ── Multistep systems ────────────────────────────────────────────────────
@@ -583,8 +600,9 @@ export const systemDesignLessons: L[] = [
     [
       rw("Stripe Checkout is a hosted multistep UI over PaymentIntents sagas. Airbnb host onboarding chains identity, payout, and listing steps with manual gates. Banks use Camunda or custom mainframes with the same state-machine thinking."),
       sys("system-multistep-workflow", "Checkout saga: payment success continues; failure triggers inventory release."),
+      ...multistepWorkflowEstimates(),
     ],
-    ["checkout", "KYC", "workflow", "observability", "DLQ"],
+    ["checkout", "KYC", "workflow", "observability", "DLQ", "saga QPS"],
   ),
 
   // ── Collaboration ────────────────────────────────────────────────────────
@@ -651,8 +669,9 @@ export const systemDesignLessons: L[] = [
       sys("system-canva", "Clients ↔ collab server ↔ Postgres metadata + S3 assets + Redis presence."),
       rw("Google Docs historically used centralized OT servers at scale. Notion shards documents across cells; Miro uses regional collab routers for EU data residency."),
       ...collaborationStack(),
+      ...collaborationEstimates(),
     ],
-    ["WebSocket", "S3", "PostgreSQL", "snapshot", "compaction", "Redis", "CRDT"],
+    ["WebSocket", "S3", "PostgreSQL", "snapshot", "compaction", "Redis", "CRDT", "ops/s"],
   ),
 
   // ── Multistep forms ──────────────────────────────────────────────────────
@@ -699,7 +718,8 @@ export const systemDesignLessons: L[] = [
       rw("TurboTax and government visa portals use identical patterns: session-less drafts in DB, step validators as pure functions, async steps wired to mainframe or vendor APIs."),
       code("Step validation handler", TS.formStepValidation),
       ...multistepFormStack(),
+      ...multistepFormEstimates(),
     ],
-    ["draft API", "S3", "webhook", "PII", "funnel analytics", "PostgreSQL"],
+    ["draft API", "S3", "webhook", "PII", "funnel analytics", "PostgreSQL", "autosave QPS"],
   ),
 ];

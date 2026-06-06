@@ -409,6 +409,80 @@ const avgQps = (DAU * actionsPerUserPerDay) / 86_400;
 const peakQps = avgQps * 5; // burst factor for prime time
 console.log({ avgQps: Math.round(avgQps), peakQps: Math.round(peakQps) });`,
 
+  youtubeMetadataQps: `// YouTube-scale metadata reads
+const viewsPerDay = 1_000_000_000;
+const avgQps = viewsPerDay / 86_400;
+const peakQps = avgQps * 5;
+const uploadQps = 500_000 / 86_400;
+const uploadBytesPerDay = 500_000 * 500 * 1024 * 1024; // 500 MB avg
+console.log({
+  peakMetadataQps: Math.round(peakQps),
+  avgUploadQps: uploadQps.toFixed(1),
+  uploadTbPerDay: (uploadBytesPerDay / 1e12).toFixed(0) + " TB",
+});`,
+
+  whatsappWriteQps: `// WhatsApp-scale message writes
+const messagesPerDay = 100_000_000_000;
+const avgWriteQps = messagesPerDay / 86_400;
+const peakWriteQps = avgWriteQps * 2;
+const concurrentConnections = 200_000_000;
+const hotStorageTb = (messagesPerDay * 7 * 2 * 1024) / 1e12; // 7d × 2KB
+console.log({ peakWriteQps: Math.round(peakWriteQps), concurrentConnections, hotStorageTb });`,
+
+  reservationQps: `// Airbnb-scale search vs booking
+const bookingsPerDay = 1_000_000;
+const searchesPerBooking = 3;
+const searchQpsAvg = (bookingsPerDay * searchesPerBooking) / 86_400;
+const peakSearchQps = searchQpsAvg * 10;
+const peakBookingQps = (bookingsPerDay / 86_400) * 5;
+console.log({ peakSearchQps: Math.round(peakSearchQps), peakBookingQps: Math.round(peakBookingQps) });`,
+
+  votingPeakQps: `// National election peak ballots
+const ballots = 70_000_000;
+const sustainedWindowSec = 4 * 3600;
+const sustainedQps = ballots * 0.8 / sustainedWindowSec;
+const spikeQps = ballots / (10 * 60); // everyone in 10 min
+console.log({ sustainedQps: Math.round(sustainedQps), spikeQps: Math.round(spikeQps) });`,
+
+  multiplayerBandwidth: `// Battle royale: 100 players, 60 Hz, 200 B delta
+const players = 100;
+const tickHz = 60;
+const deltaBytes = 200;
+const bytesPerMatchPerSec = players * tickHz * deltaBytes * players;
+const concurrentMatches = 500_000;
+const totalGbps = (bytesPerMatchPerSec * concurrentMatches * 8) / 1e9;
+console.log({ bytesPerMatchPerSec, totalTbps: (totalGbps / 1000).toFixed(1) });`,
+
+  puzzleSubmitQps: `// Daily puzzle peak submits
+const dau = 5_000_000;
+const avgQps = dau / 86_400;
+const peakQps = avgQps * 20; // morning spike
+const redisLeaderboardMb = (3_000_000 * 50) / 1e6;
+console.log({ peakSubmitQps: Math.round(peakQps), redisLeaderboardMb });`,
+
+  workflowPeakQps: `// Black Friday checkout sagas
+const ordersPerDay = 2_000_000;
+const peakMultiplier = 20;
+const stepsPerOrder = 5;
+const peakOrdersPerSec = (ordersPerDay / 86_400) * peakMultiplier;
+const peakActivitiesPerSec = peakOrdersPerSec * stepsPerOrder;
+console.log({ peakSagasPerSec: Math.round(peakOrdersPerSec), peakActivitiesPerSec: Math.round(peakActivitiesPerSec) });`,
+
+  collaborationOps: `// Figma-scale collaboration ops
+const concurrentDocs = 50_000;
+const editorsPerDoc = 5;
+const opsPerEditorPerSec = 2;
+const peakOpsPerSec = concurrentDocs * editorsPerDoc * opsPerEditorPerSec;
+const activeDocRamGb = (concurrentDocs * 2) / 1000; // 2 MB/doc
+console.log({ peakOpsPerSec, activeDocRamGb });`,
+
+  formAutosaveQps: `// Mortgage form autosave storm
+const concurrentDrafts = 200_000;
+const autosaveIntervalSec = 30;
+const peakAutosaveQps = concurrentDrafts / autosaveIntervalSec;
+const writeMbps = (peakAutosaveQps * 50 * 1024 * 8) / 1e6; // 50 KB draft
+console.log({ peakAutosaveQps: Math.round(peakAutosaveQps), writeMbps: Math.round(writeMbps) });`,
+
   youtubeUploadPipeline: `// Resumable upload → transcode queue (YouTube-style)
 async function onUploadComplete(videoId: string, rawKey: string) {
   await db.videos.update({ id: videoId, status: "PROCESSING" });
