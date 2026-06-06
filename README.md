@@ -2,6 +2,8 @@
 
 An interactive study companion for [*Designing Data-Intensive Applications*](https://dataintensive.net/) by Martin Kleppmann. Built with **Next.js 16**, **shadcn/ui**, and **Bun** — deployed to **Cloudflare Workers** via OpenNext.
 
+**Live site:** [ddia-learn.exactcover.workers.dev](https://ddia-learn.exactcover.workers.dev/)
+
 ## Screenshots
 
 ### Home & curriculum
@@ -75,6 +77,8 @@ bunx shadcn@latest add <component>
 ```
 
 ## Deploy to Cloudflare
+
+Production: [https://ddia-learn.exactcover.workers.dev/](https://ddia-learn.exactcover.workers.dev/)
 
 ```bash
 export CLOUDFLARE_API_TOKEN=your_token
