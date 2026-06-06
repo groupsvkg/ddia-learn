@@ -2,10 +2,6 @@ import type { ContentBlock } from "../src/types/content";
 import { code, rw } from "./lesson-snippets";
 import { TS } from "./lesson-snippets";
 
-function boteHeader(): ContentBlock {
-  return { type: "heading", text: "Back-of-the-envelope estimates", level: 2 };
-}
-
 function assumptions(text: string): ContentBlock {
   return { type: "paragraph", text };
 }
@@ -20,7 +16,6 @@ function summary(text: string): ContentBlock {
 
 export function youtubeEstimates(): ContentBlock[] {
   return [
-    boteHeader(),
     assumptions(
       "Assume 500M DAU, 1B video views/day, 500k new uploads/day, average watch time 10 minutes at 3 Mbps, metadata API ~2 KB per video page load.",
     ),
@@ -58,7 +53,7 @@ export function youtubeEstimates(): ContentBlock[] {
 
 export function whatsappEstimates(): ContentBlock[] {
   return [
-    boteHeader(),
+
     assumptions(
       "Assume 2B MAU, 500M DAU, 100B messages/day, avg message 2 KB ciphertext, 200M concurrent connections peak, 7-day server-side retention for offline delivery.",
     ),
@@ -94,7 +89,7 @@ export function whatsappEstimates(): ContentBlock[] {
 
 export function reservationEstimates(): ContentBlock[] {
   return [
-    boteHeader(),
+
     assumptions(
       "Assume Airbnb-scale: 150M users, 1M bookings/day, 10M active listings, avg 3 search queries per booking, 14-night avg stay window in inventory index.",
     ),
@@ -131,7 +126,7 @@ export function reservationEstimates(): ContentBlock[] {
 
 export function votingEstimates(): ContentBlock[] {
   return [
-    boteHeader(),
+
     assumptions(
       "Assume national election: 100M eligible voters, 70% turnout = 70M ballots, 80% cast in final 4 hours, ballot row 500 B, results page polled every 5s by 10M viewers.",
     ),
@@ -166,7 +161,7 @@ export function votingEstimates(): ContentBlock[] {
 
 export function multiplayerEstimates(): ContentBlock[] {
   return [
-    boteHeader(),
+
     assumptions(
       "Assume 50M DAU, 5M concurrent players peak, 500k concurrent matches, 100 players/match max (battle royale), 60 Hz tick, 50 B input + 200 B state delta per player per tick.",
     ),
@@ -202,7 +197,7 @@ export function multiplayerEstimates(): ContentBlock[] {
 
 export function puzzleEstimates(): ContentBlock[] {
   return [
-    boteHeader(),
+
     assumptions(
       "Assume Wordle-scale daily puzzle: 5M DAU, 1 guess per user per day (6 guesses max), 3M monthly active leaderboard, chess-style async: 500k active games, 10 moves/game/day.",
     ),
@@ -238,7 +233,7 @@ export function puzzleEstimates(): ContentBlock[] {
 
 export function multistepWorkflowEstimates(): ContentBlock[] {
   return [
-    boteHeader(),
+
     assumptions(
       "Assume e-commerce: 2M orders/day, 5 saga steps each, 20% failure requiring compensation, 10% of orders wait 24h on KYC step, workflow history 2 KB per step.",
     ),
@@ -272,7 +267,7 @@ export function multistepWorkflowEstimates(): ContentBlock[] {
 
 export function collaborationEstimates(): ContentBlock[] {
   return [
-    boteHeader(),
+
     assumptions(
       "Assume 50M docs, 2M DAU, 50k docs edited concurrently peak, 5 editors/doc avg, 2 ops/s/editor, 500 B/op, 5 MB avg asset per doc, 100 KB metadata.",
     ),
@@ -308,7 +303,7 @@ export function collaborationEstimates(): ContentBlock[] {
 
 export function multistepFormEstimates(): ContentBlock[] {
   return [
-    boteHeader(),
+
     assumptions(
       "Assume mortgage applications: 500k submitted/year, 12 steps, autosave every 30s while active, 200k concurrent draft sessions peak, 2 MB avg attachment, 50 KB draft JSON.",
     ),

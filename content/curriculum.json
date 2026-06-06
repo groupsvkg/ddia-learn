@@ -317,6 +317,7 @@
           "summary": "Video upload, transcoding pipelines, CDN delivery, and metadata at billions of views.",
           "sections": [
             { "id": "youtube-requirements", "title": "Requirements and Constraints" },
+            { "id": "youtube-estimation", "title": "Back-of-the-Envelope Estimation" },
             { "id": "youtube-architecture", "title": "Upload, Transcode, and Serve" },
             { "id": "youtube-scaling", "title": "Caching, Popularity, and Cost" }
           ]
@@ -328,7 +329,8 @@
           "status": "published",
           "summary": "Low-latency messaging, delivery guarantees, offline users, and end-to-end encryption.",
           "sections": [
-            { "id": "whatsapp-requirements", "title": "Messaging Requirements" },
+            { "id": "whatsapp-requirements", "title": "Requirements and Constraints" },
+            { "id": "whatsapp-estimation", "title": "Back-of-the-Envelope Estimation" },
             { "id": "whatsapp-delivery", "title": "Delivery, Ordering, and Groups" }
           ]
         },
@@ -339,7 +341,8 @@
           "status": "published",
           "summary": "Inventory holds, double-booking prevention, payments, and calendar search at Airbnb scale.",
           "sections": [
-            { "id": "reservation-requirements", "title": "Booking Requirements" },
+            { "id": "reservation-requirements", "title": "Requirements and Constraints" },
+            { "id": "reservation-estimation", "title": "Back-of-the-Envelope Estimation" },
             { "id": "reservation-concurrency", "title": "Preventing Double Booking" },
             { "id": "reservation-architecture", "title": "End-to-End Booking Flow" }
           ]
@@ -351,7 +354,8 @@
           "status": "published",
           "summary": "One person one vote, tamper resistance, auditability, and handling viral traffic spikes.",
           "sections": [
-            { "id": "voting-requirements", "title": "Integrity and Trust" },
+            { "id": "voting-requirements", "title": "Requirements and Constraints" },
+            { "id": "voting-estimation", "title": "Back-of-the-Envelope Estimation" },
             { "id": "voting-architecture", "title": "Ballots, Tallies, and Audits" }
           ]
         },
@@ -362,7 +366,8 @@
           "status": "published",
           "summary": "Real-time state sync, authoritative servers, matchmaking, and regional game shards.",
           "sections": [
-            { "id": "multiplayer-requirements", "title": "Latency and Fairness" },
+            { "id": "multiplayer-requirements", "title": "Requirements and Constraints" },
+            { "id": "multiplayer-estimation", "title": "Back-of-the-Envelope Estimation" },
             { "id": "multiplayer-architecture", "title": "Game Servers and State Sync" },
             { "id": "multiplayer-scaling", "title": "Sharding and Matchmaking" }
           ]
@@ -374,6 +379,8 @@
           "status": "published",
           "summary": "Turn-based play, async moves, conflict resolution, and leaderboards for Wordle-style games.",
           "sections": [
+            { "id": "puzzle-requirements", "title": "Requirements and Constraints" },
+            { "id": "puzzle-estimation", "title": "Back-of-the-Envelope Estimation" },
             { "id": "puzzle-turn-model", "title": "Turns, Timers, and Async Play" },
             { "id": "puzzle-conflicts", "title": "Merging Moves and Leaderboards" }
           ]
@@ -385,6 +392,8 @@
           "status": "published",
           "summary": "Checkout flows, sagas, compensating transactions, and durable workflow engines.",
           "sections": [
+            { "id": "multistep-requirements", "title": "Requirements and Constraints" },
+            { "id": "multistep-estimation", "title": "Back-of-the-Envelope Estimation" },
             { "id": "multistep-patterns", "title": "Sagas and Orchestration" },
             { "id": "multistep-durability", "title": "Durable Execution and Retries" },
             { "id": "multistep-examples", "title": "Real-World Workflow Stacks" }
@@ -397,6 +406,8 @@
           "status": "published",
           "summary": "Google Docs, Figma, and Notion — presence, operational transforms, and CRDTs.",
           "sections": [
+            { "id": "collaboration-requirements", "title": "Requirements and Constraints" },
+            { "id": "collaboration-estimation", "title": "Back-of-the-Envelope Estimation" },
             { "id": "collaboration-presence", "title": "Presence and Permissions" },
             { "id": "collaboration-sync", "title": "OT, CRDTs, and Conflict-Free Editing" },
             { "id": "collaboration-architecture", "title": "Storage and Real-Time Transport" }
@@ -409,6 +420,8 @@
           "status": "published",
           "summary": "Loan applications, onboarding wizards, draft persistence, validation, and resume-later UX.",
           "sections": [
+            { "id": "forms-requirements", "title": "Requirements and Constraints" },
+            { "id": "forms-estimation", "title": "Back-of-the-Envelope Estimation" },
             { "id": "forms-state-machine", "title": "Steps, Drafts, and Validation" },
             { "id": "forms-architecture", "title": "Backend for Long-Running Applications" }
           ]

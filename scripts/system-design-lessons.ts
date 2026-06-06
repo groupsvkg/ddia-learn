@@ -1,4 +1,4 @@
-import type { LessonSection } from "../src/types/content";
+import type { ContentBlock, LessonSection } from "../src/types/content";
 import { rw, app, code, seq, sys, TS } from "./lesson-snippets";
 import {
   collaborationEstimates,
@@ -36,6 +36,31 @@ function L(
   relatedConcepts: string[],
 ): L {
   return { id, chapterId, title, summary, keyTakeaways, body, relatedConcepts, media: {} };
+}
+
+function estimationLesson(
+  id: string,
+  chapterId: string,
+  summary: string,
+  keyTakeaways: string[],
+  estimateBlocks: ContentBlock[],
+  relatedConcepts: string[],
+): L {
+  return L(
+    id,
+    chapterId,
+    "Back-of-the-Envelope Estimation",
+    summary,
+    keyTakeaways,
+    [
+      {
+        type: "paragraph",
+        text: "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck.",
+      },
+      ...estimateBlocks,
+    ],
+    relatedConcepts,
+  );
 }
 
 export const systemDesignLessons: L[] = [
@@ -175,6 +200,20 @@ export const systemDesignLessons: L[] = [
     ["video", "upload", "CDN", "transcoding", "metadata", "S3", "Kafka"],
   ),
 
+  estimationLesson(
+    "youtube-estimation",
+    "sd-youtube",
+    "Rough capacity for video ingest, CDN egress, metadata QPS, and storage growth at YouTube scale.",
+    [
+      "~60k peak metadata QPS; video bytes served mostly from CDN.",
+      "~250 TB/day upload ingest; transcode is async, not synchronous API work.",
+      "~1 PB/year storage growth — tier cold content aggressively.",
+      "Separate write path (upload + transcode) from read path (CDN + metadata cache).",
+    ],
+    youtubeEstimates(),
+    ["QPS", "bandwidth", "CDN", "storage", "transcoding", "cache"],
+  ),
+
   L(
     "youtube-architecture",
     "sd-youtube",
@@ -238,7 +277,6 @@ export const systemDesignLessons: L[] = [
       rw("Netflix Open Connect caches hot titles on ISP appliances. YouTube's long tail lives in cheaper storage classes; only trending manifests get aggressive edge warming."),
       app("Google", "Search ranking and YouTube recommendations share DNA: offline batch features + online low-latency scoring. The serving path never scans raw watch history per request."),
       code("Singleflight for trending metadata", TS.trendingCacheSingleflight),
-      ...youtubeEstimates(),
     ],
     ["CDN", "cache", "long tail", "recommendations", "cost", "QPS", "bandwidth"],
   ),
@@ -247,7 +285,7 @@ export const systemDesignLessons: L[] = [
   L(
     "whatsapp-requirements",
     "sd-whatsapp",
-    "Messaging Requirements",
+    "Requirements and Constraints",
     "Billions of users expect near-instant delivery, offline support, and privacy — on unreliable mobile networks.",
     [
       "Delivery semantics: at-least-once with client-side deduplication by message ID.",
@@ -272,6 +310,20 @@ export const systemDesignLessons: L[] = [
       ...whatsappStack(),
     ],
     ["messaging", "WebSocket", "push", "E2E encryption", "ordering", "Redis", "Cassandra"],
+  ),
+
+  estimationLesson(
+    "whatsapp-estimation",
+    "sd-whatsapp",
+    "Message write QPS, connection fan-in, hot storage, and presence memory at WhatsApp scale.",
+    [
+      "~2.3M peak message writes/s globally — partition by chat_id.",
+      "200M concurrent WebSocket connections dominate RAM, not SQL joins.",
+      "~1 PB order-of-magnitude hot queue storage with short retention.",
+      "Presence and typing belong in Redis with TTL, not Postgres.",
+    ],
+    whatsappEstimates(),
+    ["QPS", "WebSocket", "connections", "storage", "Redis", "fan-out"],
   ),
 
   L(
@@ -302,7 +354,6 @@ export const systemDesignLessons: L[] = [
         "system-whatsapp",
         "Receiver ACKs trim the durable queue. Large groups may switch from push fan-out (④a) to pull-on-open — the send path stays one write.",
       ),
-      ...whatsappEstimates(),
     ],
     ["fan-out", "sequence", "groups", "presence", "Redis", "QPS", "connections"],
   ),
@@ -311,7 +362,7 @@ export const systemDesignLessons: L[] = [
   L(
     "reservation-requirements",
     "sd-reservation",
-    "Booking Requirements",
+    "Requirements and Constraints",
     "Hotels, flights, restaurants, and concerts sell finite inventory that must never be oversold.",
     [
       "Search is read-heavy and fuzzy; booking is write-heavy and exact.",
@@ -334,6 +385,20 @@ export const systemDesignLessons: L[] = [
       ...reservationStack(),
     ],
     ["booking", "inventory", "OLTP", "search", "holds", "Elasticsearch", "Stripe"],
+  ),
+
+  estimationLesson(
+    "reservation-estimation",
+    "sd-reservation",
+    "Search QPS vs booking commit rate, index size, and why reads and writes need different stores.",
+    [
+      "~350 peak search QPS to Elasticsearch; ~60 peak booking commits/s to Postgres.",
+      "Reads dominate volume; writes are few but must be exactly correct.",
+      "~100 GB Elasticsearch index for listings; inventory rows are small but locked.",
+      "Redis holds are tiny; Kafka events are derived after commit.",
+    ],
+    reservationEstimates(),
+    ["QPS", "Elasticsearch", "PostgreSQL", "search", "OLTP", "cache"],
   ),
 
   L(
@@ -383,7 +448,6 @@ export const systemDesignLessons: L[] = [
       seq("seq-reservation-booking", "Happy-path sequence from hold through payment to confirmed booking."),
       code("Booking saga with compensation", TS.bookingSaga),
       rw("Expedia and Booking.com pipelines mirror this: Elasticsearch for discovery, PostgreSQL for reservations, Stripe/Adyen for payments, Temporal or custom sagas for multi-step checkout."),
-      ...reservationEstimates(),
     ],
     ["saga", "Stripe", "Elasticsearch", "PostgreSQL", "compensation", "Kafka", "API gateway", "QPS"],
   ),
@@ -392,7 +456,7 @@ export const systemDesignLessons: L[] = [
   L(
     "voting-requirements",
     "sd-voting",
-    "Integrity and Trust",
+    "Requirements and Constraints",
     "Voting systems must prevent duplicate ballots, resist tampering, and survive traffic spikes on election night.",
     [
       "One voter → one ballot: unique constraint on (election_id, voter_id).",
@@ -411,6 +475,20 @@ export const systemDesignLessons: L[] = [
       rw("Estonia's i-Voting uses cryptographic protocols; US precinct systems often air-gap tallies. Product web polls (Twitter, Slack) use idempotent voter keys and Redis rate limits — weaker but appropriate for low stakes."),
     ],
     ["integrity", "audit", "rate limiting", "append-only", "threat model"],
+  ),
+
+  estimationLesson(
+    "voting-estimation",
+    "sd-voting",
+    "Ballot write spikes, results read QPS, and why tallies must be pre-aggregated.",
+    [
+      "~4k sustained ballots/s in peak window; plan for 116k/s worst-case spikes.",
+      "~2M results reads/s served from Redis — never COUNT(*) on ballot table live.",
+      "Ballot storage is modest (~35 GB); audit policy drives retention cost.",
+      "Aggregator state fits in memory; cache warming on each ballot event.",
+    ],
+    votingEstimates(),
+    ["QPS", "append-only", "Redis", "aggregator", "peak traffic"],
   ),
 
   L(
@@ -435,7 +513,6 @@ export const systemDesignLessons: L[] = [
       code("Idempotent ballot submission", TS.votingBallot),
       app("Slack", "Workspace polls are low-stakes but still use one-vote-per-user keys stored in OLTP with unique indexes — the same pattern at national scale with harder identity proofing."),
       ...votingStack(),
-      ...votingEstimates(),
     ],
     ["ballot", "tally", "Kafka", "idempotency", "materialized view", "Redis", "peak QPS"],
   ),
@@ -444,7 +521,7 @@ export const systemDesignLessons: L[] = [
   L(
     "multiplayer-requirements",
     "sd-multiplayer-games",
-    "Latency and Fairness",
+    "Requirements and Constraints",
     "FPS and battle royale players feel 50 ms; turn-based tolerates seconds. Pick transport and authority model accordingly.",
     [
       "Sub-100 ms RTT often requires regional servers and UDP-based protocols.",
@@ -462,6 +539,20 @@ export const systemDesignLessons: L[] = [
       rw("Riot Games deploys regional shards (NA, EUW) with dedicated UDP servers. Among Us uses simpler authoritative state with lower tick demands. Protocol choice follows latency budget."),
     ],
     ["latency", "UDP", "authoritative server", "matchmaking", "tick rate"],
+  ),
+
+  estimationLesson(
+    "multiplayer-estimation",
+    "sd-multiplayer-games",
+    "UDP bandwidth per match, fleet-wide RAM, and why live ticks stay off Postgres.",
+    [
+      "500k concurrent matches require regional UDP fleets — not one global cluster.",
+      "~50 MB RAM per match in-process; Postgres only for post-game stats.",
+      "Matchmaker queues in Redis sorted sets by MMR and region.",
+      "Telemetry to Kafka is fire-and-forget; never block the tick loop.",
+    ],
+    multiplayerEstimates(),
+    ["UDP", "bandwidth", "matchmaking", "Redis", "Agones", "memory"],
   ),
 
   L(
@@ -507,12 +598,49 @@ export const systemDesignLessons: L[] = [
     [
       rw("Call of Duty warzone spins thousands of single-match processes across cloud VMs. Control plane tracks capacity; data plane is ephemeral per round."),
       code("Regional matchmaking queue", TS.matchmakingQueue),
-      ...multiplayerEstimates(),
     ],
     ["sharding", "matchmaking", "Agones", "regional", "telemetry", "UDP", "bandwidth"],
   ),
 
   // ── Puzzle games ─────────────────────────────────────────────────────────
+  L(
+    "puzzle-requirements",
+    "sd-puzzle-games",
+    "Requirements and Constraints",
+    "Puzzle games prioritize correctness and idempotency over sub-millisecond latency.",
+    [
+      "Server validates every move against game rules — client hints are not authoritative.",
+      "Daily puzzles: one submission per user per calendar day (idempotent).",
+      "Async play: opponents may move hours apart; push on turn notification.",
+      "Timers and forfeits need durable scheduled jobs, not in-memory only.",
+      "Leaderboards need fast top-K reads at millions of players.",
+      "HTTPS suffices — payloads are small; UDP is unnecessary.",
+    ],
+    [
+      {
+        type: "paragraph",
+        text: "Wordle, chess, and crosswords share a pattern: low write QPS, strict correctness, and leaderboard reads that must not scan every player row at request time.",
+      },
+      app("Wordle", "One puzzle ID per day with server-side answer validation. A second submit from the same account must return the original result, not a duplicate score."),
+      { type: "callout", title: "Correctness over speed", text: "An illegal move rejected in 50 ms beats a wrong move accepted in 5 ms. Budget infra for validation and idempotency, not UDP fleets.", variant: "tip" },
+    ],
+    ["requirements", "validation", "idempotency", "daily puzzle", "leaderboard"],
+  ),
+
+  estimationLesson(
+    "puzzle-estimation",
+    "sd-puzzle-games",
+    "Daily submit QPS, storage growth, and Redis leaderboard sizing for puzzle games.",
+    [
+      "~1.2k peak submit QPS — modest; morning spikes drive sizing.",
+      "Redis ZSET for O(log N) leaderboard queries, not SQL ORDER BY.",
+      "Move log and board state storage in hundreds of GB/year, not PB.",
+      "Push notifications for async turns are low volume (~3/s).",
+    ],
+    puzzleEstimates(),
+    ["QPS", "Redis", "leaderboard", "idempotency", "PostgreSQL"],
+  ),
+
   L(
     "puzzle-turn-model",
     "sd-puzzle-games",
@@ -559,12 +687,49 @@ export const systemDesignLessons: L[] = [
       code("Optimistic board version check", TS.puzzleBoardVersion),
       rw("Chess.com stores PGN move logs; lichess uses similar event-sourced game records. NYT Games leaderboard uses precomputed daily ranks to avoid scanning all players at read time."),
       ...puzzleStack(),
-      ...puzzleEstimates(),
     ],
     ["leaderboard", "versioning", "Redis", "event sourcing", "CRDT", "PostgreSQL", "QPS"],
   ),
 
   // ── Multistep systems ────────────────────────────────────────────────────
+  L(
+    "multistep-requirements",
+    "sd-multistep-systems",
+    "Requirements and Constraints",
+    "Multistep workflows span services, minutes to days, and must survive partial failure.",
+    [
+      "No single database transaction spans payment, inventory, shipping, and email.",
+      "Each step must be idempotent — retries cannot double-charge or double-ship.",
+      "Compensating actions roll back prior steps when a later step fails.",
+      "Human review gates (KYC, underwriting) can park a flow for days.",
+      "Visibility: ops must see which step failed and with what payload.",
+      "Correlation ID ties every HTTP call and queue message to one saga instance.",
+    ],
+    [
+      {
+        type: "paragraph",
+        text: "Checkout, trip lifecycle, and loan origination are the same shape: forward steps with explicit failure branches, not a prayer that every service stays up.",
+      },
+      app("Shopify", "Checkout coordinates inventory holds, Stripe charges, and fulfillment webhooks. A card decline must release the hold before the customer sees an error."),
+      { type: "callout", title: "Define invariants first", text: "What must never happen? Double charge, ship without payment, lose inventory on crash. Invariants pick orchestration vs choreography.", variant: "warning" },
+    ],
+    ["requirements", "saga", "idempotency", "compensation", "workflow"],
+  ),
+
+  estimationLesson(
+    "multistep-estimation",
+    "sd-multistep-systems",
+    "Peak saga throughput, activity call rate, and workflow history storage growth.",
+    [
+      "~460 peak sagas/s on Black Friday; ~2.3k activity invocations/s.",
+      "Bottleneck is external APIs (Stripe, inventory), not orchestrator QPS.",
+      "~7 TB/year workflow history — Temporal/Step Functions persist full event log.",
+      "Sleeping workflows (24h KYC) need durable timers, not blocked threads.",
+    ],
+    multistepWorkflowEstimates(),
+    ["saga", "QPS", "Temporal", "workflow history", "idempotency"],
+  ),
+
   L(
     "multistep-patterns",
     "sd-multistep-systems",
@@ -636,12 +801,48 @@ export const systemDesignLessons: L[] = [
         "system-multistep-workflow",
         "Each saga step is an idempotent HTTP call with durable history — the orchestrator replays from disk on worker crash, not from in-memory state.",
       ),
-      ...multistepWorkflowEstimates(),
     ],
     ["checkout", "KYC", "workflow", "observability", "DLQ", "saga QPS"],
   ),
 
   // ── Collaboration ────────────────────────────────────────────────────────
+  L(
+    "collaboration-requirements",
+    "sd-collaboration",
+    "Requirements and Constraints",
+    "Collaboration tools merge real-time editing, permissions, and durable document state.",
+    [
+      "Multiple editors on one document with sub-second op delivery.",
+      "Every operation validated against ACL — UI bypass must not grant edit access.",
+      "Presence (cursors, typing) is ephemeral; document content is durable.",
+      "Large assets (images, fonts) bypass the collab server — direct to object storage.",
+      "Offline edits queue locally and merge on reconnect.",
+      "Export/render is async — separate from the live editing hot path.",
+    ],
+    [
+      {
+        type: "paragraph",
+        text: "Google Docs, Figma, and Notion share one constraint: the server orders concurrent operations so every client converges on the same document state.",
+      },
+      app("Figma", "File permissions live in Postgres; live ops flow through a central collab server. A viewer cannot apply edits even with a crafted WebSocket payload."),
+    ],
+    ["requirements", "WebSocket", "ACL", "OT", "CRDT", "presence"],
+  ),
+
+  estimationLesson(
+    "collaboration-estimation",
+    "sd-collaboration",
+    "Peak ops/s, active document RAM, and why op logs need compaction.",
+    [
+      "~500k peak ops/s WebSocket — sticky routing by document ID.",
+      "~100 GB active document RAM fleet-wide; S3 holds blobs, not Postgres.",
+      "Op log raw volume ~900 GB/hour without compaction — snapshot frequently.",
+      "Doc opens are low QPS; export jobs are async workers.",
+    ],
+    collaborationEstimates(),
+    ["ops/s", "WebSocket", "S3", "PostgreSQL", "compaction", "Redis"],
+  ),
+
   L(
     "collaboration-presence",
     "sd-collaboration",
@@ -711,12 +912,48 @@ export const systemDesignLessons: L[] = [
       ),
       rw("Google Docs historically used centralized OT servers at scale. Notion shards documents across cells; Miro uses regional collab routers for EU data residency."),
       ...collaborationStack(),
-      ...collaborationEstimates(),
     ],
     ["WebSocket", "S3", "PostgreSQL", "snapshot", "compaction", "Redis", "CRDT", "ops/s"],
   ),
 
   // ── Multistep forms ──────────────────────────────────────────────────────
+  L(
+    "forms-requirements",
+    "sd-multistep-forms",
+    "Requirements and Constraints",
+    "Long-running forms need durable drafts, per-step validation, and async verification.",
+    [
+      "Users pause for hours or days — progress must survive browser close and device switch.",
+      "Autosave on a timer dominates write traffic; final submit is rare.",
+      "Server-side validation is authoritative on every step and on submit.",
+      "Large attachments upload direct-to-S3; draft stores a pointer only.",
+      "Async vendor steps (credit check, identity) complete via webhook days later.",
+      "PII fields need encryption at rest; resume links must not leak secrets in URLs.",
+    ],
+    [
+      {
+        type: "paragraph",
+        text: "Mortgage, visa, and merchant onboarding forms are state machines measured in days, not milliseconds. Session cookies are insufficient — drafts live in the database.",
+      },
+      app("Stripe", "Connect onboarding saves partial KYC progress. Merchants resume on a new device without re-entering verified fields."),
+    ],
+    ["requirements", "draft", "autosave", "validation", "PII", "webhook"],
+  ),
+
+  estimationLesson(
+    "forms-estimation",
+    "sd-multistep-forms",
+    "Autosave write storm, draft storage, and S3 attachment growth for long forms.",
+    [
+      "~6.7k peak autosave PATCH/s — debounce to halve if UX allows.",
+      "Postgres holds JSON drafts; S3 holds multi-MB attachments via signed URLs.",
+      "Final submit ~0.016/s average — negligible vs autosave.",
+      "Vendor webhooks ~1/s — async path, no peak concern.",
+    ],
+    multistepFormEstimates(),
+    ["autosave QPS", "PostgreSQL", "S3", "bandwidth", "webhook"],
+  ),
+
   L(
     "forms-state-machine",
     "sd-multistep-forms",
@@ -763,7 +1000,6 @@ export const systemDesignLessons: L[] = [
       rw("TurboTax and government visa portals use identical patterns: session-less drafts in DB, step validators as pure functions, async steps wired to mainframe or vendor APIs."),
       code("Step validation handler", TS.formStepValidation),
       ...multistepFormStack(),
-      ...multistepFormEstimates(),
     ],
     ["draft API", "S3", "webhook", "PII", "funnel analytics", "PostgreSQL", "autosave QPS"],
   ),

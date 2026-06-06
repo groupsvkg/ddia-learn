@@ -2716,6 +2716,102 @@
     ],
     "media": {}
   },
+  "youtube-estimation": {
+    "id": "youtube-estimation",
+    "chapterId": "sd-youtube",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "Rough capacity for video ingest, CDN egress, metadata QPS, and storage growth at YouTube scale.",
+    "keyTakeaways": [
+      "~60k peak metadata QPS; video bytes served mostly from CDN.",
+      "~250 TB/day upload ingest; transcode is async, not synchronous API work.",
+      "~1 PB/year storage growth — tier cold content aggressively.",
+      "Separate write path (upload + transcode) from read path (CDN + metadata cache)."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+      },
+      {
+        "type": "paragraph",
+        "text": "Assume 500M DAU, 1B video views/day, 500k new uploads/day, average watch time 10 minutes at 3 Mbps, metadata API ~2 KB per video page load."
+      },
+      {
+        "type": "heading",
+        "text": "Read traffic",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Views/day → 1B / 86,400 ≈ 11,600 views/s average.",
+          "Peak (prime time ×5) ≈ 58,000 metadata reads/s for titles, manifests, comments.",
+          "CDN video bytes: 1B views × 10 min × 3 Mbps / 8 ≈ 2.25 EB/day theoretical max — in practice ABR averages ~1 Mbps → ~750 PB/day egress; 95%+ served from CDN cache (long-tail + viral).",
+          "Metadata cache (Redis): hot 1% of videos = 10M keys × 2 KB ≈ 20 GB — fits a modest cluster."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Write traffic",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Uploads: 500k/day ≈ 5.8 uploads/s average, peak ~30/s.",
+          "Avg raw upload 500 MB → 500k × 500 MB ≈ 250 TB/day ingest to object storage.",
+          "Transcode fan-out: 4 renditions × 500k ≈ 2M FFmpeg jobs/day → ~23 jobs/s sustained, burst queue depth in Kafka matters.",
+          "View-count events: batched — 1B events/day to stream processor ≈ 11,600 events/s (not 1B UPDATEs on Postgres)."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Storage",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Catalog: 500M videos × 2 KB metadata ≈ 1 TB (+ indexes → plan 3–5 TB).",
+          "Raw + transcoded: 500k new/day × (500 MB raw + ~1.5 GB segments) ≈ 1 PB/year growth — tier cold content to cheaper storage class."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Network & memory",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Upload path bandwidth: 250 TB/day ÷ 86,400 ≈ 2.4 GB/s average ingest — dedicated upload endpoints, not mixed with API.",
+          "Transcoder fleet: ~23 concurrent jobs/s × ~2 min/job ≈ 3,000 workers at peak if not batched overnight.",
+          "Origin shield: without CDN, 750 PB/day is impossible — CDN is mandatory, not optional."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// YouTube-scale metadata reads\nconst viewsPerDay = 1_000_000_000;\nconst avgQps = viewsPerDay / 86_400;\nconst peakQps = avgQps * 5;\nconst uploadQps = 500_000 / 86_400;\nconst uploadBytesPerDay = 500_000 * 500 * 1024 * 1024; // 500 MB avg\nconsole.log({\n  peakMetadataQps: Math.round(peakQps),\n  avgUploadQps: uploadQps.toFixed(1),\n  uploadTbPerDay: (uploadBytesPerDay / 1e12).toFixed(0) + \" TB\",\n});",
+        "caption": "YouTube peak metadata QPS"
+      },
+      {
+        "type": "callout",
+        "title": "Order-of-magnitude summary",
+        "text": "~60k peak metadata QPS, ~750 PB/day video egress (mostly CDN), ~250 TB/day upload ingest, ~1 PB/year storage growth. Separate read (CDN) from write (upload + transcode) paths.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "QPS",
+      "bandwidth",
+      "CDN",
+      "storage",
+      "transcoding",
+      "cache"
+    ],
+    "media": {}
+  },
   "youtube-architecture": {
     "id": "youtube-architecture",
     "chapterId": "sd-youtube",
@@ -2820,80 +2916,6 @@
         "language": "typescript",
         "code": "// Prevent thundering herd on trending metadata\nconst inflight = new Map<string, Promise<TrendingPage>>();\n\nasync function getTrending(region: string): Promise<TrendingPage> {\n  const cached = await redis.get(`trending:${region}`);\n  if (cached) return JSON.parse(cached);\n  if (!inflight.has(region)) {\n    inflight.set(region, loadTrendingFromDb(region).finally(() => inflight.delete(region)));\n  }\n  return inflight.get(region)!;\n}",
         "caption": "Singleflight for trending metadata"
-      },
-      {
-        "type": "heading",
-        "text": "Back-of-the-envelope estimates",
-        "level": 2
-      },
-      {
-        "type": "paragraph",
-        "text": "Assume 500M DAU, 1B video views/day, 500k new uploads/day, average watch time 10 minutes at 3 Mbps, metadata API ~2 KB per video page load."
-      },
-      {
-        "type": "heading",
-        "text": "Read traffic",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Views/day → 1B / 86,400 ≈ 11,600 views/s average.",
-          "Peak (prime time ×5) ≈ 58,000 metadata reads/s for titles, manifests, comments.",
-          "CDN video bytes: 1B views × 10 min × 3 Mbps / 8 ≈ 2.25 EB/day theoretical max — in practice ABR averages ~1 Mbps → ~750 PB/day egress; 95%+ served from CDN cache (long-tail + viral).",
-          "Metadata cache (Redis): hot 1% of videos = 10M keys × 2 KB ≈ 20 GB — fits a modest cluster."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Write traffic",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Uploads: 500k/day ≈ 5.8 uploads/s average, peak ~30/s.",
-          "Avg raw upload 500 MB → 500k × 500 MB ≈ 250 TB/day ingest to object storage.",
-          "Transcode fan-out: 4 renditions × 500k ≈ 2M FFmpeg jobs/day → ~23 jobs/s sustained, burst queue depth in Kafka matters.",
-          "View-count events: batched — 1B events/day to stream processor ≈ 11,600 events/s (not 1B UPDATEs on Postgres)."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Storage",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Catalog: 500M videos × 2 KB metadata ≈ 1 TB (+ indexes → plan 3–5 TB).",
-          "Raw + transcoded: 500k new/day × (500 MB raw + ~1.5 GB segments) ≈ 1 PB/year growth — tier cold content to cheaper storage class."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Network & memory",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Upload path bandwidth: 250 TB/day ÷ 86,400 ≈ 2.4 GB/s average ingest — dedicated upload endpoints, not mixed with API.",
-          "Transcoder fleet: ~23 concurrent jobs/s × ~2 min/job ≈ 3,000 workers at peak if not batched overnight.",
-          "Origin shield: without CDN, 750 PB/day is impossible — CDN is mandatory, not optional."
-        ]
-      },
-      {
-        "type": "code",
-        "language": "typescript",
-        "code": "// YouTube-scale metadata reads\nconst viewsPerDay = 1_000_000_000;\nconst avgQps = viewsPerDay / 86_400;\nconst peakQps = avgQps * 5;\nconst uploadQps = 500_000 / 86_400;\nconst uploadBytesPerDay = 500_000 * 500 * 1024 * 1024; // 500 MB avg\nconsole.log({\n  peakMetadataQps: Math.round(peakQps),\n  avgUploadQps: uploadQps.toFixed(1),\n  uploadTbPerDay: (uploadBytesPerDay / 1e12).toFixed(0) + \" TB\",\n});",
-        "caption": "YouTube peak metadata QPS"
-      },
-      {
-        "type": "callout",
-        "title": "Order-of-magnitude summary",
-        "text": "~60k peak metadata QPS, ~750 PB/day video egress (mostly CDN), ~250 TB/day upload ingest, ~1 PB/year storage growth. Separate read (CDN) from write (upload + transcode) paths.",
-        "variant": "tip"
       }
     ],
     "relatedConcepts": [
@@ -2910,7 +2932,7 @@
   "whatsapp-requirements": {
     "id": "whatsapp-requirements",
     "chapterId": "sd-whatsapp",
-    "title": "Messaging Requirements",
+    "title": "Requirements and Constraints",
     "summary": "Billions of users expect near-instant delivery, offline support, and privacy — on unreliable mobile networks.",
     "keyTakeaways": [
       "Delivery semantics: at-least-once with client-side deduplication by message ID.",
@@ -3008,49 +3030,21 @@
     ],
     "media": {}
   },
-  "whatsapp-delivery": {
-    "id": "whatsapp-delivery",
+  "whatsapp-estimation": {
+    "id": "whatsapp-estimation",
     "chapterId": "sd-whatsapp",
-    "title": "Delivery, Ordering, and Groups",
-    "summary": "Per-chat ordering, presence, and group fan-out define the server-side data model.",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "Message write QPS, connection fan-in, hot storage, and presence memory at WhatsApp scale.",
     "keyTakeaways": [
-      "Each chat has a monotonic server or hybrid logical clock for ordering.",
-      "Acks from clients let servers trim durable queues.",
-      "Group messages: write once, fan out to member inboxes or connection maps.",
-      "Large groups may use partial fan-out + pull on open (hybrid like Meta feeds).",
-      "Presence (online/typing) is ephemeral — Redis with TTL, not Postgres.",
-      "Multi-device sync shares the same message log keyed by account."
+      "~2.3M peak message writes/s globally — partition by chat_id.",
+      "200M concurrent WebSocket connections dominate RAM, not SQL joins.",
+      "~1 PB order-of-magnitude hot queue storage with short retention.",
+      "Presence and typing belong in Redis with TTL, not Postgres."
     ],
     "body": [
       {
-        "type": "heading",
-        "text": "Group fan-out strategies",
-        "level": 2
-      },
-      {
-        "type": "list",
-        "items": [
-          "Small groups (< 256): push to every member inbox on send.",
-          "Large groups: store single copy; members pull on chat open.",
-          "Typing indicators: gossip or pub/sub channel, lossy is acceptable."
-        ]
-      },
-      {
-        "type": "code",
-        "language": "typescript",
-        "code": "// Per-chat ordering with client ack\ntype ChatMessage = { id: string; chatId: string; seq: number; ciphertext: Buffer };\n\nasync function onClientAck(chatId: string, upToSeq: number) {\n  await db.messages.deleteQueued({ chatId, seq: { lte: upToSeq } });\n}\n// Server assigns monotonic seq per chat; client dedupes by message id",
-        "caption": "Per-chat sequence and ack"
-      },
-      {
-        "type": "mermaid",
-        "source": "flowchart TB\n    Sender[\"Sender app\"]\n    Receiver[\"Receiver app\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Redis[(\"Redis<br/>presence + typing\")]\n\n    subgraph sendPath [\"Send path — persist message\"]\n      direction LR\n      Server[\"Chat Server<br/>Erlang/BEAM\"]\n      Sender -->|\"① WebSocket SEND\"| Server\n      Server -->|\"② append seq=N\"| Store\n      Server -->|\"③ update presence\"| Redis\n    end\n\n    subgraph deliverPath [\"Delivery path — online or offline\"]\n      direction LR\n      Push[\"Push Gateway<br/>APNs / FCM\"]\n      Server -->|\"④a online: WebSocket PUSH\"| Receiver\n      Server -.->|\"④b offline: notify\"| Push\n      Push -.->|\"⑤ push alert\"| Receiver\n      Receiver -->|\"⑥ ACK seq\"| Server\n    end",
-        "kind": "architecture",
-        "caption": "Receiver ACKs trim the durable queue. Large groups may switch from push fan-out (④a) to pull-on-open — the send path stays one write."
-      },
-      {
-        "type": "heading",
-        "text": "Back-of-the-envelope estimates",
-        "level": 2
+        "type": "paragraph",
+        "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
       },
       {
         "type": "paragraph",
@@ -3121,6 +3115,56 @@
       }
     ],
     "relatedConcepts": [
+      "QPS",
+      "WebSocket",
+      "connections",
+      "storage",
+      "Redis",
+      "fan-out"
+    ],
+    "media": {}
+  },
+  "whatsapp-delivery": {
+    "id": "whatsapp-delivery",
+    "chapterId": "sd-whatsapp",
+    "title": "Delivery, Ordering, and Groups",
+    "summary": "Per-chat ordering, presence, and group fan-out define the server-side data model.",
+    "keyTakeaways": [
+      "Each chat has a monotonic server or hybrid logical clock for ordering.",
+      "Acks from clients let servers trim durable queues.",
+      "Group messages: write once, fan out to member inboxes or connection maps.",
+      "Large groups may use partial fan-out + pull on open (hybrid like Meta feeds).",
+      "Presence (online/typing) is ephemeral — Redis with TTL, not Postgres.",
+      "Multi-device sync shares the same message log keyed by account."
+    ],
+    "body": [
+      {
+        "type": "heading",
+        "text": "Group fan-out strategies",
+        "level": 2
+      },
+      {
+        "type": "list",
+        "items": [
+          "Small groups (< 256): push to every member inbox on send.",
+          "Large groups: store single copy; members pull on chat open.",
+          "Typing indicators: gossip or pub/sub channel, lossy is acceptable."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Per-chat ordering with client ack\ntype ChatMessage = { id: string; chatId: string; seq: number; ciphertext: Buffer };\n\nasync function onClientAck(chatId: string, upToSeq: number) {\n  await db.messages.deleteQueued({ chatId, seq: { lte: upToSeq } });\n}\n// Server assigns monotonic seq per chat; client dedupes by message id",
+        "caption": "Per-chat sequence and ack"
+      },
+      {
+        "type": "mermaid",
+        "source": "flowchart TB\n    Sender[\"Sender app\"]\n    Receiver[\"Receiver app\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Redis[(\"Redis<br/>presence + typing\")]\n\n    subgraph sendPath [\"Send path — persist message\"]\n      direction LR\n      Server[\"Chat Server<br/>Erlang/BEAM\"]\n      Sender -->|\"① WebSocket SEND\"| Server\n      Server -->|\"② append seq=N\"| Store\n      Server -->|\"③ update presence\"| Redis\n    end\n\n    subgraph deliverPath [\"Delivery path — online or offline\"]\n      direction LR\n      Push[\"Push Gateway<br/>APNs / FCM\"]\n      Server -->|\"④a online: WebSocket PUSH\"| Receiver\n      Server -.->|\"④b offline: notify\"| Push\n      Push -.->|\"⑤ push alert\"| Receiver\n      Receiver -->|\"⑥ ACK seq\"| Server\n    end",
+        "kind": "architecture",
+        "caption": "Receiver ACKs trim the durable queue. Large groups may switch from push fan-out (④a) to pull-on-open — the send path stays one write."
+      }
+    ],
+    "relatedConcepts": [
       "fan-out",
       "sequence",
       "groups",
@@ -3134,7 +3178,7 @@
   "reservation-requirements": {
     "id": "reservation-requirements",
     "chapterId": "sd-reservation",
-    "title": "Booking Requirements",
+    "title": "Requirements and Constraints",
     "summary": "Hotels, flights, restaurants, and concerts sell finite inventory that must never be oversold.",
     "keyTakeaways": [
       "Search is read-heavy and fuzzy; booking is write-heavy and exact.",
@@ -3217,6 +3261,101 @@
       "holds",
       "Elasticsearch",
       "Stripe"
+    ],
+    "media": {}
+  },
+  "reservation-estimation": {
+    "id": "reservation-estimation",
+    "chapterId": "sd-reservation",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "Search QPS vs booking commit rate, index size, and why reads and writes need different stores.",
+    "keyTakeaways": [
+      "~350 peak search QPS to Elasticsearch; ~60 peak booking commits/s to Postgres.",
+      "Reads dominate volume; writes are few but must be exactly correct.",
+      "~100 GB Elasticsearch index for listings; inventory rows are small but locked.",
+      "Redis holds are tiny; Kafka events are derived after commit."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+      },
+      {
+        "type": "paragraph",
+        "text": "Assume Airbnb-scale: 150M users, 1M bookings/day, 10M active listings, avg 3 search queries per booking, 14-night avg stay window in inventory index."
+      },
+      {
+        "type": "heading",
+        "text": "Read traffic (search)",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Searches: 1M bookings × 3 ≈ 3M searches/day ≈ 35/s average.",
+          "Peak (evening ×10) ≈ 350 search QPS to Elasticsearch — each query scans inverted index + facets, not OLTP table scan.",
+          "Listing detail pages: ~10M views/day ≈ 115/s — cache hot listings in Redis (top 10% = 1M keys × 5 KB ≈ 5 GB)."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Write traffic (booking)",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Bookings: 1M/day ≈ 11.6/s average — low QPS but strict ACID.",
+          "Peak checkout (hourly spike ×5) ≈ 60 commits/s — each hold + confirm is a short transaction with row lock on inventory night.",
+          "Holds: ~3× booking attempts before success → ~35 hold transactions/s peak."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Storage",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Inventory: 10M listings × 365 nights × 8 B availability bit ≈ 30 GB core calendar (simplified; real model uses date ranges).",
+          "Bookings OLTP: 1M/day × 365 × 1 KB row ≈ 365 GB/year booking history.",
+          "Elasticsearch index: 10M listings × 10 KB doc ≈ 100 GB (+ replicas → 300 GB)."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Network & caching",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Search response ~20 KB JSON × 350 QPS ≈ 7 MB/s — modest; latency is index query time, not bandwidth.",
+          "Redis hold TTL: 1M holds/day × 200 B ≈ 200 MB/day churn — tiny.",
+          "Kafka booking events: 1M/day × 500 B ≈ 500 MB/day for downstream consumers."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Airbnb-scale search vs booking\nconst bookingsPerDay = 1_000_000;\nconst searchesPerBooking = 3;\nconst searchQpsAvg = (bookingsPerDay * searchesPerBooking) / 86_400;\nconst peakSearchQps = searchQpsAvg * 10;\nconst peakBookingQps = (bookingsPerDay / 86_400) * 5;\nconsole.log({ peakSearchQps: Math.round(peakSearchQps), peakBookingQps: Math.round(peakBookingQps) });",
+        "caption": "Reservation search vs booking QPS"
+      },
+      {
+        "type": "callout",
+        "title": "Order-of-magnitude summary",
+        "text": "~350 peak search QPS (Elasticsearch), ~60 peak booking commits/s (Postgres), ~100 GB search index. Reads dominate; writes are few but must be exactly correct.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "QPS",
+      "Elasticsearch",
+      "PostgreSQL",
+      "search",
+      "OLTP",
+      "cache"
     ],
     "media": {}
   },
@@ -3309,79 +3448,6 @@
         "title": "In practice",
         "text": "Expedia and Booking.com pipelines mirror this: Elasticsearch for discovery, PostgreSQL for reservations, Stripe/Adyen for payments, Temporal or custom sagas for multi-step checkout.",
         "variant": "info"
-      },
-      {
-        "type": "heading",
-        "text": "Back-of-the-envelope estimates",
-        "level": 2
-      },
-      {
-        "type": "paragraph",
-        "text": "Assume Airbnb-scale: 150M users, 1M bookings/day, 10M active listings, avg 3 search queries per booking, 14-night avg stay window in inventory index."
-      },
-      {
-        "type": "heading",
-        "text": "Read traffic (search)",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Searches: 1M bookings × 3 ≈ 3M searches/day ≈ 35/s average.",
-          "Peak (evening ×10) ≈ 350 search QPS to Elasticsearch — each query scans inverted index + facets, not OLTP table scan.",
-          "Listing detail pages: ~10M views/day ≈ 115/s — cache hot listings in Redis (top 10% = 1M keys × 5 KB ≈ 5 GB)."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Write traffic (booking)",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Bookings: 1M/day ≈ 11.6/s average — low QPS but strict ACID.",
-          "Peak checkout (hourly spike ×5) ≈ 60 commits/s — each hold + confirm is a short transaction with row lock on inventory night.",
-          "Holds: ~3× booking attempts before success → ~35 hold transactions/s peak."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Storage",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Inventory: 10M listings × 365 nights × 8 B availability bit ≈ 30 GB core calendar (simplified; real model uses date ranges).",
-          "Bookings OLTP: 1M/day × 365 × 1 KB row ≈ 365 GB/year booking history.",
-          "Elasticsearch index: 10M listings × 10 KB doc ≈ 100 GB (+ replicas → 300 GB)."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Network & caching",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Search response ~20 KB JSON × 350 QPS ≈ 7 MB/s — modest; latency is index query time, not bandwidth.",
-          "Redis hold TTL: 1M holds/day × 200 B ≈ 200 MB/day churn — tiny.",
-          "Kafka booking events: 1M/day × 500 B ≈ 500 MB/day for downstream consumers."
-        ]
-      },
-      {
-        "type": "code",
-        "language": "typescript",
-        "code": "// Airbnb-scale search vs booking\nconst bookingsPerDay = 1_000_000;\nconst searchesPerBooking = 3;\nconst searchQpsAvg = (bookingsPerDay * searchesPerBooking) / 86_400;\nconst peakSearchQps = searchQpsAvg * 10;\nconst peakBookingQps = (bookingsPerDay / 86_400) * 5;\nconsole.log({ peakSearchQps: Math.round(peakSearchQps), peakBookingQps: Math.round(peakBookingQps) });",
-        "caption": "Reservation search vs booking QPS"
-      },
-      {
-        "type": "callout",
-        "title": "Order-of-magnitude summary",
-        "text": "~350 peak search QPS (Elasticsearch), ~60 peak booking commits/s (Postgres), ~100 GB search index. Reads dominate; writes are few but must be exactly correct.",
-        "variant": "tip"
       }
     ],
     "relatedConcepts": [
@@ -3399,7 +3465,7 @@
   "voting-requirements": {
     "id": "voting-requirements",
     "chapterId": "sd-voting",
-    "title": "Integrity and Trust",
+    "title": "Requirements and Constraints",
     "summary": "Voting systems must prevent duplicate ballots, resist tampering, and survive traffic spikes on election night.",
     "keyTakeaways": [
       "One voter → one ballot: unique constraint on (election_id, voter_id).",
@@ -3433,6 +3499,98 @@
       "rate limiting",
       "append-only",
       "threat model"
+    ],
+    "media": {}
+  },
+  "voting-estimation": {
+    "id": "voting-estimation",
+    "chapterId": "sd-voting",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "Ballot write spikes, results read QPS, and why tallies must be pre-aggregated.",
+    "keyTakeaways": [
+      "~4k sustained ballots/s in peak window; plan for 116k/s worst-case spikes.",
+      "~2M results reads/s served from Redis — never COUNT(*) on ballot table live.",
+      "Ballot storage is modest (~35 GB); audit policy drives retention cost.",
+      "Aggregator state fits in memory; cache warming on each ballot event."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+      },
+      {
+        "type": "paragraph",
+        "text": "Assume national election: 100M eligible voters, 70% turnout = 70M ballots, 80% cast in final 4 hours, ballot row 500 B, results page polled every 5s by 10M viewers."
+      },
+      {
+        "type": "heading",
+        "text": "Write traffic",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Ballots in 4 hours: 56M / 14,400s ≈ 3,900 ballots/s sustained in peak window.",
+          "Spike at poll close if everyone waits: 70M in 10 min ≈ 116,000/s — must queue or stagger; edge rate limiting essential.",
+          "Append-only INSERT — no UPDATE contention; partition by election_id."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Read traffic",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Results page: 10M users / 5s refresh ≈ 2M reads/s — served from Redis/materialized counts, never COUNT(*) on ballot table.",
+          "Eligibility check: 70M once per voter ≈ 19,400/s if spread over 1 hour before peak."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Storage",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Ballots: 70M × 500 B ≈ 35 GB — trivial for Postgres; audit log retention is the policy driver.",
+          "Aggregator state: 500 choices × 8 B count ≈ 4 KB — fits in memory; Redis replica for HA."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Network & caching",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Ballot POST ~1 KB request × 116k/s spike ≈ 116 MB/s ingress — API gateway + WAF at edge.",
+          "Results JSON ~2 KB × 2M/s ≈ 4 GB/s egress at peak — CDN cache results page or aggressive edge caching.",
+          "Cache warming: precompute totals on each ballot event; read path is O(1) per choice_id."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// National election peak ballots\nconst ballots = 70_000_000;\nconst sustainedWindowSec = 4 * 3600;\nconst sustainedQps = ballots * 0.8 / sustainedWindowSec;\nconst spikeQps = ballots / (10 * 60); // everyone in 10 min\nconsole.log({ sustainedQps: Math.round(sustainedQps), spikeQps: Math.round(spikeQps) });",
+        "caption": "Voting peak ballot writes"
+      },
+      {
+        "type": "callout",
+        "title": "Order-of-magnitude summary",
+        "text": "Peak ~4k ballots/s sustained (116k/s worst-case spike), ~2M results reads/s from cache. Never aggregate live from raw ballot table on read path.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "QPS",
+      "append-only",
+      "Redis",
+      "aggregator",
+      "peak traffic"
     ],
     "media": {}
   },
@@ -3514,77 +3672,6 @@
         "title": "Why Not updating vote counts in the ballot row?",
         "text": "In-place UPDATE loses auditability and races under concurrency. Event sourcing pattern: insert ballot, derive count.",
         "variant": "info"
-      },
-      {
-        "type": "heading",
-        "text": "Back-of-the-envelope estimates",
-        "level": 2
-      },
-      {
-        "type": "paragraph",
-        "text": "Assume national election: 100M eligible voters, 70% turnout = 70M ballots, 80% cast in final 4 hours, ballot row 500 B, results page polled every 5s by 10M viewers."
-      },
-      {
-        "type": "heading",
-        "text": "Write traffic",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Ballots in 4 hours: 56M / 14,400s ≈ 3,900 ballots/s sustained in peak window.",
-          "Spike at poll close if everyone waits: 70M in 10 min ≈ 116,000/s — must queue or stagger; edge rate limiting essential.",
-          "Append-only INSERT — no UPDATE contention; partition by election_id."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Read traffic",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Results page: 10M users / 5s refresh ≈ 2M reads/s — served from Redis/materialized counts, never COUNT(*) on ballot table.",
-          "Eligibility check: 70M once per voter ≈ 19,400/s if spread over 1 hour before peak."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Storage",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Ballots: 70M × 500 B ≈ 35 GB — trivial for Postgres; audit log retention is the policy driver.",
-          "Aggregator state: 500 choices × 8 B count ≈ 4 KB — fits in memory; Redis replica for HA."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Network & caching",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Ballot POST ~1 KB request × 116k/s spike ≈ 116 MB/s ingress — API gateway + WAF at edge.",
-          "Results JSON ~2 KB × 2M/s ≈ 4 GB/s egress at peak — CDN cache results page or aggressive edge caching.",
-          "Cache warming: precompute totals on each ballot event; read path is O(1) per choice_id."
-        ]
-      },
-      {
-        "type": "code",
-        "language": "typescript",
-        "code": "// National election peak ballots\nconst ballots = 70_000_000;\nconst sustainedWindowSec = 4 * 3600;\nconst sustainedQps = ballots * 0.8 / sustainedWindowSec;\nconst spikeQps = ballots / (10 * 60); // everyone in 10 min\nconsole.log({ sustainedQps: Math.round(sustainedQps), spikeQps: Math.round(spikeQps) });",
-        "caption": "Voting peak ballot writes"
-      },
-      {
-        "type": "callout",
-        "title": "Order-of-magnitude summary",
-        "text": "Peak ~4k ballots/s sustained (116k/s worst-case spike), ~2M results reads/s from cache. Never aggregate live from raw ballot table on read path.",
-        "variant": "tip"
       }
     ],
     "relatedConcepts": [
@@ -3601,7 +3688,7 @@
   "multiplayer-requirements": {
     "id": "multiplayer-requirements",
     "chapterId": "sd-multiplayer-games",
-    "title": "Latency and Fairness",
+    "title": "Requirements and Constraints",
     "summary": "FPS and battle royale players feel 50 ms; turn-based tolerates seconds. Pick transport and authority model accordingly.",
     "keyTakeaways": [
       "Sub-100 ms RTT often requires regional servers and UDP-based protocols.",
@@ -3629,6 +3716,100 @@
       "authoritative server",
       "matchmaking",
       "tick rate"
+    ],
+    "media": {}
+  },
+  "multiplayer-estimation": {
+    "id": "multiplayer-estimation",
+    "chapterId": "sd-multiplayer-games",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "UDP bandwidth per match, fleet-wide RAM, and why live ticks stay off Postgres.",
+    "keyTakeaways": [
+      "500k concurrent matches require regional UDP fleets — not one global cluster.",
+      "~50 MB RAM per match in-process; Postgres only for post-game stats.",
+      "Matchmaker queues in Redis sorted sets by MMR and region.",
+      "Telemetry to Kafka is fire-and-forget; never block the tick loop."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+      },
+      {
+        "type": "paragraph",
+        "text": "Assume 50M DAU, 5M concurrent players peak, 500k concurrent matches, 100 players/match max (battle royale), 60 Hz tick, 50 B input + 200 B state delta per player per tick."
+      },
+      {
+        "type": "heading",
+        "text": "Network (UDP)",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Per match (100 players): 100 inputs/s × 50 B + 100 deltas/s × 200 B × 100 recipients ≈ 2 MB/s per match (simplified fan-out).",
+          "500k matches × 2 MB/s ≈ 1 TB/s game traffic — regional shards mandatory; global single cluster impossible.",
+          "Per player: ~20 KB/s down, ~5 KB/s up — fits home broadband; mobile is the constraint."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Compute & memory",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Game server RAM: ~50 MB world state per match × 500k ≈ 25 TB fleet-wide — each pod handles 1–10 matches, not 500k on one machine.",
+          "Tick CPU: 60 Hz × 500k matches ≈ 30M simulations/s — GPU/CPU physics is the bottleneck, not database.",
+          "Matchmaker: 5M players / 100 per match ≈ 50k match formations in a few minutes at peak — queue in Redis sorted sets by MMR."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Storage & writes",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Live state: zero disk writes during match — all in-memory.",
+          "Post-match stats: 500k matches/day × 5 KB ≈ 2.5 GB/day to Postgres for leaderboards.",
+          "Telemetry (Kafka): 5M players × 1 KB event/min ≈ 83 MB/s fire-and-forget."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Caching",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Lobby/player profile: Redis 5M × 2 KB ≈ 10 GB for matchmaking context.",
+          "No CDN for game state — UDP is point-to-point."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Battle royale: 100 players, 60 Hz, 200 B delta\nconst players = 100;\nconst tickHz = 60;\nconst deltaBytes = 200;\nconst bytesPerMatchPerSec = players * tickHz * deltaBytes * players;\nconst concurrentMatches = 500_000;\nconst totalGbps = (bytesPerMatchPerSec * concurrentMatches * 8) / 1e9;\nconsole.log({ bytesPerMatchPerSec, totalTbps: (totalGbps / 1000).toFixed(1) });",
+        "caption": "Multiplayer match network bandwidth"
+      },
+      {
+        "type": "callout",
+        "title": "Order-of-magnitude summary",
+        "text": "500k concurrent matches → regional UDP fleets, ~50 MB RAM per match in-process, matchmaker in Redis. Postgres only for post-game stats, not live ticks.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "UDP",
+      "bandwidth",
+      "matchmaking",
+      "Redis",
+      "Agones",
+      "memory"
     ],
     "media": {}
   },
@@ -3760,78 +3941,6 @@
         "language": "typescript",
         "code": "// Regional matchmaking with skill bucket\ntype Ticket = { playerId: string; mmr: number; region: string };\n\nfunction findMatch(queue: Ticket[]): Match | null {\n  const ready = queue.filter((t) => t.region === \"eu-west\");\n  if (ready.length < 10) return null;\n  const avg = ready.reduce((s, t) => s + t.mmr, 0) / ready.length;\n  const picked = ready.filter((t) => Math.abs(t.mmr - avg) < 200).slice(0, 10);\n  return { players: picked.map((t) => t.playerId), serverShard: \"eu-west-3\" };\n}",
         "caption": "Regional matchmaking queue"
-      },
-      {
-        "type": "heading",
-        "text": "Back-of-the-envelope estimates",
-        "level": 2
-      },
-      {
-        "type": "paragraph",
-        "text": "Assume 50M DAU, 5M concurrent players peak, 500k concurrent matches, 100 players/match max (battle royale), 60 Hz tick, 50 B input + 200 B state delta per player per tick."
-      },
-      {
-        "type": "heading",
-        "text": "Network (UDP)",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Per match (100 players): 100 inputs/s × 50 B + 100 deltas/s × 200 B × 100 recipients ≈ 2 MB/s per match (simplified fan-out).",
-          "500k matches × 2 MB/s ≈ 1 TB/s game traffic — regional shards mandatory; global single cluster impossible.",
-          "Per player: ~20 KB/s down, ~5 KB/s up — fits home broadband; mobile is the constraint."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Compute & memory",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Game server RAM: ~50 MB world state per match × 500k ≈ 25 TB fleet-wide — each pod handles 1–10 matches, not 500k on one machine.",
-          "Tick CPU: 60 Hz × 500k matches ≈ 30M simulations/s — GPU/CPU physics is the bottleneck, not database.",
-          "Matchmaker: 5M players / 100 per match ≈ 50k match formations in a few minutes at peak — queue in Redis sorted sets by MMR."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Storage & writes",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Live state: zero disk writes during match — all in-memory.",
-          "Post-match stats: 500k matches/day × 5 KB ≈ 2.5 GB/day to Postgres for leaderboards.",
-          "Telemetry (Kafka): 5M players × 1 KB event/min ≈ 83 MB/s fire-and-forget."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Caching",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Lobby/player profile: Redis 5M × 2 KB ≈ 10 GB for matchmaking context.",
-          "No CDN for game state — UDP is point-to-point."
-        ]
-      },
-      {
-        "type": "code",
-        "language": "typescript",
-        "code": "// Battle royale: 100 players, 60 Hz, 200 B delta\nconst players = 100;\nconst tickHz = 60;\nconst deltaBytes = 200;\nconst bytesPerMatchPerSec = players * tickHz * deltaBytes * players;\nconst concurrentMatches = 500_000;\nconst totalGbps = (bytesPerMatchPerSec * concurrentMatches * 8) / 1e9;\nconsole.log({ bytesPerMatchPerSec, totalTbps: (totalGbps / 1000).toFixed(1) });",
-        "caption": "Multiplayer match network bandwidth"
-      },
-      {
-        "type": "callout",
-        "title": "Order-of-magnitude summary",
-        "text": "500k concurrent matches → regional UDP fleets, ~50 MB RAM per match in-process, matchmaker in Redis. Postgres only for post-game stats, not live ticks.",
-        "variant": "tip"
       }
     ],
     "relatedConcepts": [
@@ -3842,6 +3951,139 @@
       "telemetry",
       "UDP",
       "bandwidth"
+    ],
+    "media": {}
+  },
+  "puzzle-requirements": {
+    "id": "puzzle-requirements",
+    "chapterId": "sd-puzzle-games",
+    "title": "Requirements and Constraints",
+    "summary": "Puzzle games prioritize correctness and idempotency over sub-millisecond latency.",
+    "keyTakeaways": [
+      "Server validates every move against game rules — client hints are not authoritative.",
+      "Daily puzzles: one submission per user per calendar day (idempotent).",
+      "Async play: opponents may move hours apart; push on turn notification.",
+      "Timers and forfeits need durable scheduled jobs, not in-memory only.",
+      "Leaderboards need fast top-K reads at millions of players.",
+      "HTTPS suffices — payloads are small; UDP is unnecessary."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Wordle, chess, and crosswords share a pattern: low write QPS, strict correctness, and leaderboard reads that must not scan every player row at request time."
+      },
+      {
+        "type": "callout",
+        "title": "Wordle at scale",
+        "text": "One puzzle ID per day with server-side answer validation. A second submit from the same account must return the original result, not a duplicate score.",
+        "variant": "tip"
+      },
+      {
+        "type": "callout",
+        "title": "Correctness over speed",
+        "text": "An illegal move rejected in 50 ms beats a wrong move accepted in 5 ms. Budget infra for validation and idempotency, not UDP fleets.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "requirements",
+      "validation",
+      "idempotency",
+      "daily puzzle",
+      "leaderboard"
+    ],
+    "media": {}
+  },
+  "puzzle-estimation": {
+    "id": "puzzle-estimation",
+    "chapterId": "sd-puzzle-games",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "Daily submit QPS, storage growth, and Redis leaderboard sizing for puzzle games.",
+    "keyTakeaways": [
+      "~1.2k peak submit QPS — modest; morning spikes drive sizing.",
+      "Redis ZSET for O(log N) leaderboard queries, not SQL ORDER BY.",
+      "Move log and board state storage in hundreds of GB/year, not PB.",
+      "Push notifications for async turns are low volume (~3/s)."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+      },
+      {
+        "type": "paragraph",
+        "text": "Assume Wordle-scale daily puzzle: 5M DAU, 1 guess per user per day (6 guesses max), 3M monthly active leaderboard, chess-style async: 500k active games, 10 moves/game/day."
+      },
+      {
+        "type": "heading",
+        "text": "Read/write traffic",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Daily puzzle submit: 5M / 86,400 ≈ 58/s average — tiny; peak (morning ×20) ≈ 1,200/s.",
+          "Each submit: 1 read (puzzle id) + 1 idempotent INSERT ≈ 2,400 DB ops/s peak.",
+          "Chess moves: 500k games × 10 moves / 86,400 ≈ 58 moves/s + validation query."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Storage",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Daily submissions: 5M/day × 365 × 200 B ≈ 365 GB/year.",
+          "Move log: 500k games × 10 moves × 100 B × 365 days ≈ 180 GB/year.",
+          "Board state: 500k active × 2 KB ≈ 1 GB — trivial."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Leaderboard & caching",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Redis ZSET: 3M users × (member + score) ≈ 150 MB per daily board.",
+          "Top-100 query: O(log N + 100) — sub-ms; no SQL ORDER BY on millions of rows.",
+          "Cache puzzle answer hash: 1 key per day — singleflight on submit path."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Network",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Submit payload ~500 B × 1,200/s ≈ 600 KB/s — HTTPS is fine; no UDP needed.",
+          "Push notify opponent: 250k moves/day triggering push ≈ 3/s."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Daily puzzle peak submits\nconst dau = 5_000_000;\nconst avgQps = dau / 86_400;\nconst peakQps = avgQps * 20; // morning spike\nconst redisLeaderboardMb = (3_000_000 * 50) / 1e6;\nconsole.log({ peakSubmitQps: Math.round(peakQps), redisLeaderboardMb });",
+        "caption": "Daily puzzle submit QPS"
+      },
+      {
+        "type": "callout",
+        "title": "Order-of-magnitude summary",
+        "text": "~1.2k peak submit QPS, Redis for leaderboards, Postgres for idempotent daily submissions. Correctness over latency — no heavy infra needed at this scale.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "QPS",
+      "Redis",
+      "leaderboard",
+      "idempotency",
+      "PostgreSQL"
     ],
     "media": {}
   },
@@ -3963,78 +4205,6 @@
         "title": "Why Push notifications (APNs/FCM)?",
         "text": "Async turn games notify opponent it's their move — optional but standard for retention.",
         "variant": "info"
-      },
-      {
-        "type": "heading",
-        "text": "Back-of-the-envelope estimates",
-        "level": 2
-      },
-      {
-        "type": "paragraph",
-        "text": "Assume Wordle-scale daily puzzle: 5M DAU, 1 guess per user per day (6 guesses max), 3M monthly active leaderboard, chess-style async: 500k active games, 10 moves/game/day."
-      },
-      {
-        "type": "heading",
-        "text": "Read/write traffic",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Daily puzzle submit: 5M / 86,400 ≈ 58/s average — tiny; peak (morning ×20) ≈ 1,200/s.",
-          "Each submit: 1 read (puzzle id) + 1 idempotent INSERT ≈ 2,400 DB ops/s peak.",
-          "Chess moves: 500k games × 10 moves / 86,400 ≈ 58 moves/s + validation query."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Storage",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Daily submissions: 5M/day × 365 × 200 B ≈ 365 GB/year.",
-          "Move log: 500k games × 10 moves × 100 B × 365 days ≈ 180 GB/year.",
-          "Board state: 500k active × 2 KB ≈ 1 GB — trivial."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Leaderboard & caching",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Redis ZSET: 3M users × (member + score) ≈ 150 MB per daily board.",
-          "Top-100 query: O(log N + 100) — sub-ms; no SQL ORDER BY on millions of rows.",
-          "Cache puzzle answer hash: 1 key per day — singleflight on submit path."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Network",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Submit payload ~500 B × 1,200/s ≈ 600 KB/s — HTTPS is fine; no UDP needed.",
-          "Push notify opponent: 250k moves/day triggering push ≈ 3/s."
-        ]
-      },
-      {
-        "type": "code",
-        "language": "typescript",
-        "code": "// Daily puzzle peak submits\nconst dau = 5_000_000;\nconst avgQps = dau / 86_400;\nconst peakQps = avgQps * 20; // morning spike\nconst redisLeaderboardMb = (3_000_000 * 50) / 1e6;\nconsole.log({ peakSubmitQps: Math.round(peakQps), redisLeaderboardMb });",
-        "caption": "Daily puzzle submit QPS"
-      },
-      {
-        "type": "callout",
-        "title": "Order-of-magnitude summary",
-        "text": "~1.2k peak submit QPS, Redis for leaderboards, Postgres for idempotent daily submissions. Correctness over latency — no heavy infra needed at this scale.",
-        "variant": "tip"
       }
     ],
     "relatedConcepts": [
@@ -4045,6 +4215,137 @@
       "CRDT",
       "PostgreSQL",
       "QPS"
+    ],
+    "media": {}
+  },
+  "multistep-requirements": {
+    "id": "multistep-requirements",
+    "chapterId": "sd-multistep-systems",
+    "title": "Requirements and Constraints",
+    "summary": "Multistep workflows span services, minutes to days, and must survive partial failure.",
+    "keyTakeaways": [
+      "No single database transaction spans payment, inventory, shipping, and email.",
+      "Each step must be idempotent — retries cannot double-charge or double-ship.",
+      "Compensating actions roll back prior steps when a later step fails.",
+      "Human review gates (KYC, underwriting) can park a flow for days.",
+      "Visibility: ops must see which step failed and with what payload.",
+      "Correlation ID ties every HTTP call and queue message to one saga instance."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Checkout, trip lifecycle, and loan origination are the same shape: forward steps with explicit failure branches, not a prayer that every service stays up."
+      },
+      {
+        "type": "callout",
+        "title": "Shopify at scale",
+        "text": "Checkout coordinates inventory holds, Stripe charges, and fulfillment webhooks. A card decline must release the hold before the customer sees an error.",
+        "variant": "tip"
+      },
+      {
+        "type": "callout",
+        "title": "Define invariants first",
+        "text": "What must never happen? Double charge, ship without payment, lose inventory on crash. Invariants pick orchestration vs choreography.",
+        "variant": "warning"
+      }
+    ],
+    "relatedConcepts": [
+      "requirements",
+      "saga",
+      "idempotency",
+      "compensation",
+      "workflow"
+    ],
+    "media": {}
+  },
+  "multistep-estimation": {
+    "id": "multistep-estimation",
+    "chapterId": "sd-multistep-systems",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "Peak saga throughput, activity call rate, and workflow history storage growth.",
+    "keyTakeaways": [
+      "~460 peak sagas/s on Black Friday; ~2.3k activity invocations/s.",
+      "Bottleneck is external APIs (Stripe, inventory), not orchestrator QPS.",
+      "~7 TB/year workflow history — Temporal/Step Functions persist full event log.",
+      "Sleeping workflows (24h KYC) need durable timers, not blocked threads."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+      },
+      {
+        "type": "paragraph",
+        "text": "Assume e-commerce: 2M orders/day, 5 saga steps each, 20% failure requiring compensation, 10% of orders wait 24h on KYC step, workflow history 2 KB per step."
+      },
+      {
+        "type": "heading",
+        "text": "Workflow throughput",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Orders: 2M/day ≈ 23/s average, peak (Black Friday ×20) ≈ 460 new sagas/s.",
+          "Steps: 460 × 5 ≈ 2,300 activity invocations/s peak — each idempotent HTTP call to inventory/payment/ship.",
+          "Compensations: 20% × 460 ≈ 92 reverse flows/s on failure spikes."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Storage",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Workflow history: 2M orders × 5 steps × 2 KB ≈ 20 GB/day ≈ 7 TB/year — Temporal/Step Functions persist full event log.",
+          "Sleeping workflows (KYC 24h): 200k in-flight × 2 KB ≈ 400 MB state — durable timers, not blocked threads."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Messaging & network",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Kafka choreography (optional): 2M × 3 events × 500 B ≈ 3 GB/day async side effects.",
+          "Orchestrator ↔ services: 2,300 RPC/s × 5 KB ≈ 11 MB/s — low bandwidth, latency per step dominates (Stripe ~200ms)."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Memory & caching",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Worker memory: replay history on crash — disk-backed in Temporal, not all in RAM.",
+          "Idempotency cache (Redis): 460 new/s × 3600s × 100 B key ≈ 165 MB/hour churn for duplicate detection."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Black Friday checkout sagas\nconst ordersPerDay = 2_000_000;\nconst peakMultiplier = 20;\nconst stepsPerOrder = 5;\nconst peakOrdersPerSec = (ordersPerDay / 86_400) * peakMultiplier;\nconst peakActivitiesPerSec = peakOrdersPerSec * stepsPerOrder;\nconsole.log({ peakSagasPerSec: Math.round(peakOrdersPerSec), peakActivitiesPerSec: Math.round(peakActivitiesPerSec) });",
+        "caption": "Checkout saga peak activities"
+      },
+      {
+        "type": "callout",
+        "title": "Order-of-magnitude summary",
+        "text": "~460 peak sagas/s, ~2.3k activity calls/s, ~7 TB/year workflow history. Bottleneck is external APIs (payment, inventory), not QPS math.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "saga",
+      "QPS",
+      "Temporal",
+      "workflow history",
+      "idempotency"
     ],
     "media": {}
   },
@@ -4215,27 +4516,84 @@
         "source": "flowchart TB\n    Client[\"Client\"]\n    Inv[\"Inventory svc\"]\n    Pay[\"Payments<br/>Stripe\"]\n    Ship[\"Shipping svc\"]\n\n    subgraph forwardPath [\"Forward saga — happy path\"]\n      direction LR\n      Orch[\"Orchestrator<br/>Temporal\"]\n      Client -->|\"① start checkout\"| Orch\n      Orch -->|\"② reserve stock\"| Inv\n      Orch -->|\"③ capture payment\"| Pay\n      Orch -->|\"④ create shipment\"| Ship\n      Orch -->|\"⑤ order complete\"| Client\n    end\n\n    Pay -.->|\"FAILED\"| Orch\n    Orch -.->|\"⑥ compensate: release hold\"| Inv",
         "kind": "architecture",
         "caption": "Each saga step is an idempotent HTTP call with durable history — the orchestrator replays from disk on worker crash, not from in-memory state."
+      }
+    ],
+    "relatedConcepts": [
+      "checkout",
+      "KYC",
+      "workflow",
+      "observability",
+      "DLQ",
+      "saga QPS"
+    ],
+    "media": {}
+  },
+  "collaboration-requirements": {
+    "id": "collaboration-requirements",
+    "chapterId": "sd-collaboration",
+    "title": "Requirements and Constraints",
+    "summary": "Collaboration tools merge real-time editing, permissions, and durable document state.",
+    "keyTakeaways": [
+      "Multiple editors on one document with sub-second op delivery.",
+      "Every operation validated against ACL — UI bypass must not grant edit access.",
+      "Presence (cursors, typing) is ephemeral; document content is durable.",
+      "Large assets (images, fonts) bypass the collab server — direct to object storage.",
+      "Offline edits queue locally and merge on reconnect.",
+      "Export/render is async — separate from the live editing hot path."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Google Docs, Figma, and Notion share one constraint: the server orders concurrent operations so every client converges on the same document state."
       },
       {
-        "type": "heading",
-        "text": "Back-of-the-envelope estimates",
-        "level": 2
+        "type": "callout",
+        "title": "Figma at scale",
+        "text": "File permissions live in Postgres; live ops flow through a central collab server. A viewer cannot apply edits even with a crafted WebSocket payload.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "requirements",
+      "WebSocket",
+      "ACL",
+      "OT",
+      "CRDT",
+      "presence"
+    ],
+    "media": {}
+  },
+  "collaboration-estimation": {
+    "id": "collaboration-estimation",
+    "chapterId": "sd-collaboration",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "Peak ops/s, active document RAM, and why op logs need compaction.",
+    "keyTakeaways": [
+      "~500k peak ops/s WebSocket — sticky routing by document ID.",
+      "~100 GB active document RAM fleet-wide; S3 holds blobs, not Postgres.",
+      "Op log raw volume ~900 GB/hour without compaction — snapshot frequently.",
+      "Doc opens are low QPS; export jobs are async workers."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
       },
       {
         "type": "paragraph",
-        "text": "Assume e-commerce: 2M orders/day, 5 saga steps each, 20% failure requiring compensation, 10% of orders wait 24h on KYC step, workflow history 2 KB per step."
+        "text": "Assume 50M docs, 2M DAU, 50k docs edited concurrently peak, 5 editors/doc avg, 2 ops/s/editor, 500 B/op, 5 MB avg asset per doc, 100 KB metadata."
       },
       {
         "type": "heading",
-        "text": "Workflow throughput",
+        "text": "Real-time ops (WebSocket)",
         "level": 3
       },
       {
         "type": "list",
         "items": [
-          "Orders: 2M/day ≈ 23/s average, peak (Black Friday ×20) ≈ 460 new sagas/s.",
-          "Steps: 460 × 5 ≈ 2,300 activity invocations/s peak — each idempotent HTTP call to inventory/payment/ship.",
-          "Compensations: 20% × 460 ≈ 92 reverse flows/s on failure spikes."
+          "Ops/s: 50k docs × 5 editors × 2 ops/s ≈ 500k ops/s globally.",
+          "Per collab server (10k docs): 50k ops/s — sticky routing by doc_id.",
+          "Broadcast fan-out: 500k ops × 4 peers avg × 500 B ≈ 1 GB/s WebSocket egress fleet-wide."
         ]
       },
       {
@@ -4246,20 +4604,9 @@
       {
         "type": "list",
         "items": [
-          "Workflow history: 2M orders × 5 steps × 2 KB ≈ 20 GB/day ≈ 7 TB/year — Temporal/Step Functions persist full event log.",
-          "Sleeping workflows (KYC 24h): 200k in-flight × 2 KB ≈ 400 MB state — durable timers, not blocked threads."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Messaging & network",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Kafka choreography (optional): 2M × 3 events × 500 B ≈ 3 GB/day async side effects.",
-          "Orchestrator ↔ services: 2,300 RPC/s × 5 KB ≈ 11 MB/s — low bandwidth, latency per step dominates (Stripe ~200ms)."
+          "Metadata (Postgres): 50M × 100 KB ≈ 5 TB (+ indexes → 15 TB).",
+          "Assets (S3): 50M × 5 MB ≈ 250 PB total — CDN for export/download; uploads direct to S3.",
+          "Op log (before compaction): 500k ops/s × 500 B × 3600 ≈ 900 GB/hour raw — snapshot every 5 min, compact to 100 KB snapshots."
         ]
       },
       {
@@ -4270,30 +4617,43 @@
       {
         "type": "list",
         "items": [
-          "Worker memory: replay history on crash — disk-backed in Temporal, not all in RAM.",
-          "Idempotency cache (Redis): 460 new/s × 3600s × 100 B key ≈ 165 MB/hour churn for duplicate detection."
+          "Active doc in RAM (CRDT/OT): 50k × 2 MB working set ≈ 100 GB across collab fleet.",
+          "Presence (Redis): 2M DAU × 150 B ≈ 300 MB with TTL.",
+          "ACL cache: 50k hot docs × 1 KB permission snapshot ≈ 50 MB."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Read traffic",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Doc open: 2M opens/day ≈ 23/s — load snapshot + replay tail of op log since snapshot.",
+          "Export PDF (async): 100k/day ≈ 1/s — separate worker queue, not collab hot path."
         ]
       },
       {
         "type": "code",
         "language": "typescript",
-        "code": "// Black Friday checkout sagas\nconst ordersPerDay = 2_000_000;\nconst peakMultiplier = 20;\nconst stepsPerOrder = 5;\nconst peakOrdersPerSec = (ordersPerDay / 86_400) * peakMultiplier;\nconst peakActivitiesPerSec = peakOrdersPerSec * stepsPerOrder;\nconsole.log({ peakSagasPerSec: Math.round(peakOrdersPerSec), peakActivitiesPerSec: Math.round(peakActivitiesPerSec) });",
-        "caption": "Checkout saga peak activities"
+        "code": "// Figma-scale collaboration ops\nconst concurrentDocs = 50_000;\nconst editorsPerDoc = 5;\nconst opsPerEditorPerSec = 2;\nconst peakOpsPerSec = concurrentDocs * editorsPerDoc * opsPerEditorPerSec;\nconst activeDocRamGb = (concurrentDocs * 2) / 1000; // 2 MB/doc\nconsole.log({ peakOpsPerSec, activeDocRamGb });",
+        "caption": "Collaboration ops per second"
       },
       {
         "type": "callout",
         "title": "Order-of-magnitude summary",
-        "text": "~460 peak sagas/s, ~2.3k activity calls/s, ~7 TB/year workflow history. Bottleneck is external APIs (payment, inventory), not QPS math.",
+        "text": "~500k peak ops/s WebSocket, ~100 GB active doc RAM, S3 for blobs not Postgres. Op log compaction is mandatory — never insert every keystroke into OLTP forever.",
         "variant": "tip"
       }
     ],
     "relatedConcepts": [
-      "checkout",
-      "KYC",
-      "workflow",
-      "observability",
-      "DLQ",
-      "saga QPS"
+      "ops/s",
+      "WebSocket",
+      "S3",
+      "PostgreSQL",
+      "compaction",
+      "Redis"
     ],
     "media": {}
   },
@@ -4457,78 +4817,6 @@
         "title": "Why Not storing every keystroke in Postgres forever?",
         "text": "Op log compacted to periodic snapshots — unbounded insert rate would saturate OLTP.",
         "variant": "info"
-      },
-      {
-        "type": "heading",
-        "text": "Back-of-the-envelope estimates",
-        "level": 2
-      },
-      {
-        "type": "paragraph",
-        "text": "Assume 50M docs, 2M DAU, 50k docs edited concurrently peak, 5 editors/doc avg, 2 ops/s/editor, 500 B/op, 5 MB avg asset per doc, 100 KB metadata."
-      },
-      {
-        "type": "heading",
-        "text": "Real-time ops (WebSocket)",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Ops/s: 50k docs × 5 editors × 2 ops/s ≈ 500k ops/s globally.",
-          "Per collab server (10k docs): 50k ops/s — sticky routing by doc_id.",
-          "Broadcast fan-out: 500k ops × 4 peers avg × 500 B ≈ 1 GB/s WebSocket egress fleet-wide."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Storage",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Metadata (Postgres): 50M × 100 KB ≈ 5 TB (+ indexes → 15 TB).",
-          "Assets (S3): 50M × 5 MB ≈ 250 PB total — CDN for export/download; uploads direct to S3.",
-          "Op log (before compaction): 500k ops/s × 500 B × 3600 ≈ 900 GB/hour raw — snapshot every 5 min, compact to 100 KB snapshots."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Memory & caching",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Active doc in RAM (CRDT/OT): 50k × 2 MB working set ≈ 100 GB across collab fleet.",
-          "Presence (Redis): 2M DAU × 150 B ≈ 300 MB with TTL.",
-          "ACL cache: 50k hot docs × 1 KB permission snapshot ≈ 50 MB."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Read traffic",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Doc open: 2M opens/day ≈ 23/s — load snapshot + replay tail of op log since snapshot.",
-          "Export PDF (async): 100k/day ≈ 1/s — separate worker queue, not collab hot path."
-        ]
-      },
-      {
-        "type": "code",
-        "language": "typescript",
-        "code": "// Figma-scale collaboration ops\nconst concurrentDocs = 50_000;\nconst editorsPerDoc = 5;\nconst opsPerEditorPerSec = 2;\nconst peakOpsPerSec = concurrentDocs * editorsPerDoc * opsPerEditorPerSec;\nconst activeDocRamGb = (concurrentDocs * 2) / 1000; // 2 MB/doc\nconsole.log({ peakOpsPerSec, activeDocRamGb });",
-        "caption": "Collaboration ops per second"
-      },
-      {
-        "type": "callout",
-        "title": "Order-of-magnitude summary",
-        "text": "~500k peak ops/s WebSocket, ~100 GB active doc RAM, S3 for blobs not Postgres. Op log compaction is mandatory — never insert every keystroke into OLTP forever.",
-        "variant": "tip"
       }
     ],
     "relatedConcepts": [
@@ -4540,6 +4828,134 @@
       "Redis",
       "CRDT",
       "ops/s"
+    ],
+    "media": {}
+  },
+  "forms-requirements": {
+    "id": "forms-requirements",
+    "chapterId": "sd-multistep-forms",
+    "title": "Requirements and Constraints",
+    "summary": "Long-running forms need durable drafts, per-step validation, and async verification.",
+    "keyTakeaways": [
+      "Users pause for hours or days — progress must survive browser close and device switch.",
+      "Autosave on a timer dominates write traffic; final submit is rare.",
+      "Server-side validation is authoritative on every step and on submit.",
+      "Large attachments upload direct-to-S3; draft stores a pointer only.",
+      "Async vendor steps (credit check, identity) complete via webhook days later.",
+      "PII fields need encryption at rest; resume links must not leak secrets in URLs."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Mortgage, visa, and merchant onboarding forms are state machines measured in days, not milliseconds. Session cookies are insufficient — drafts live in the database."
+      },
+      {
+        "type": "callout",
+        "title": "Stripe at scale",
+        "text": "Connect onboarding saves partial KYC progress. Merchants resume on a new device without re-entering verified fields.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "requirements",
+      "draft",
+      "autosave",
+      "validation",
+      "PII",
+      "webhook"
+    ],
+    "media": {}
+  },
+  "forms-estimation": {
+    "id": "forms-estimation",
+    "chapterId": "sd-multistep-forms",
+    "title": "Back-of-the-Envelope Estimation",
+    "summary": "Autosave write storm, draft storage, and S3 attachment growth for long forms.",
+    "keyTakeaways": [
+      "~6.7k peak autosave PATCH/s — debounce to halve if UX allows.",
+      "Postgres holds JSON drafts; S3 holds multi-MB attachments via signed URLs.",
+      "Final submit ~0.016/s average — negligible vs autosave.",
+      "Vendor webhooks ~1/s — async path, no peak concern."
+    ],
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Order-of-magnitude checks catch designs that cannot work. Adjust assumptions for your interview scope — exact numbers matter less than which component becomes the bottleneck."
+      },
+      {
+        "type": "paragraph",
+        "text": "Assume mortgage applications: 500k submitted/year, 12 steps, autosave every 30s while active, 200k concurrent draft sessions peak, 2 MB avg attachment, 50 KB draft JSON."
+      },
+      {
+        "type": "heading",
+        "text": "Write traffic (autosave)",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Autosave: 200k sessions / 30s ≈ 6,700 PATCH/s peak to draft API.",
+          "Each upsert: 50 KB JSON → 6,700 × 50 KB ≈ 335 MB/s write bandwidth to Postgres (batch or debounce to reduce).",
+          "Final submit: 500k/year ≈ 0.016/s average — negligible vs autosave."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Read traffic",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Resume session: ~same rate as autosave on open ≈ 6,700 reads/s peak for draft fetch.",
+          "Step validation: 6,700 × 12 fields checked server-side — CPU bound, not I/O."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Storage",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Draft JSON: 200k active × 50 KB ≈ 10 GB hot; completed 500k × 50 KB ≈ 25 GB/year retained.",
+          "S3 attachments: 500k × 2 MB ≈ 1 TB/year new blobs — pre-signed PUT, not through API.",
+          "Verification vendor refs: 500k × 200 B ≈ 100 MB metadata."
+        ]
+      },
+      {
+        "type": "heading",
+        "text": "Network & caching",
+        "level": 3
+      },
+      {
+        "type": "list",
+        "items": [
+          "Debounce autosave to 60s → halve writes to ~3,350/s — UX trade-off.",
+          "Redis draft lock: 200k × 100 B ≈ 20 MB for optimistic concurrency tokens.",
+          "Webhook inbound: 500k verifications/year ≈ 1/s async — no peak concern."
+        ]
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Mortgage form autosave storm\nconst concurrentDrafts = 200_000;\nconst autosaveIntervalSec = 30;\nconst peakAutosaveQps = concurrentDrafts / autosaveIntervalSec;\nconst writeMbps = (peakAutosaveQps * 50 * 1024 * 8) / 1e6; // 50 KB draft\nconsole.log({ peakAutosaveQps: Math.round(peakAutosaveQps), writeMbps: Math.round(writeMbps) });",
+        "caption": "Form autosave write QPS"
+      },
+      {
+        "type": "callout",
+        "title": "Order-of-magnitude summary",
+        "text": "~6.7k peak autosave writes/s dominates traffic — debounce, S3 for files, Postgres for JSON drafts. Submit is rare; autosave drives sizing.",
+        "variant": "tip"
+      }
+    ],
+    "relatedConcepts": [
+      "autosave QPS",
+      "PostgreSQL",
+      "S3",
+      "bandwidth",
+      "webhook"
     ],
     "media": {}
   },
@@ -4667,78 +5083,6 @@
         "title": "Why Not a workflow engine for simple 3-step forms?",
         "text": "Temporal is overkill for a checkout wizard — Postgres draft + state machine in application code suffices until human review gates appear.",
         "variant": "info"
-      },
-      {
-        "type": "heading",
-        "text": "Back-of-the-envelope estimates",
-        "level": 2
-      },
-      {
-        "type": "paragraph",
-        "text": "Assume mortgage applications: 500k submitted/year, 12 steps, autosave every 30s while active, 200k concurrent draft sessions peak, 2 MB avg attachment, 50 KB draft JSON."
-      },
-      {
-        "type": "heading",
-        "text": "Write traffic (autosave)",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Autosave: 200k sessions / 30s ≈ 6,700 PATCH/s peak to draft API.",
-          "Each upsert: 50 KB JSON → 6,700 × 50 KB ≈ 335 MB/s write bandwidth to Postgres (batch or debounce to reduce).",
-          "Final submit: 500k/year ≈ 0.016/s average — negligible vs autosave."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Read traffic",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Resume session: ~same rate as autosave on open ≈ 6,700 reads/s peak for draft fetch.",
-          "Step validation: 6,700 × 12 fields checked server-side — CPU bound, not I/O."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Storage",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Draft JSON: 200k active × 50 KB ≈ 10 GB hot; completed 500k × 50 KB ≈ 25 GB/year retained.",
-          "S3 attachments: 500k × 2 MB ≈ 1 TB/year new blobs — pre-signed PUT, not through API.",
-          "Verification vendor refs: 500k × 200 B ≈ 100 MB metadata."
-        ]
-      },
-      {
-        "type": "heading",
-        "text": "Network & caching",
-        "level": 3
-      },
-      {
-        "type": "list",
-        "items": [
-          "Debounce autosave to 60s → halve writes to ~3,350/s — UX trade-off.",
-          "Redis draft lock: 200k × 100 B ≈ 20 MB for optimistic concurrency tokens.",
-          "Webhook inbound: 500k verifications/year ≈ 1/s async — no peak concern."
-        ]
-      },
-      {
-        "type": "code",
-        "language": "typescript",
-        "code": "// Mortgage form autosave storm\nconst concurrentDrafts = 200_000;\nconst autosaveIntervalSec = 30;\nconst peakAutosaveQps = concurrentDrafts / autosaveIntervalSec;\nconst writeMbps = (peakAutosaveQps * 50 * 1024 * 8) / 1e6; // 50 KB draft\nconsole.log({ peakAutosaveQps: Math.round(peakAutosaveQps), writeMbps: Math.round(writeMbps) });",
-        "caption": "Form autosave write QPS"
-      },
-      {
-        "type": "callout",
-        "title": "Order-of-magnitude summary",
-        "text": "~6.7k peak autosave writes/s dominates traffic — debounce, S3 for files, Postgres for JSON drafts. Submit is rare; autosave drives sizing.",
-        "variant": "tip"
       }
     ],
     "relatedConcepts": [
