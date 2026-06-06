@@ -3,20 +3,26 @@
 export const MERMAID_ARCH: Record<string, string> = {
   "system-modern-stack": `flowchart TB
     Clients["Clients<br/>web + mobile"]
-    CDN["CDN + Reverse Proxy<br/>Cloudflare / nginx"]
-    API["API Services<br/>Docker / K8s"]
     PG[(PostgreSQL)]
     Redis[(Redis)]
-    Kafka[[Kafka]]
     ES[(Elasticsearch)]
+    Kafka[[Kafka]]
     SF[(Snowflake)]
-    Clients -->|HTTPS| CDN
-    CDN -->|REST/gRPC| API
-    API --> PG
-    API --> Redis
-    API --> Kafka
-    API --> ES
-    Kafka -.->|ETL| SF`,
+
+    subgraph syncPath ["Synchronous request path"]
+      direction LR
+      CDN["CDN + Reverse Proxy<br/>Cloudflare / nginx"]
+      API["API Services<br/>Docker / K8s"]
+      Clients -->|"① HTTPS"| CDN
+      CDN -->|"② REST/gRPC"| API
+      API -->|"③ OLTP read/write"| PG
+      API -->|"④ cache hot keys"| Redis
+      API -->|"⑤ search query"| ES
+    end
+
+    API -->|"⑥ publish events"| Kafka
+    Kafka -.->|"⑦ ETL / CDC"| SF
+    Kafka -.->|"⑧ index sync"| ES`,
 
   "system-youtube": `flowchart TB
     Creator["Creator app"]
@@ -48,110 +54,186 @@ export const MERMAID_ARCH: Record<string, string> = {
       CDN -.->|"cache miss → origin"| S3
     end`,
 
-  "system-whatsapp": `flowchart LR
-    Sender["Sender<br/>mobile"]
-    Server["Chat Server<br/>Erlang/BEAM"]
+  "system-whatsapp": `flowchart TB
+    Sender["Sender app"]
+    Receiver["Receiver app"]
     Store[("Message Store<br/>replicated")]
-    Receiver["Receiver<br/>mobile"]
-    Push["Push Gateway<br/>APNs / FCM"]
-    Sender -->|WebSocket SEND| Server
-    Server -->|append seq| Store
-    Server -->|WebSocket PUSH| Receiver
-    Server -.->|offline| Push
-    Push -.->|notify| Receiver`,
+    Redis[("Redis<br/>presence + typing")]
 
-  "system-reservation": `flowchart LR
-    Guest[Guest]
-    Search["Search<br/>Elasticsearch"]
-    API["Booking API"]
+    subgraph sendPath ["Send path — persist message"]
+      direction LR
+      Server["Chat Server<br/>Erlang/BEAM"]
+      Sender -->|"① WebSocket SEND"| Server
+      Server -->|"② append seq=N"| Store
+      Server -->|"③ update presence"| Redis
+    end
+
+    subgraph deliverPath ["Delivery path — online or offline"]
+      direction LR
+      Push["Push Gateway<br/>APNs / FCM"]
+      Server -->|"④a online: WebSocket PUSH"| Receiver
+      Server -.->|"④b offline: notify"| Push
+      Push -.->|"⑤ push alert"| Receiver
+      Receiver -->|"⑥ ACK seq"| Server
+    end`,
+
+  "system-reservation": `flowchart TB
+    Guest["Guest app"]
     Inv[("Inventory DB<br/>PostgreSQL")]
-    Stripe[Stripe]
-    Kafka[[Kafka]]
-    Guest -->|browse| Search
-    Guest -->|hold / confirm| API
-    API -->|lock slot| Inv
-    API -->|charge| Stripe
-    API -->|booking.confirmed| Kafka
-    Kafka -.->|index update| Search`,
+    ES[("Elasticsearch<br/>listings index")]
+    Redis[("Redis<br/>hot listing cache")]
 
-  "system-voting": `flowchart LR
-    Voter[Voter]
-    API["Ballot API<br/>idempotent"]
+    subgraph readPath ["Read path — search and browse"]
+      direction LR
+      SearchAPI["Search API"]
+      Guest -->|"① browse / filter"| SearchAPI
+      SearchAPI -->|"② query index"| ES
+      SearchAPI -.->|"③ cache hit"| Redis
+      Guest -->|"④ GET listing detail"| SearchAPI
+    end
+
+    subgraph writePath ["Write path — hold, pay, confirm"]
+      direction LR
+      BookAPI["Booking API"]
+      Stripe["Stripe"]
+      Kafka[[Kafka]]
+      Guest -->|"⑤ POST /hold"| BookAPI
+      BookAPI -->|"⑥ lock slot"| Inv
+      Guest -->|"⑦ POST /confirm"| BookAPI
+      BookAPI -->|"⑧ charge card"| Stripe
+      BookAPI -->|"⑨ confirm → COMMIT"| Inv
+      BookAPI -->|"⑩ booking.confirmed"| Kafka
+      Kafka -.->|"⑪ async index update"| ES
+    end`,
+
+  "system-voting": `flowchart TB
+    Voter["Voter app"]
     Log[("Ballot Log<br/>append-only")]
-    Agg["Aggregator<br/>stream"]
-    Results[("Results<br/>cached")]
-    Voter -->|POST ballot| API
-    API -->|INSERT| Log
-    API -->|ballot.cast| Agg
-    Agg -->|INCR| Results
-    Voter -.->|GET /results| Results`,
+    Results[("Results Cache<br/>Redis")]
+    Agg["Stream Aggregator"]
+
+    subgraph writePath ["Write path — cast ballot (append-only)"]
+      direction LR
+      API["Ballot API<br/>idempotent"]
+      Voter -->|"① POST + Idempotency-Key"| API
+      API -->|"② INSERT ballot"| Log
+      API -->|"③ ballot.cast event"| Agg
+    end
+
+    subgraph readPath ["Read path — live totals (never COUNT on log)"]
+      direction LR
+      Agg -->|"④ INCR choice_count"| Results
+      Voter -->|"⑤ GET /results"| Results
+    end`,
 
   "system-multiplayer": `flowchart TB
-    PA["Player A<br/>UDP"]
-    PB["Player B<br/>UDP"]
-    MM[Matchmaker]
-    GS["Game Server<br/>60 Hz tick"]
-    K8s["Agones / K8s"]
-    Tel[[Kafka telemetry]]
-    PA -->|enqueue| MM
-    PB -->|enqueue| MM
-    MM -->|allocate pod| K8s
-    K8s --> GS
-    PA <-->|UDP input/state| GS
-    PB <-->|UDP input/state| GS
-    GS -.-> Tel`,
+    PA["Player A"]
+    PB["Player B"]
+    Redis[("Redis<br/>match queue")]
+    Kafka[[Kafka<br/>telemetry]]
 
-  "system-puzzle": `flowchart LR
-    Player[Player]
-    API["Game API<br/>validate"]
-    Log[("Move Log")]
+    subgraph controlPlane ["Control plane — matchmaking"]
+      direction LR
+      MM["Matchmaker"]
+      K8s["Agones / K8s"]
+      PA -->|"① enqueue ticket"| MM
+      PB -->|"① enqueue ticket"| MM
+      MM -->|"② skill + region bucket"| Redis
+      MM -->|"③ allocate pod"| K8s
+      MM -->|"④ return host:port"| PA
+      MM -->|"④ return host:port"| PB
+    end
+
+    subgraph dataPlane ["Data plane — live match (UDP, in-memory)"]
+      direction LR
+      GS["Game Server<br/>60 Hz tick"]
+      K8s --> GS
+      PA <-->|"⑤ input / state delta"| GS
+      PB <-->|"⑤ input / state delta"| GS
+      GS -.->|"⑥ fire-and-forget events"| Kafka
+    end`,
+
+  "system-puzzle": `flowchart TB
+    Player["Player app"]
+    API["Game API<br/>validate rules"]
     Board[("Board DB<br/>versioned")]
+    Log[("Move Log<br/>event sourced")]
     Redis[("Redis ZSET<br/>leaderboard")]
-    Timer[Scheduler]
-    Player -->|POST /move| API
-    API -->|append| Log
-    API -->|UPDATE version| Board
-    API -.->|ZADD| Redis
-    Timer -.->|forfeit| API`,
 
-  "system-multistep-workflow": `flowchart LR
-    Client[Client]
-    Orch["Orchestrator<br/>Temporal"]
-    Inv[Inventory]
-    Pay[Payments]
-    Ship[Shipping]
-    Client --> Orch
-    Orch -->|reserve| Inv
-    Orch -->|capture| Pay
-    Orch -->|create| Ship
-    Pay -.->|FAILED| Orch
-    Orch -.->|compensate release| Inv`,
+    subgraph playPath ["Play path — validate and persist move"]
+      direction LR
+      Player -->|"① POST /move"| API
+      API -->|"② UPDATE WHERE version=N"| Board
+      API -->|"③ append move event"| Log
+    end
+
+    subgraph scorePath ["Score path — leaderboard and timers"]
+      direction LR
+      Timer["Scheduler<br/>forfeit on timeout"]
+      API -->|"④ ZADD score"| Redis
+      Timer -.->|"⑤ trigger forfeit"| API
+      Player -.->|"⑥ GET top-100"| Redis
+    end`,
+
+  "system-multistep-workflow": `flowchart TB
+    Client["Client"]
+    Inv["Inventory svc"]
+    Pay["Payments<br/>Stripe"]
+    Ship["Shipping svc"]
+
+    subgraph forwardPath ["Forward saga — happy path"]
+      direction LR
+      Orch["Orchestrator<br/>Temporal"]
+      Client -->|"① start checkout"| Orch
+      Orch -->|"② reserve stock"| Inv
+      Orch -->|"③ capture payment"| Pay
+      Orch -->|"④ create shipment"| Ship
+      Orch -->|"⑤ order complete"| Client
+    end
+
+    Pay -.->|"FAILED"| Orch
+    Orch -.->|"⑥ compensate: release hold"| Inv`,
 
   "system-canva": `flowchart TB
     UA["User A<br/>browser"]
     UB["User B<br/>browser"]
-    WS["Collab Server<br/>WebSocket + OT/CRDT"]
-    PG[("PostgreSQL<br/>metadata")]
+    PG[("PostgreSQL<br/>metadata + ACL")]
     S3[("S3 / GCS<br/>assets")]
     Redis[("Redis<br/>presence")]
-    UA <-->|WS ops| WS
-    UB <-->|WS ops| WS
-    WS --> PG
-    WS --> S3
-    WS --> Redis`,
+    WS["Collab Server<br/>WebSocket + OT/CRDT"]
 
-  "system-multistep-form": `flowchart LR
-    User[Applicant]
-    API["Draft API<br/>autosave"]
+    subgraph realtimePath ["Real-time path — live editing"]
+      direction LR
+      UA <-->|"① send/receive ops"| WS
+      UB <-->|"② send/receive ops"| WS
+      WS -->|"③ heartbeat + cursors"| Redis
+    end
+
+    WS -->|"④ persist ops + snapshots"| PG
+    WS -->|"⑤ asset metadata"| S3
+    UA -.->|"⑥ signed URL upload"| S3`,
+
+  "system-multistep-form": `flowchart TB
+    User["Applicant"]
+    API["Draft API"]
     PG[("Postgres<br/>draft JSON")]
     S3[("S3<br/>documents")]
-    Vendor["Verify API<br/>async"]
-    User -->|PATCH /draft| API
-    API --> PG
-    User -->|signed URL PUT| S3
-    User -->|POST /submit| API
-    API --> Vendor
-    Vendor -.->|webhook| API`,
+
+    subgraph syncPath ["Synchronous path — autosave while editing"]
+      direction LR
+      User -->|"① PATCH /draft every 30s"| API
+      API -->|"② UPSERT JSON"| PG
+      User -->|"③ PUT via signed URL"| S3
+    end
+
+    subgraph asyncPath ["Async path — submit and verify"]
+      direction LR
+      Vendor["Verify API<br/>KYC / credit"]
+      User -->|"④ POST /submit"| API
+      API -->|"⑤ start verification"| Vendor
+      Vendor -.->|"⑥ webhook result"| API
+      API -->|"⑦ status = APPROVED"| PG
+    end`,
 
   "system-airbnb": `flowchart TB
     Client["Mobile / Web"]
