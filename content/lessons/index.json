@@ -2429,6 +2429,65 @@
         "source": "sequenceDiagram\n    participant C as Client\n    participant CDN as CDN\n    participant API as API\n    participant R as Redis\n    participant DB as Postgres\n    C->>CDN: GET /static\n    CDN-->>C: cached assets\n    C->>API: GET /api/resource\n    API->>R: GET cache key\n    R-->>API: miss\n    API->>DB: SELECT …\n    DB-->>API: rows\n    API->>R: SETEX result\n    API-->>C: 200 JSON",
         "kind": "sequence",
         "caption": "End-to-end request path: CDN for static assets, API through cache to database."
+      },
+      {
+        "type": "heading",
+        "text": "Why common infrastructure building blocks?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why CDN (Cloudflare / CloudFront)?",
+        "text": "Static assets (JS, CSS, images) are identical for every user — perfect for edge caching. A CDN also absorbs DDoS and terminates TLS close to users, shrinking latency and origin load. You would skip it only for a purely internal API with no browser clients.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Load balancer / reverse proxy (nginx, Envoy, ALB)?",
+        "text": "Distributes traffic across many stateless API pods, performs health checks, and can enforce rate limits and auth before requests hit application code. Required once you run more than one API instance — which is effectively always in production.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why API gateway?",
+        "text": "Single front door for clients: routing to microservices, JWT validation, request shaping, and API versioning. Alternatives: embed routing in the load balancer (simpler monolith) or use a service mesh (Istio) for east-west traffic between services.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why PostgreSQL?",
+        "text": "Default choice when you need ACID transactions, joins, foreign keys, and ad-hoc queries — bookings, accounts, permissions. Poor fit for billion-row append-only logs, video blobs, or sub-millisecond leaderboard hot paths.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Redis?",
+        "text": "In-memory speed for hot keys: sessions, rate counters, presence, leaderboards (sorted sets), and short-lived holds. Data is ephemeral or cache-aside — never the sole source of truth for money or inventory unless you accept loss on restart.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Kafka (or SQS / Pub/Sub)?",
+        "text": "Buffers spikes, decouples producers from consumers, and lets you add subscribers (search index, email, analytics) without changing the write API. Use when work can be asynchronous; skip when the user waits for the result in the same HTTP request.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Elasticsearch (or OpenSearch)?",
+        "text": "Full-text search, fuzzy matching, facets, and geo filters at scale. Indexes are derived from an OLTP source of truth via CDC — never the system of record for payments or inventory.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Object storage (S3 / GCS)?",
+        "text": "Cheap, durable storage for large immutable blobs: video, images, PDFs, backups. Not for low-latency row lookups — pair with a database for metadata pointers.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Kubernetes (Docker)?",
+        "text": "Packages services consistently and scales stateless pods horizontally. Agones extends K8s for game servers; batch workers and functions (Lambda) replace K8s when you want zero cluster management.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -2436,7 +2495,11 @@
       "non-functional",
       "trade-offs",
       "scope",
-      "failure modes"
+      "failure modes",
+      "CDN",
+      "PostgreSQL",
+      "Redis",
+      "Kafka"
     ],
     "media": {}
   },
@@ -2593,6 +2656,53 @@
         "source": "sequenceDiagram\n    participant Cr as Creator\n    participant Up as Upload API\n    participant S3 as Object Store\n    participant K as Kafka\n    participant W as Transcoder\n    Cr->>Up: POST /uploads (multipart)\n    Up->>S3: PUT raw chunks\n    S3-->>Up: ETag\n    Up->>K: video.uploaded event\n    Up-->>Cr: 201 videoId\n    Note over K,W: async workers\n    K->>W: consume job\n    W->>S3: read raw / write HLS\n    W->>K: video.ready event",
         "kind": "sequence",
         "caption": "Time-ordered upload flow from creator through object storage to async transcoding."
+      },
+      {
+        "type": "heading",
+        "text": "Why these technologies?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why Object storage (S3 / GCS)?",
+        "text": "Video files are gigabytes — storing them in Postgres or on API servers is impossible at scale. Object storage offers pennies-per-GB durability with multipart/resumable upload APIs. Metadata (title, status) lives elsewhere.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Upload API (stateless service)?",
+        "text": "Accepts chunked uploads, validates auth, and issues pre-signed URLs so bytes stream directly to object storage without proxying through app servers. Keeps API pods memory-light.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Kafka / Pub/Sub?",
+        "text": "Transcoding takes minutes and must not block the upload response. An event ('video.uploaded') fans out to worker pools that scale independently. Also feeds moderation, thumbnails, and search indexing.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Transcoder workers (FFmpeg fleet)?",
+        "text": "CPU-heavy, embarrassingly parallel — one job per resolution. Run on spot instances or batch queues, not on request-serving API pods. Output is immutable HLS/DASH segments back to object storage.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why CDN?",
+        "text": "99% of bytes are video segments served repeatedly — edge caching cuts origin egress cost and startup latency. Adaptive bitrate manifests let players switch quality without new API calls.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Metadata database (PostgreSQL / sharded SQL)?",
+        "text": "Titles, channels, comments, and processing state need joins, indexes, and transactions. Sharded or regional when single-node Postgres saturates — not replaced by object storage.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Stream processor (Flink / Dataflow) for view counts?",
+        "text": "Exact per-view counts are unnecessary; approximate aggregation at millions of events/sec is cheaper than row-level UPDATE on a video table.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -2600,7 +2710,9 @@
       "upload",
       "CDN",
       "transcoding",
-      "metadata"
+      "metadata",
+      "S3",
+      "Kafka"
     ],
     "media": {}
   },
@@ -2668,7 +2780,8 @@
       "transcoding",
       "object storage",
       "Kafka",
-      "manifest"
+      "manifest",
+      "CDN"
     ],
     "media": {}
   },
@@ -2759,6 +2872,53 @@
         "title": "WhatsApp at scale",
         "text": "When the receiver is offline, the server persists ciphertext and triggers APNs/FCM. On reconnect, the client syncs from its last acked sequence — no message loss without unbounded server memory.",
         "variant": "tip"
+      },
+      {
+        "type": "heading",
+        "text": "Why these technologies?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why Erlang/BEAM or similar (chat server)?",
+        "text": "Millions of concurrent WebSocket connections per machine with preemptive scheduling and hot code reload. Node.js or Go work at smaller scale; BEAM is proven for telco-grade connection fan-in.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why WebSocket (not HTTP polling)?",
+        "text": "Bi-directional, low-overhead channel for instant delivery and typing indicators. Long polling wastes bandwidth; SSE is server→client only.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Durable message store (Cassandra / HBase / custom)?",
+        "text": "Append-heavy writes at massive QPS with partition by chat_id. PostgreSQL struggles with write fan-out to billions of messages; the store optimizes for log-like access, not complex joins.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why APNs / FCM (push gateway)?",
+        "text": "Mobile OSes kill background apps — you cannot hold a WebSocket forever on a phone. Push wakes the app to pull pending messages when offline.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Redis (presence & typing)?",
+        "text": "Ephemeral state with TTL: online status, typing indicators, connection routing hints. Loss on restart is acceptable — users reconnect. Wrong tool for durable message history.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Client-side E2E encryption (Signal protocol)?",
+        "text": "Servers route ciphertext they cannot read — privacy promise. Trade-off: server-side search and moderation become harder.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Not Elasticsearch for every message?",
+        "text": "Full-text search across all chats is expensive and often not a product requirement. WhatsApp optimizes delivery, not global search.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -2766,7 +2926,9 @@
       "WebSocket",
       "push",
       "E2E encryption",
-      "ordering"
+      "ordering",
+      "Redis",
+      "Cassandra"
     ],
     "media": {}
   },
@@ -2848,6 +3010,53 @@
         "source": "flowchart LR\n    Guest[Guest]\n    Search[\"Search<br/>Elasticsearch\"]\n    API[\"Booking API\"]\n    Inv[(\"Inventory DB<br/>PostgreSQL\")]\n    Stripe[Stripe]\n    Kafka[[Kafka]]\n    Guest -->|browse| Search\n    Guest -->|hold / confirm| API\n    API -->|lock slot| Inv\n    API -->|charge| Stripe\n    API -->|booking.confirmed| Kafka\n    Kafka -.->|index update| Search",
         "kind": "architecture",
         "caption": "Elasticsearch for search; PostgreSQL inventory as source of truth."
+      },
+      {
+        "type": "heading",
+        "text": "Why these technologies?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why Elasticsearch / OpenSearch?",
+        "text": "Guests search by date range, location, price, amenities — fuzzy, faceted queries that SQL can do but not at Airbnb-scale relevance ranking. Index is rebuilt from listing events; stale by seconds is OK.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why PostgreSQL (inventory OLTP)?",
+        "text": "A night sold twice destroys trust — needs ACID, row locks, unique constraints, and serializable transactions on inventory rows. DynamoDB can work with careful conditional writes but SQL is the default for booking invariants.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why API gateway?",
+        "text": "Routes read-heavy search traffic separately from write-heavy booking commits. Can throttle abusive search without starving checkout.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Stripe / Adyen (payments)?",
+        "text": "PCI-DSS compliance, card vaulting, and dispute handling outsourced — building this in-house is a non-starter for most products.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Kafka?",
+        "text": "After booking commits, emails, search index updates, analytics, and host notifications run async. Outbox pattern ensures events publish only after DB commit.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Redis (optional hold TTL)?",
+        "text": "Fast expiry of abandoned cart holds with key TTL + background sweeper. Source of truth remains Postgres; Redis accelerates 'is this hold still valid?' checks.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Saga / workflow orchestrator?",
+        "text": "Hold → pay → confirm spans services — no single XA transaction across Stripe and your DB. Compensating release on payment failure is mandatory.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -2855,7 +3064,9 @@
       "inventory",
       "OLTP",
       "search",
-      "holds"
+      "holds",
+      "Elasticsearch",
+      "Stripe"
     ],
     "media": {}
   },
@@ -2955,7 +3166,9 @@
       "Stripe",
       "Elasticsearch",
       "PostgreSQL",
-      "compensation"
+      "compensation",
+      "Kafka",
+      "API gateway"
     ],
     "media": {}
   },
@@ -3036,6 +3249,47 @@
         "title": "Slack at scale",
         "text": "Workspace polls are low-stakes but still use one-vote-per-user keys stored in OLTP with unique indexes — the same pattern at national scale with harder identity proofing.",
         "variant": "tip"
+      },
+      {
+        "type": "heading",
+        "text": "Why these technologies?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why PostgreSQL (append-only ballot log)?",
+        "text": "UNIQUE (election_id, voter_id) enforces one vote per person at the database layer. Append-only inserts preserve audit trail; tallies are derived, never UPDATE-in-place on ballot rows.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Idempotency-Key header?",
+        "text": "Network retries must not create duplicate ballots — same key returns the same result. Simpler than distributed locks for voter sessions.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Kafka / stream processor?",
+        "text": "Aggregates millions of ballots into live totals without scanning the full table on every results page refresh. Handles write spikes when polls close.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Redis / materialized results cache?",
+        "text": "Results pages are read-heavy during election night — precomputed counts serve sub-ms reads. Eventual consistency of +1–2 seconds is usually acceptable for display.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why API gateway + rate limiting (Cloudflare / WAF)?",
+        "text": "Bot protection and per-IP throttling at the edge before ballots hit your origin. Critical when viral links drive traffic spikes.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Not updating vote counts in the ballot row?",
+        "text": "In-place UPDATE loses auditability and races under concurrency. Event sourcing pattern: insert ballot, derive count.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -3043,7 +3297,8 @@
       "tally",
       "Kafka",
       "idempotency",
-      "materialized view"
+      "materialized view",
+      "Redis"
     ],
     "media": {}
   },
@@ -3124,6 +3379,53 @@
         "title": "Fortnite at scale",
         "text": "Epic runs regional game server fleets; matchmaking minimizes RTT. Client sends inputs; server corrects position if client prediction diverges.",
         "variant": "tip"
+      },
+      {
+        "type": "heading",
+        "text": "Why these technologies?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why UDP (game traffic)?",
+        "text": "TCP head-of-line blocking adds latency unsuitable for 60 Hz shooters. UDP drops packets — game state corrects on next tick. TCP/HTTP fine for lobby and matchmaking.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Authoritative game server?",
+        "text": "Server simulates truth; clients predict locally then reconcile. Prevents speed hacks and wall hacks — P2P cannot enforce fairness in competitive games.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Matchmaker service?",
+        "text": "Groups players by skill (MMR) and region (ping). Separate from game simulation — queue logic changes without redeploying game binaries.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Agones / Kubernetes game pods?",
+        "text": "Each match is an isolated process with dedicated CPU — natural scale unit. Spin up pod per match, tear down after. StatefulSet assigns stable UDP ports.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why In-memory state (not Postgres during match)?",
+        "text": "Sub-16 ms tick loops cannot round-trip to disk. Checkpoint stats to DB only after match ends. Redis optional for cross-service lobby state.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Kafka (telemetry)?",
+        "text": "Fire-and-forget analytics: kills, crashes, latency histograms. Never blocks the game tick loop.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Not a single global game database?",
+        "text": "Game state is ephemeral and regional — sharding by match ID, not user ID.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -3131,7 +3433,9 @@
       "delta compression",
       "Agones",
       "Kubernetes",
-      "prediction"
+      "prediction",
+      "UDP",
+      "Kafka"
     ],
     "media": {}
   },
@@ -3248,6 +3552,47 @@
         "title": "In practice",
         "text": "Chess.com stores PGN move logs; lichess uses similar event-sourced game records. NYT Games leaderboard uses precomputed daily ranks to avoid scanning all players at read time.",
         "variant": "info"
+      },
+      {
+        "type": "heading",
+        "text": "Why these technologies?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why PostgreSQL (board state)?",
+        "text": "Turn-based games tolerate 50–200 ms latency — ACID updates with version column prevent stale moves. Simpler than CRDTs for single-writer-per-turn chess.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Append-only move log?",
+        "text": "Replay games, spectator mode, and dispute resolution. Event sourcing lite — board is a projection of moves.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Redis sorted sets (leaderboard)?",
+        "text": "O(log N) rank updates and top-K queries at millions of players. Recomputing ranks in SQL nightly is too slow for live daily puzzles.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Scheduler (SQS delay / Redis TTL / cron)?",
+        "text": "Forfeit players who exceed turn timeout without polling every second in application code.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why HTTPS / WebSocket (not UDP)?",
+        "text": "Puzzle games are not latency-competitive — reliable delivery matters more. JSON payloads are tiny.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Push notifications (APNs/FCM)?",
+        "text": "Async turn games notify opponent it's their move — optional but standard for retention.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -3255,7 +3600,8 @@
       "versioning",
       "Redis",
       "event sourcing",
-      "CRDT"
+      "CRDT",
+      "PostgreSQL"
     ],
     "media": {}
   },
@@ -3306,6 +3652,47 @@
         "title": "In practice",
         "text": "Temporal, AWS Step Functions, and Cadence power durable workflows at Uber, Netflix, and Stripe. Kafka-only choreography works until you need a human-readable workflow graph.",
         "variant": "info"
+      },
+      {
+        "type": "heading",
+        "text": "Why these technologies?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why Temporal / Step Functions / Cadence?",
+        "text": "Durable workflow state survives worker crashes. Timers (wait 7 days for KYC) without holding threads. Replay history for debugging failed checkouts.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Saga pattern (not 2PC)?",
+        "text": "Payment, inventory, and shipping are separate services — XA transactions across Stripe and your DB don't exist. Compensating actions (release hold) are explicit.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Kafka (choreography option)?",
+        "text": "Services react to events without a central orchestrator — looser coupling, harder to visualize. Many teams start with orchestration, add events for notifications.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Per-service PostgreSQL?",
+        "text": "Each bounded context owns its data — inventory service DB, payment service ledger. Shared monolith DB creates deployment coupling.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Idempotent activity implementations?",
+        "text": "Retries are guaranteed — charge API must accept same idempotency key, ship API must tolerate duplicate create with same correlation ID.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Dead-letter queue?",
+        "text": "Poison messages (bad payload) isolate without blocking the whole saga — ops can inspect and replay.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -3313,7 +3700,8 @@
       "orchestration",
       "choreography",
       "Temporal",
-      "compensation"
+      "compensation",
+      "Kafka"
     ],
     "media": {}
   },
@@ -3508,6 +3896,53 @@
         "title": "In practice",
         "text": "Google Docs historically used centralized OT servers at scale. Notion shards documents across cells; Miro uses regional collab routers for EU data residency.",
         "variant": "info"
+      },
+      {
+        "type": "heading",
+        "text": "Why these technologies?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why WebSocket collab server?",
+        "text": "Sub-100 ms operation broadcast for cursors and edits. HTTP polling would feel laggy and waste bandwidth.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why OT or CRDT library (Yjs, Automerge)?",
+        "text": "Merge concurrent edits without locking the whole document. OT needs server ordering; CRDTs can peer-sync offline then merge.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why PostgreSQL (metadata & ACL)?",
+        "text": "Document titles, share permissions, folder hierarchy — relational model fits. Not for multi-MB canvas blobs.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why S3 / GCS (assets)?",
+        "text": "Images, fonts, video layers are large immutable files — cheap object storage with CDN in front for export/download.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Redis (presence & pub/sub)?",
+        "text": "Who is online, cursor color, typing — ephemeral with TTL. Pub/sub bridges collab server instances in multi-region deploys.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Sticky routing by document ID?",
+        "text": "OT requires consistent operation ordering per document — route all ops for doc X to the same server or use CRDT to avoid stickiness.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Not storing every keystroke in Postgres forever?",
+        "text": "Op log compacted to periodic snapshots — unbounded insert rate would saturate OLTP.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -3515,7 +3950,9 @@
       "S3",
       "PostgreSQL",
       "snapshot",
-      "compaction"
+      "compaction",
+      "Redis",
+      "CRDT"
     ],
     "media": {}
   },
@@ -3596,6 +4033,53 @@
         "language": "typescript",
         "code": "// Validate only fields for current step\nconst stepSchemas = {\n  1: z.object({ legalName: z.string().min(2), dob: z.string().date() }),\n  2: z.object({ ssn: z.string().regex(/^\\d{9}$/) }),\n  3: z.object({ income: z.number().positive() }),\n};\n\nfunction validateStep(step: number, payload: unknown) {\n  return stepSchemas[step as keyof typeof stepSchemas].parse(payload);\n}",
         "caption": "Step validation handler"
+      },
+      {
+        "type": "heading",
+        "text": "Why these technologies?",
+        "level": 2
+      },
+      {
+        "type": "callout",
+        "title": "Why PostgreSQL (draft storage)?",
+        "text": "Multi-day forms need durable JSON blobs keyed by user + form version — survives browser close and device switch. Session cookies expire; DB drafts don't.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why S3 pre-signed URLs?",
+        "text": "Large documents (PDFs, scans) upload directly to object storage — API servers don't proxy gigabyte files. Draft row stores S3 key pointer only.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Step-scoped validation API?",
+        "text": "Validate only fields for current step — faster UX and clearer errors than validating entire 50-field form on every keystroke.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Async verification vendor + webhook?",
+        "text": "Credit checks and identity verification take seconds to days — cannot block HTTP request. Webhook transitions draft from PENDING to APPROVED.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Idempotent final submit?",
+        "text": "Double-click submit must not create two loan applications — same pattern as Stripe idempotency keys.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Field-level encryption?",
+        "text": "SSN and tax IDs encrypted at rest in Postgres — defense in depth beyond disk encryption.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Why Not a workflow engine for simple 3-step forms?",
+        "text": "Temporal is overkill for a checkout wizard — Postgres draft + state machine in application code suffices until human review gates appear.",
+        "variant": "info"
       }
     ],
     "relatedConcepts": [
@@ -3603,7 +4087,8 @@
       "S3",
       "webhook",
       "PII",
-      "funnel analytics"
+      "funnel analytics",
+      "PostgreSQL"
     ],
     "media": {}
   }

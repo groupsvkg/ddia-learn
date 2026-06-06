@@ -9,6 +9,10 @@ export function app(name: string, text: string): ContentBlock {
   return { type: "callout", title: `${name} at scale`, text, variant: "tip" };
 }
 
+export function why(technology: string, text: string): ContentBlock {
+  return { type: "callout", title: `Why ${technology}?`, text, variant: "info" };
+}
+
 export function code(caption: string, snippet: string): ContentBlock {
   return { type: "code", language: "typescript", code: snippet, caption };
 }
