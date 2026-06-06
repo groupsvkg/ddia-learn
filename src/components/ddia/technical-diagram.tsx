@@ -5,9 +5,22 @@ type TechnicalDiagramProps = {
   caption?: string;
 };
 
+function ArrowDefs() {
+  return (
+    <defs>
+      <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 Z" fill="var(--primary)" />
+      </marker>
+      <marker id="arrow-muted" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 Z" fill="var(--muted-foreground)" />
+      </marker>
+    </defs>
+  );
+}
+
 function FaultTreeDiagram() {
   return (
-    <svg viewBox="0 0 720 360" className="h-auto w-full" role="img" aria-label="Fault tree diagram">
+    <svg viewBox="0 0 720 360" className="h-auto w-full" role="img" aria-label="Fault categories diagram">
       <rect width="720" height="360" fill="transparent" />
       <rect x="260" y="20" width="200" height="44" rx="8" fill="var(--primary)" opacity="0.15" stroke="var(--primary)" />
       <text x="360" y="48" textAnchor="middle" className="fill-foreground text-sm font-semibold">System Failure</text>
@@ -43,6 +56,8 @@ function LatencyPercentilesDiagram() {
     { label: "max", value: 2100, color: "hsl(0 72% 40%)" },
   ];
   const max = 2100;
+  const avg = 80;
+  const avgWidth = (avg / max) * 520;
 
   return (
     <svg viewBox="0 0 720 300" className="h-auto w-full" role="img" aria-label="Latency percentiles chart">
@@ -59,65 +74,150 @@ function LatencyPercentilesDiagram() {
         );
       })}
       <line x1="80" y1="250" x2="600" y2="250" stroke="var(--border)" />
-      <text x="360" y="280" textAnchor="middle" className="fill-muted-foreground text-xs">Average (80 ms) looks fine — but p99 users wait 6x longer</text>
+      <line x1={80 + avgWidth} y1="52" x2={80 + avgWidth} y2="250" stroke="var(--muted-foreground)" strokeWidth="1.5" strokeDasharray="5 4" />
+      <text x={86 + avgWidth} y="48" className="fill-muted-foreground text-xs">avg {avg} ms</text>
+      <text x="360" y="280" textAnchor="middle" className="fill-muted-foreground text-xs">Average looks fine — but p99 (480 ms) is 6× the average</text>
     </svg>
   );
 }
 
 function LeaderFollowerDiagram() {
+  const leader = { x: 300, label: "Leader", role: "write" };
+  const followers = [
+    { x: 80, label: "Follower", role: "read" },
+    { x: 520, label: "Follower", role: "read" },
+  ];
+
   return (
-    <svg viewBox="0 0 720 200" className="h-auto w-full" role="img" aria-label="Leader-follower replication">
-      {[
-        { x: 80, label: "Follower", role: "read" },
-        { x: 300, label: "Leader", role: "write" },
-        { x: 520, label: "Follower", role: "read" },
-      ].map((node) => (
-        <g key={node.label + node.x}>
+    <svg viewBox="0 0 720 220" className="h-auto w-full" role="img" aria-label="Leader-follower replication">
+      <ArrowDefs />
+      <rect x="310" y="8" width="80" height="28" rx="6" fill="var(--card)" stroke="var(--border)" />
+      <text x="350" y="27" textAnchor="middle" className="fill-foreground text-xs">Client</text>
+      <line x1="350" y1="36" x2="360" y2="58" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <text x="382" y="48" className="fill-muted-foreground text-xs">write</text>
+
+      <g>
+        <rect x={leader.x} y="60" width="120" height="60" rx="8" fill="var(--primary)" fillOpacity="0.12" stroke="var(--primary)" strokeWidth="2" />
+        <text x={leader.x + 60} y="88" textAnchor="middle" className="fill-foreground text-sm font-medium">{leader.label}</text>
+        <text x={leader.x + 60} y="108" textAnchor="middle" className="fill-muted-foreground text-xs">{leader.role}</text>
+      </g>
+
+      {followers.map((node) => (
+        <g key={node.x}>
           <rect x={node.x} y="60" width="120" height="60" rx="8" fill="var(--muted)" stroke="var(--border)" />
           <text x={node.x + 60} y="88" textAnchor="middle" className="fill-foreground text-sm font-medium">{node.label}</text>
           <text x={node.x + 60} y="108" textAnchor="middle" className="fill-muted-foreground text-xs">{node.role}</text>
+          <line
+            x1="360"
+            y1="90"
+            x2={node.x + (node.x < leader.x ? 120 : 0)}
+            y2="90"
+            stroke="var(--primary)"
+            strokeWidth="2"
+            markerEnd="url(#arrow)"
+          />
+          <line
+            x1={node.x + 60}
+            y1="60"
+            x2={node.x + 60}
+            y2="36"
+            stroke="var(--muted-foreground)"
+            strokeWidth="1.5"
+            strokeDasharray="4"
+            markerEnd="url(#arrow-muted)"
+          />
+          <text x={node.x + 72} y="44" className="fill-muted-foreground text-xs">read</text>
         </g>
       ))}
-      <line x1="200" y1="90" x2="300" y2="90" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
-      <line x1="420" y1="90" x2="520" y2="90" stroke="var(--primary)" strokeWidth="2" />
-      <line x1="360" y1="120" x2="140" y2="150" stroke="var(--muted-foreground)" strokeWidth="1.5" strokeDasharray="4" />
-      <line x1="360" y1="120" x2="580" y2="150" stroke="var(--muted-foreground)" strokeWidth="1.5" strokeDasharray="4" />
-      <text x="360" y="175" textAnchor="middle" className="fill-muted-foreground text-xs">replication log</text>
+
+      <text x="360" y="175" textAnchor="middle" className="fill-muted-foreground text-xs">Leader appends to replication log; followers tail the log</text>
     </svg>
   );
 }
 
 function ReplicationLagDiagram() {
+  const events = [
+    { x: 100, label: "Write", sub: "t₀", color: "hsl(142 76% 36%)" },
+    { x: 240, label: "Leader ack", sub: "t₁", color: "hsl(38 92% 50%)" },
+    { x: 420, label: "Follower 1", sub: "t₂", color: "hsl(0 84% 60%)" },
+    { x: 580, label: "Follower 2", sub: "t₃", color: "hsl(0 72% 40%)" },
+  ];
+
   return (
-    <svg viewBox="0 0 720 160" className="h-auto w-full" role="img" aria-label="Replication lag timeline">
-      <line x1="40" y1="80" x2="680" y2="80" stroke="var(--border)" strokeWidth="2" />
-      <circle cx="120" cy="80" r="8" fill="hsl(142 76% 36%)" />
-      <text x="120" y="60" textAnchor="middle" className="fill-foreground text-xs">Write</text>
-      <circle cx="280" cy="80" r="8" fill="hsl(38 92% 50%)" />
-      <text x="280" y="110" textAnchor="middle" className="fill-foreground text-xs">Leader ack</text>
-      <circle cx="480" cy="80" r="8" fill="hsl(0 84% 60%)" />
-      <text x="480" y="60" textAnchor="middle" className="fill-foreground text-xs">Follower 1</text>
-      <circle cx="600" cy="80" r="8" fill="hsl(0 72% 40%)" />
-      <text x="600" y="110" textAnchor="middle" className="fill-foreground text-xs">Follower 2</text>
-      <text x="360" y="140" textAnchor="middle" className="fill-muted-foreground text-xs">Stale reads possible between leader ack and follower catch-up</text>
+    <svg viewBox="0 0 720 180" className="h-auto w-full" role="img" aria-label="Replication lag timeline">
+      <ArrowDefs />
+      <line x1="40" y1="90" x2="680" y2="90" stroke="var(--border)" strokeWidth="2" markerEnd="url(#arrow-muted)" />
+      <text x="690" y="94" className="fill-muted-foreground text-xs">time</text>
+      <rect x="250" y="68" width="190" height="44" rx="6" fill="hsl(38 92% 50%)" opacity="0.12" stroke="hsl(38 92% 50%)" strokeDasharray="4" />
+      <text x="345" y="64" textAnchor="middle" className="fill-muted-foreground text-xs">stale-read window</text>
+      {events.map((ev) => (
+        <g key={ev.label}>
+          <circle cx={ev.x} cy="90" r="8" fill={ev.color} />
+          <text x={ev.x} y="68" textAnchor="middle" className="fill-foreground text-xs">{ev.label}</text>
+          <text x={ev.x} y="120" textAnchor="middle" className="fill-muted-foreground text-xs">{ev.sub}</text>
+        </g>
+      ))}
+      <text x="360" y="155" textAnchor="middle" className="fill-muted-foreground text-xs">Reads from followers between t₁ and t₂ may return stale data</text>
     </svg>
   );
 }
 
 function HashPartitioningDiagram() {
   const parts = ["P0", "P1", "P2", "P3"];
+  const routes = [
+    { key: "user:42", partition: 0 },
+    { key: "user:17", partition: 1 },
+    { key: "user:99", partition: 2, highlight: true },
+    { key: "user:8", partition: 3 },
+  ];
+
   return (
-    <svg viewBox="0 0 720 200" className="h-auto w-full" role="img" aria-label="Hash partitioning">
-      <rect x="40" y="30" width="100" height="40" rx="6" fill="var(--card)" stroke="var(--border)" />
-      <text x="90" y="55" textAnchor="middle" className="fill-foreground text-sm">hash(key)</text>
-      {parts.map((p, i) => (
-        <g key={p}>
-          <rect x={180 + i * 130} y="100" width="100" height="60" rx="8" fill="var(--muted)" stroke="var(--border)" />
-          <text x={230 + i * 130} y="135" textAnchor="middle" className="fill-foreground text-sm font-medium">{p}</text>
-          <line x1="90" y1="70" x2={230 + i * 130} y2="100" stroke="var(--muted-foreground)" strokeWidth="1.5" />
-        </g>
-      ))}
-      <text x="360" y="185" textAnchor="middle" className="fill-muted-foreground text-xs">hash(key) mod 4 → partition</text>
+    <svg viewBox="0 0 720 240" className="h-auto w-full" role="img" aria-label="Hash partitioning">
+      <text x="24" y="24" className="fill-muted-foreground text-xs">Example keys</text>
+      {routes.map((route, i) => {
+        const y = 44 + i * 34;
+        const partX = 500 + route.partition * 52;
+        const isHighlight = route.highlight;
+        return (
+          <g key={route.key}>
+            <text x="24" y={y + 4} className="fill-foreground text-xs font-mono">{route.key}</text>
+            <line x1="110" y1={y} x2="170" y2={y} stroke="var(--muted-foreground)" strokeWidth="1.2" />
+            <text x="190" y={y + 4} className="fill-muted-foreground text-xs">hash % 4</text>
+            <line
+              x1="250"
+              y1={y}
+              x2={partX}
+              y2={150}
+              stroke={isHighlight ? "var(--primary)" : "var(--muted-foreground)"}
+              strokeWidth={isHighlight ? 2 : 1.2}
+              opacity={isHighlight ? 1 : 0.45}
+            />
+          </g>
+        );
+      })}
+      {parts.map((p, i) => {
+        const x = 470 + i * 52;
+        const isTarget = i === 2;
+        return (
+          <g key={p}>
+            <rect
+              x={x}
+              y="150"
+              width="44"
+              height="44"
+              rx="8"
+              fill={isTarget ? "var(--primary)" : "var(--muted)"}
+              fillOpacity={isTarget ? 0.15 : 1}
+              stroke={isTarget ? "var(--primary)" : "var(--border)"}
+              strokeWidth={isTarget ? 2 : 1}
+            />
+            <text x={x + 22} y="177" textAnchor="middle" className="fill-foreground text-xs font-medium">{p}</text>
+          </g>
+        );
+      })}
+      <text x="360" y="220" textAnchor="middle" className="fill-muted-foreground text-xs">
+        Each key maps to exactly one partition via hash(key) mod N
+      </text>
     </svg>
   );
 }
@@ -137,42 +237,73 @@ function IsolationLevelsDiagram() {
           <text x="90" y={52 + i * 44} className="fill-foreground text-xs font-medium">{lvl.name}</text>
         </g>
       ))}
-      <text x="600" y="60" className="fill-muted-foreground text-xs">↑ stronger</text>
-      <text x="600" y="200" className="fill-muted-foreground text-xs">↓ more concurrency</text>
+      <text x="600" y="60" className="fill-muted-foreground text-xs">↑ stronger guarantees</text>
+      <text x="600" y="200" className="fill-muted-foreground text-xs">↓ higher concurrency</text>
     </svg>
   );
 }
 
 function QuorumDiagram() {
+  const nodes = [
+    { id: "N1", x: 160, write: true, read: false },
+    { id: "N2", x: 360, write: true, read: true, overlap: true },
+    { id: "N3", x: 560, write: false, read: true },
+  ];
+
   return (
-    <svg viewBox="0 0 720 180" className="h-auto w-full" role="img" aria-label="Quorum read write">
-      {["N1", "N2", "N3"].map((n, i) => (
-        <g key={n}>
-          <circle cx={200 + i * 160} cy="70" r="40" fill="var(--muted)" stroke="var(--border)" strokeWidth="2" />
-          <text x={200 + i * 160} y="75" textAnchor="middle" className="fill-foreground text-sm font-medium">{n}</text>
+    <svg viewBox="0 0 720 220" className="h-auto w-full" role="img" aria-label="Quorum read write">
+      <text x="24" y="24" className="fill-muted-foreground text-xs">N = 3 replicas</text>
+      {nodes.map((node) => (
+        <g key={node.id}>
+          <circle
+            cx={node.x}
+            cy="90"
+            r="40"
+            fill={node.write ? "hsl(142 76% 36%)" : "var(--muted)"}
+            fillOpacity={node.write ? 0.2 : 1}
+            stroke={node.overlap ? "hsl(38 92% 50%)" : node.write ? "hsl(142 76% 36%)" : "var(--border)"}
+            strokeWidth={node.overlap ? 3 : 2}
+          />
+          {node.read ? (
+            <circle cx={node.x} cy="90" r="48" fill="none" stroke="hsl(221 83% 53%)" strokeWidth="2" strokeDasharray="5 3" />
+          ) : null}
+          <text x={node.x} y="95" textAnchor="middle" className="fill-foreground text-sm font-medium">{node.id}</text>
+          {node.write ? <text x={node.x} y="112" textAnchor="middle" className="fill-foreground text-xs">W</text> : null}
+          {node.read ? <text x={node.x} y={node.write ? "126" : "112"} textAnchor="middle" className="fill-foreground text-xs">R</text> : null}
         </g>
       ))}
-      <text x="200" y="140" textAnchor="middle" className="fill-foreground text-xs">W=2 write</text>
-      <text x="520" y="140" textAnchor="middle" className="fill-foreground text-xs">R=2 read</text>
-      <text x="360" y="165" textAnchor="middle" className="fill-muted-foreground text-xs">W + R &gt; N guarantees overlap</text>
+      <text x="260" y="165" textAnchor="middle" className="fill-foreground text-xs">W = 2 (green)</text>
+      <text x="460" y="165" textAnchor="middle" className="fill-foreground text-xs">R = 2 (blue ring)</text>
+      <text x="360" y="195" textAnchor="middle" className="fill-muted-foreground text-xs">W + R &gt; N → read and write sets overlap at N2</text>
     </svg>
   );
 }
 
 function TwoPhaseCommitDiagram() {
-  const steps = ["Prepare", "Vote", "Commit/Abort"];
+  const participants = [
+    { id: "A", x: 120 },
+    { id: "B", x: 320 },
+    { id: "C", x: 520 },
+  ];
+
   return (
-    <svg viewBox="0 0 720 160" className="h-auto w-full" role="img" aria-label="Two-phase commit">
-      <rect x="300" y="20" width="120" height="40" rx="8" fill="var(--primary)" opacity="0.15" stroke="var(--primary)" />
-      <text x="360" y="45" textAnchor="middle" className="fill-foreground text-sm font-medium">Coordinator</text>
-      {["A", "B", "C"].map((p, i) => (
-        <g key={p}>
-          <rect x={120 + i * 200} y="100" width="80" height="36" rx="6" fill="var(--card)" stroke="var(--border)" />
-          <text x={160 + i * 200} y="123" textAnchor="middle" className="fill-foreground text-xs">Node {p}</text>
-          <line x1="360" y1="60" x2={160 + i * 200} y2="100" stroke="var(--muted-foreground)" strokeWidth="1.5" />
+    <svg viewBox="0 0 720 200" className="h-auto w-full" role="img" aria-label="Two-phase commit">
+      <ArrowDefs />
+      <rect x="300" y="16" width="120" height="40" rx="8" fill="var(--primary)" opacity="0.15" stroke="var(--primary)" />
+      <text x="360" y="41" textAnchor="middle" className="fill-foreground text-sm font-medium">Coordinator</text>
+      {participants.map((p) => (
+        <g key={p.id}>
+          <rect x={p.x} y="110" width="80" height="36" rx="6" fill="var(--card)" stroke="var(--border)" />
+          <text x={p.x + 40} y="133" textAnchor="middle" className="fill-foreground text-xs">Node {p.id}</text>
+          <line x1="360" y1="56" x2={p.x + 40} y2="110" stroke="var(--muted-foreground)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
+          <line x1={p.x + 40} y1="110" x2="360" y2="56" stroke="var(--primary)" strokeWidth="1.2" strokeDasharray="4" opacity="0.6" />
         </g>
       ))}
-      <text x="360" y="155" textAnchor="middle" className="fill-muted-foreground text-xs">{steps.join(" → ")}</text>
+      <rect x="80" y="162" width="200" height="28" rx="6" fill="var(--muted)" stroke="var(--border)" />
+      <text x="180" y="180" textAnchor="middle" className="fill-foreground text-xs">Phase 1: Prepare (vote)</text>
+      <line x1="290" y1="176" x2="310" y2="176" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <rect x="320" y="162" width="220" height="28" rx="6" fill="var(--muted)" stroke="var(--border)" />
+      <text x="430" y="180" textAnchor="middle" className="fill-foreground text-xs">Phase 2: Commit or Abort</text>
     </svg>
   );
 }
@@ -181,36 +312,193 @@ function MapReducePipelineDiagram() {
   const stages = ["Input", "Map", "Shuffle", "Reduce", "Output"];
   return (
     <svg viewBox="0 0 720 120" className="h-auto w-full" role="img" aria-label="MapReduce pipeline">
+      <ArrowDefs />
       {stages.map((s, i) => (
         <g key={s}>
           <rect x={40 + i * 135} y="40" width="100" height="40" rx="8" fill="var(--muted)" stroke="var(--border)" />
           <text x={90 + i * 135} y="65" textAnchor="middle" className="fill-foreground text-xs font-medium">{s}</text>
           {i < stages.length - 1 ? (
-            <line x1={140 + i * 135} y1="60" x2={175 + i * 135} y2="60" stroke="var(--primary)" strokeWidth="2" />
+            <line x1={140 + i * 135} y1="60" x2={175 + i * 135} y2="60" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
           ) : null}
         </g>
       ))}
+      <text x="360" y="105" textAnchor="middle" className="fill-muted-foreground text-xs">Shuffle groups intermediate key-value pairs by key across workers</text>
     </svg>
   );
 }
 
 function EventStreamDiagram() {
+  const partitions = [
+    { id: "0", x: 220, consumer: "A", offset: 42 },
+    { id: "1", x: 310, consumer: "B", offset: 17 },
+    { id: "2", x: 400, consumer: "B", offset: 8 },
+  ];
+
   return (
-    <svg viewBox="0 0 720 180" className="h-auto w-full" role="img" aria-label="Event stream">
-      <rect x="40" y="60" width="100" height="50" rx="8" fill="var(--card)" stroke="var(--border)" />
-      <text x="90" y="90" textAnchor="middle" className="fill-foreground text-xs">Producer</text>
-      <rect x="200" y="40" width="320" height="90" rx="8" fill="var(--muted)" stroke="var(--border)" />
-      <text x="360" y="70" textAnchor="middle" className="fill-foreground text-sm font-medium">Partitioned Log</text>
-      {["0", "1", "2"].map((p, i) => (
-        <rect key={p} x={220 + i * 90} y="80" width="70" height="30" rx="4" fill="var(--card)" stroke="var(--border)" />
+    <svg viewBox="0 0 720 210" className="h-auto w-full" role="img" aria-label="Event stream">
+      <ArrowDefs />
+      <rect x="40" y="70" width="100" height="50" rx="8" fill="var(--card)" stroke="var(--border)" />
+      <text x="90" y="100" textAnchor="middle" className="fill-foreground text-xs">Producer</text>
+      <rect x="190" y="50" width="340" height="90" rx="8" fill="var(--muted)" stroke="var(--border)" />
+      <text x="360" y="72" textAnchor="middle" className="fill-foreground text-sm font-medium">Partitioned Log</text>
+      {partitions.map((p) => (
+        <g key={p.id}>
+          <rect x={p.x} y="82" width="70" height="44" rx="4" fill="var(--card)" stroke="var(--border)" />
+          <text x={p.x + 35} y="100" textAnchor="middle" className="fill-foreground text-xs font-medium">P{p.id}</text>
+          <text x={p.x + 35} y="116" textAnchor="middle" className="fill-muted-foreground text-xs">offset {p.offset}</text>
+        </g>
       ))}
-      <rect x="580" y="50" width="100" height="35" rx="6" fill="var(--card)" stroke="var(--border)" />
-      <text x="630" y="72" textAnchor="middle" className="fill-foreground text-xs">Consumer A</text>
-      <rect x="580" y="95" width="100" height="35" rx="6" fill="var(--card)" stroke="var(--border)" />
-      <text x="630" y="117" textAnchor="middle" className="fill-foreground text-xs">Consumer B</text>
-      <line x1="140" y1="85" x2="200" y2="85" stroke="var(--primary)" strokeWidth="2" />
-      <line x1="520" y1="75" x2="580" y2="67" stroke="var(--muted-foreground)" strokeWidth="1.5" />
-      <line x1="520" y1="95" x2="580" y2="112" stroke="var(--muted-foreground)" strokeWidth="1.5" />
+      <rect x="580" y="55" width="110" height="35" rx="6" fill="var(--card)" stroke="var(--border)" />
+      <text x="635" y="72" textAnchor="middle" className="fill-foreground text-xs">Consumer A</text>
+      <text x="635" y="84" textAnchor="middle" className="fill-muted-foreground text-xs">group 1</text>
+      <rect x="580" y="110" width="110" height="35" rx="6" fill="var(--card)" stroke="var(--border)" />
+      <text x="635" y="127" textAnchor="middle" className="fill-foreground text-xs">Consumer B</text>
+      <text x="635" y="139" textAnchor="middle" className="fill-muted-foreground text-xs">group 2</text>
+      <line x1="140" y1="95" x2="190" y2="95" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <text x="158" y="88" className="fill-muted-foreground text-xs">append</text>
+      <line x1="530" y1="100" x2="580" y2="72" stroke="hsl(221 83% 53%)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
+      <line x1="530" y1="105" x2="580" y2="127" stroke="hsl(221 83% 53%)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
+      <text x="360" y="175" textAnchor="middle" className="fill-muted-foreground text-xs">Each consumer group tracks its own offset per partition</text>
+    </svg>
+  );
+}
+
+function SysBox({ x, y, w, h, label, sub, highlight }: { x: number; y: number; w: number; h: number; label: string; sub?: string; highlight?: boolean }) {
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx="8" fill={highlight ? "var(--primary)" : "var(--muted)"} fillOpacity={highlight ? 0.15 : 1} stroke={highlight ? "var(--primary)" : "var(--border)"} strokeWidth={highlight ? 2 : 1} />
+      <text x={x + w / 2} y={y + (sub ? 22 : 28)} textAnchor="middle" className="fill-foreground text-xs font-medium">{label}</text>
+      {sub ? <text x={x + w / 2} y={y + 38} textAnchor="middle" className="fill-muted-foreground text-xs">{sub}</text> : null}
+    </g>
+  );
+}
+
+function SystemAirbnbDiagram() {
+  return (
+    <svg viewBox="0 0 720 300" className="h-auto w-full" role="img" aria-label="Airbnb system architecture">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Airbnb — marketplace data system (simplified)</text>
+      <SysBox x={310} y={36} w={100} h={40} label="Mobile / Web" />
+      <line x1="360" y1="76" x2="360" y2="96" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <SysBox x={300} y={96} w={120} h={40} label="API Gateway" sub="Envoy / nginx" highlight />
+      <line x1="360" y1="136" x2="360" y2="156" stroke="var(--muted-foreground)" strokeWidth="1.5" />
+      {[{ x: 60, l: "Listings" }, { x: 210, l: "Bookings" }, { x: 360, l: "Payments" }, { x: 510, l: "Search" }].map((s) => (
+        <g key={s.l}>
+          <SysBox x={s.x} y={156} w={100} h={44} label={s.l} sub="microservice" />
+          <line x1="360" y1="156" x2={s.x + 50} y2="156" stroke="var(--muted-foreground)" strokeWidth="1.2" />
+        </g>
+      ))}
+      {[{ x: 80, l: "PostgreSQL", s: "OLTP" }, { x: 230, l: "Redis", s: "cache" }, { x: 380, l: "Kafka", s: "events" }, { x: 530, l: "Elasticsearch", s: "search" }].map((d) => (
+        <g key={d.l}>
+          <SysBox x={d.x} y={230} w={110} h={48} label={d.l} sub={d.s} />
+          <line x1={d.x + 55} y1="200" x2={d.x + 55} y2="230" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+        </g>
+      ))}
+      <text x="360" y="292" textAnchor="middle" className="fill-muted-foreground text-xs">Bookings in Postgres; search index derived via Kafka CDC</text>
+    </svg>
+  );
+}
+
+function SystemWhatsappDiagram() {
+  return (
+    <svg viewBox="0 0 720 260" className="h-auto w-full" role="img" aria-label="WhatsApp messaging architecture">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">WhatsApp — message delivery (simplified)</text>
+      <SysBox x={40} y={50} w={90} h={44} label="Sender" sub="mobile" />
+      <SysBox x={580} y={50} w={90} h={44} label="Receiver" sub="mobile" />
+      <SysBox x={300} y={44} w={120} h={52} label="Chat Server" sub="Erlang/BEAM" highlight />
+      <line x1="130" y1="72" x2="300" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <text x="200" y="64" className="fill-muted-foreground text-xs">send</text>
+      <SysBox x={285} y={130} w={150} h={44} label="Message Store" sub="replicated" />
+      <line x1="360" y1="96" x2="360" y2="130" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <SysBox x={80} y={130} w={120} h={44} label="Push Gateway" sub="APNs / FCM" />
+      <line x1="285" y1="152" x2="200" y2="152" stroke="var(--muted-foreground)" strokeWidth="1.5" markerEnd="url(#arrow-muted)" />
+      <line x1="435" y1="152" x2="580" y2="72" stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="4" markerEnd="url(#arrow)" />
+      <text x="520" y="110" className="fill-muted-foreground text-xs">offline push</text>
+      <text x="360" y="210" textAnchor="middle" className="fill-muted-foreground text-xs">Online: WebSocket/long-poll delivery. Offline: push notification + sync on reconnect.</text>
+      <text x="360" y="240" textAnchor="middle" className="fill-muted-foreground text-xs">End-to-end encryption happens on devices — servers route ciphertext</text>
+    </svg>
+  );
+}
+
+function SystemGoogleSearchDiagram() {
+  return (
+    <svg viewBox="0 0 720 260" className="h-auto w-full" role="img" aria-label="Google search pipeline">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Google Search — index pipeline (simplified)</text>
+      {[{ x: 40, l: "Crawler" }, { x: 175, l: "GFS / S3" }, { x: 310, l: "MapReduce" }, { x: 445, l: "Index" }, { x: 580, l: "Query" }].map((s, i) => (
+        <g key={s.l}>
+          <SysBox x={s.x} y={50} w={110} h={48} label={s.l} highlight={i === 4} />
+          {i < 4 ? <line x1={s.x + 110} y1="74" x2={s.x + 135} y2="74" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" /> : null}
+        </g>
+      ))}
+      <SysBox x={40} y={150} w={120} h={44} label="User Query" />
+      <line x1="160" y1="172" x2="580" y2="98" stroke="hsl(221 83% 53%)" strokeWidth="1.5" strokeDasharray="5" markerEnd="url(#arrow-muted)" />
+      <text x="360" y="140" textAnchor="middle" className="fill-muted-foreground text-xs">Batch: crawl → store → build inverted index. Online: millisecond lookup + ranking.</text>
+      <text x="360" y="230" textAnchor="middle" className="fill-muted-foreground text-xs">Immutable web snapshots enable reprocessing when ranking algorithms change</text>
+    </svg>
+  );
+}
+
+function SystemMetaFeedDiagram() {
+  return (
+    <svg viewBox="0 0 720 260" className="h-auto w-full" role="img" aria-label="Meta social feed architecture">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Facebook / Instagram — feed fan-out (simplified)</text>
+      <SysBox x={40} y={50} w={100} h={44} label="User posts" highlight />
+      <line x1="140" y1="72" x2="200" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <SysBox x={200} y={50} w={120} h={44} label="Post DB" sub="sharded" />
+      <line x1="320" y1="72" x2="380" y2="72" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <SysBox x={380} y={44} w={140} h={52} label="Fan-out Service" sub="write to caches" highlight />
+      {[{ x: 80, l: "Follower A" }, { x: 240, l: "Follower B" }, { x: 400, l: "Follower C" }, { x: 560, l: "Follower D" }].map((f) => (
+        <g key={f.l}>
+          <SysBox x={f.x} y={150} w={100} h={44} label="Feed Cache" sub="Redis" />
+          <line x1="450" y1="96" x2={f.x + 50} y2="150" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+        </g>
+      ))}
+      <text x="360" y="220" textAnchor="middle" className="fill-muted-foreground text-xs">Push model: precompute feeds for active users. Pull model for celebrities with millions of followers.</text>
+      <text x="360" y="245" textAnchor="middle" className="fill-muted-foreground text-xs">Hybrid fan-out is how Meta scales the home timeline</text>
+    </svg>
+  );
+}
+
+function SystemCanvaDiagram() {
+  return (
+    <svg viewBox="0 0 720 260" className="h-auto w-full" role="img" aria-label="Canva collaboration architecture">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Canva — real-time design collaboration (simplified)</text>
+      {[{ x: 60, l: "Designer A" }, { x: 560, l: "Designer B" }].map((u) => (
+        <SysBox key={u.l} x={u.x} y={44} w={100} h={40} label={u.l} sub="browser" />
+      ))}
+      <SysBox x={280} y={110} w={160} h={52} label="Collab Server" sub="WebSocket + CRDT" highlight />
+      <line x1="110" y1="84" x2="300" y2="110" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <line x1="610" y1="84" x2="420" y2="110" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <SysBox x={120} y={190} w={120} h={44} label="PostgreSQL" sub="metadata" />
+      <SysBox x={300} y={190} w={120} h={44} label="S3 / GCS" sub="assets" />
+      <SysBox x={480} y={190} w={120} h={44} label="Redis" sub="presence" />
+      <line x1="360" y1="162" x2="360" y2="190" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="4" />
+      <text x="360" y="248" textAnchor="middle" className="fill-muted-foreground text-xs">Operational transforms / CRDTs merge concurrent edits without a single leader bottleneck</text>
+    </svg>
+  );
+}
+
+function SystemModernStackDiagram() {
+  return (
+    <svg viewBox="0 0 720 280" className="h-auto w-full" role="img" aria-label="Modern SaaS data stack">
+      <ArrowDefs />
+      <text x="360" y="22" textAnchor="middle" className="fill-foreground text-sm font-semibold">Modern SaaS — typical data-intensive stack</text>
+      <SysBox x={300} y={36} w={120} h={40} label="Clients" sub="web + mobile" />
+      <line x1="360" y1="76" x2="360" y2="92" stroke="var(--primary)" strokeWidth="2" markerEnd="url(#arrow)" />
+      <SysBox x={270} y={92} w={180} h={40} label="CDN + Reverse Proxy" sub="Cloudflare / nginx" highlight />
+      <line x1="360" y1="132" x2="360" y2="148" stroke="var(--muted-foreground)" strokeWidth="1.5" />
+      <SysBox x={290} y={148} w={140} h={40} label="API Services" sub="Docker / K8s" />
+      {[{ x: 50, l: "PostgreSQL" }, { x: 175, l: "Redis" }, { x: 300, l: "Kafka" }, { x: 425, l: "Elasticsearch" }, { x: 550, l: "Snowflake" }].map((d) => (
+        <g key={d.l}>
+          <SysBox x={d.x} y={210} w={110} h={44} label={d.l} />
+          <line x1={d.x + 55} y1="188" x2={d.x + 55} y2="210" stroke="var(--muted-foreground)" strokeWidth="1.2" strokeDasharray="3" />
+        </g>
+      ))}
+      <text x="360" y="272" textAnchor="middle" className="fill-muted-foreground text-xs">Used by Airbnb, Stripe, Shopify, Canva — specialized stores connected by events</text>
     </svg>
   );
 }
@@ -226,7 +514,22 @@ const diagrams: Record<string, () => React.ReactNode> = {
   "two-phase-commit": TwoPhaseCommitDiagram,
   "mapreduce-pipeline": MapReducePipelineDiagram,
   "event-stream": EventStreamDiagram,
+  "system-airbnb": SystemAirbnbDiagram,
+  "system-whatsapp": SystemWhatsappDiagram,
+  "system-google-search": SystemGoogleSearchDiagram,
+  "system-meta-feed": SystemMetaFeedDiagram,
+  "system-canva": SystemCanvaDiagram,
+  "system-modern-stack": SystemModernStackDiagram,
 };
+
+const SYSTEM_DIAGRAMS = new Set([
+  "system-airbnb",
+  "system-whatsapp",
+  "system-google-search",
+  "system-meta-feed",
+  "system-canva",
+  "system-modern-stack",
+]);
 
 export function TechnicalDiagram({ diagramId, caption }: TechnicalDiagramProps) {
   const Diagram = diagrams[diagramId];
@@ -235,10 +538,12 @@ export function TechnicalDiagram({ diagramId, caption }: TechnicalDiagramProps) 
     return null;
   }
 
+  const title = SYSTEM_DIAGRAMS.has(diagramId) ? "System diagram" : "Diagram";
+
   return (
     <Card className="my-6">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Diagram</CardTitle>
+        <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <Diagram />

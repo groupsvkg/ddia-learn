@@ -8,7 +8,8 @@
     "Performance is measured in throughput (records/sec) or response time (latency percentiles).",
     "Percentile metrics (p95, p99) matter more than averages for user experience.",
     "Scaling can be vertical (bigger machine) or horizontal (more machines) — each has trade-offs.",
-    "Elastic systems automatically add resources under load; manual scaling is simpler but slower."
+    "Elastic systems automatically add resources under load; manual scaling is simpler but slower.",
+    "Redis caching, Cloudflare CDN, Kubernetes HPA, and PostgreSQL read replicas are common scaling layers."
   ],
   "body": [
     {
@@ -59,6 +60,29 @@
       ]
     },
     {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Most web apps scale in layers: Cloudflare or AWS CloudFront caches static assets at the edge; Redis caches hot database rows (session data, product catalogs); PostgreSQL read replicas offload analytics queries; Kubernetes Horizontal Pod Autoscaler (HPA) adds pods when CPU or request rate spikes. Datadog or Prometheus tracks p95/p99 latency so you scale before users notice.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Facebook at scale",
+      "text": "Meta's home timeline problem is pure scalability engineering: ~300k reads/sec vs ~6k writes/sec drove a hybrid fan-out strategy — precompute feeds for normal users (push), fetch on demand for celebrities with millions of followers (pull). Tail latency matters more than average load.",
+      "variant": "tip"
+    },
+    {
+      "type": "diagram",
+      "diagramId": "system-meta-feed",
+      "caption": "Meta precomputes follower feeds in Redis — the push/pull hybrid scales the home timeline."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "caption": "Track p50/p99 latency — averages hide tail problems",
+      "code": "const durations: number[] = [];\n\nfunction percentile(p: number): number {\n  const sorted = [...durations].sort((a, b) => a - b);\n  const idx = Math.ceil((p / 100) * sorted.length) - 1;\n  return sorted[Math.max(0, idx)];\n}\n\n// Google SRE: monitor p99, not just mean\nconsole.log({ p50: percentile(50), p99: percentile(99) });"
+    },
+    {
       "type": "media",
       "src": "/media/ch01/scaling-load.png",
       "alt": "Conceptual illustration of traffic growing across distributed servers",
@@ -71,7 +95,11 @@
     "latency",
     "percentile",
     "horizontal scaling",
-    "vertical scaling"
+    "vertical scaling",
+    "Redis",
+    "Kubernetes",
+    "Cloudflare",
+    "PostgreSQL"
   ],
   "media": {
     "heroImage": "/media/ch01/scaling-load.png",

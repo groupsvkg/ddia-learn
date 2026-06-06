@@ -8,7 +8,8 @@
       "Data-intensive applications are usually limited by data volume, complexity, or speed — not CPU.",
       "A \"data system\" is any system built from multiple components working together to store, process, or move data.",
       "Reliability, scalability, and maintainability are not features you bolt on — they shape architecture from day one.",
-      "There is no one-size-fits-all tool; good engineers combine specialized components thoughtfully."
+      "There is no one-size-fits-all tool; good engineers combine specialized components thoughtfully.",
+      "Production stacks combine PostgreSQL, Redis, Kafka, Elasticsearch, and object storage (S3) — each for a different job."
     ],
     "body": [
       {
@@ -29,6 +30,29 @@
       {
         "type": "paragraph",
         "text": "We use the term data system broadly: not just a database, but any combination of components that store, process, or move data. A single product might use a relational database for transactions, a search index for full-text queries, a cache for hot reads, and a message queue for async work. Each tool has strengths and weaknesses."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "A typical SaaS backend on AWS might run stateless services in Docker on Kubernetes, store transactional data in PostgreSQL (RDS), cache sessions in Redis (ElastiCache), index products in Elasticsearch, stream domain events through Kafka (MSK), and serve files from S3 — with an nginx or Envoy reverse proxy at the edge.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Airbnb at scale",
+        "text": "Airbnb is a textbook data-intensive app: PostgreSQL for bookings and listings, Elasticsearch for search, Kafka for event-driven sync between services, Redis for caching, and Snowflake for analytics. No single database does everything — the architecture composes specialized tools.",
+        "variant": "tip"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-modern-stack",
+        "caption": "Modern products like Airbnb and Canva combine OLTP, cache, search, streams, and a warehouse."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "caption": "Compose specialized data stores — don't force one database to do everything",
+        "code": "// Typical service layer composes multiple backends\ntype DataSystem = {\n  oltp: PostgresClient;      // bookings, users\n  cache: RedisClient;        // sessions, hot reads\n  search: ElasticsearchClient;\n  events: KafkaProducer;     // async integration\n  warehouse: SnowflakeClient;  // analytics only\n};\n\n// Airbnb routes listing search to Elasticsearch,\n// but booking payments always hit PostgreSQL"
       },
       {
         "type": "list",
@@ -59,7 +83,11 @@
       "data-intensive application",
       "reliability",
       "scalability",
-      "maintainability"
+      "maintainability",
+      "PostgreSQL",
+      "Redis",
+      "Kafka",
+      "Kubernetes"
     ],
     "media": {
       "heroImage": "/media/ch01/data-systems-hero.png"
@@ -75,7 +103,8 @@
       "Hardware faults (disks, power, network) are common and often correlated in cloud environments.",
       "Software errors (bugs, cascading failures) are often worse because they can affect many users at once.",
       "Human errors cause most outages — good design makes mistakes hard and recovery easy.",
-      "Fault-tolerance accepts that faults happen and builds systems that survive them."
+      "Fault-tolerance accepts that faults happen and builds systems that survive them.",
+      "AWS Multi-AZ RDS, Kubernetes self-healing, and PagerDuty alerting are everyday reliability tooling."
     ],
     "body": [
       {
@@ -124,6 +153,24 @@
         "text": "Studies of large outages consistently find human error near the root: a typo in a config, a migration run against production, a certificate that expired unnoticed. Good systems minimize opportunities for error and provide safety nets — staged rollouts, easy rollbacks, and thorough monitoring."
       },
       {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Amazon RDS Multi-AZ automatically fails over PostgreSQL to a standby on hardware failure. Kubernetes restarts crashed pods and reschedules them onto healthy nodes. Sentry catches software errors before they cascade; PagerDuty and Grafana on-call rotations ensure someone responds. AWS Certificate Manager auto-renews TLS certs — eliminating a common human-error outage vector.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "WhatsApp at scale",
+        "text": "WhatsApp serves billions of users with Erlang servers designed for fault tolerance — a crashed process does not take down the whole node. Messages are persisted and replicated before ack. The engineering goal matches DDIA's definition: tolerate faults, prevent user-visible failures.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "caption": "Circuit breaker — stop cascading failures (Netflix Hystrix pattern)",
+        "code": "class CircuitBreaker {\n  private failures = 0;\n  private open = false;\n\n  async call<T>(fn: () => Promise<T>): Promise<T> {\n    if (this.open) throw new Error(\"Circuit open — fail fast\");\n    try {\n      const result = await fn();\n      this.failures = 0;\n      return result;\n    } catch (err) {\n      this.failures++;\n      if (this.failures >= 5) this.open = true;\n      throw err;\n    }\n  }\n}"
+      },
+      {
         "type": "diagram",
         "diagramId": "fault-tree",
         "caption": "Common fault categories and how fault-tolerance strategies address them."
@@ -139,7 +186,10 @@
       "fault tolerance",
       "hardware fault",
       "cascading failure",
-      "redundancy"
+      "redundancy",
+      "AWS RDS",
+      "Kubernetes",
+      "PostgreSQL"
     ],
     "media": {
       "diagrams": [
@@ -157,7 +207,8 @@
       "Performance is measured in throughput (records/sec) or response time (latency percentiles).",
       "Percentile metrics (p95, p99) matter more than averages for user experience.",
       "Scaling can be vertical (bigger machine) or horizontal (more machines) — each has trade-offs.",
-      "Elastic systems automatically add resources under load; manual scaling is simpler but slower."
+      "Elastic systems automatically add resources under load; manual scaling is simpler but slower.",
+      "Redis caching, Cloudflare CDN, Kubernetes HPA, and PostgreSQL read replicas are common scaling layers."
     ],
     "body": [
       {
@@ -208,6 +259,29 @@
         ]
       },
       {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Most web apps scale in layers: Cloudflare or AWS CloudFront caches static assets at the edge; Redis caches hot database rows (session data, product catalogs); PostgreSQL read replicas offload analytics queries; Kubernetes Horizontal Pod Autoscaler (HPA) adds pods when CPU or request rate spikes. Datadog or Prometheus tracks p95/p99 latency so you scale before users notice.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Facebook at scale",
+        "text": "Meta's home timeline problem is pure scalability engineering: ~300k reads/sec vs ~6k writes/sec drove a hybrid fan-out strategy — precompute feeds for normal users (push), fetch on demand for celebrities with millions of followers (pull). Tail latency matters more than average load.",
+        "variant": "tip"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-meta-feed",
+        "caption": "Meta precomputes follower feeds in Redis — the push/pull hybrid scales the home timeline."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "caption": "Track p50/p99 latency — averages hide tail problems",
+        "code": "const durations: number[] = [];\n\nfunction percentile(p: number): number {\n  const sorted = [...durations].sort((a, b) => a - b);\n  const idx = Math.ceil((p / 100) * sorted.length) - 1;\n  return sorted[Math.max(0, idx)];\n}\n\n// Google SRE: monitor p99, not just mean\nconsole.log({ p50: percentile(50), p99: percentile(99) });"
+      },
+      {
         "type": "media",
         "src": "/media/ch01/scaling-load.png",
         "alt": "Conceptual illustration of traffic growing across distributed servers",
@@ -220,7 +294,11 @@
       "latency",
       "percentile",
       "horizontal scaling",
-      "vertical scaling"
+      "vertical scaling",
+      "Redis",
+      "Kubernetes",
+      "Cloudflare",
+      "PostgreSQL"
     ],
     "media": {
       "heroImage": "/media/ch01/scaling-load.png",
@@ -239,7 +317,8 @@
       "Simplicity: manage complexity so new engineers can be productive quickly.",
       "Evolvability: make change easy — requirements always change over a system's lifetime.",
       "Good abstractions and clear interfaces reduce the cost of change.",
-      "Technical debt is inevitable; the goal is to keep it manageable."
+      "Technical debt is inevitable; the goal is to keep it manageable.",
+      "Docker, Kubernetes, Terraform, OpenTelemetry, and CI/CD pipelines are the modern maintainability toolkit."
     ],
     "body": [
       {
@@ -254,6 +333,29 @@
       {
         "type": "paragraph",
         "text": "Operations teams need good visibility into system health: metrics, logs, traces, and clear runbooks for common failures. Good operability means routine tasks (deploys, scaling, config changes) are safe and boring — not heroic."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Docker containers package services consistently from laptop to production. Kubernetes orchestrates deploys with rolling updates and instant rollbacks. Terraform defines AWS infrastructure as code — reproducible and reviewable in pull requests. OpenTelemetry exports traces to Jaeger or Datadog so on-call engineers debug cross-service failures in minutes, not hours.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Canva at scale",
+        "text": "Canva ships features weekly to millions of users by keeping services independently deployable on Kubernetes, using feature flags for safe rollouts, and OpenTelemetry tracing across the design editor, asset pipeline, and collaboration servers. Evolvable architecture lets them swap storage engines without rewriting the editor.",
+        "variant": "tip"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-canva",
+        "caption": "Canva pairs WebSocket collaboration with PostgreSQL metadata and object storage for assets."
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "caption": "Structured logging + trace IDs for operability",
+        "code": "import { trace } from \"@opentelemetry/api\";\n\nfunction log(level: string, msg: string, meta: Record<string, unknown> = {}) {\n  const span = trace.getActiveSpan();\n  console.log(JSON.stringify({\n    level,\n    msg,\n    traceId: span?.spanContext().traceId,\n    service: \"canva-design-api\",\n    ...meta,\n  }));\n}\n\n// Every log line links to a distributed trace in Datadog/Jaeger"
       },
       {
         "type": "list",
@@ -299,7 +401,11 @@
       "operability",
       "technical debt",
       "abstraction",
-      "evolvability"
+      "evolvability",
+      "Docker",
+      "Kubernetes",
+      "Terraform",
+      "OpenTelemetry"
     ],
     "media": {
       "heroImage": "/media/ch01/complexity-metaphor.png"
@@ -315,7 +421,8 @@
       "Document databases embed related data together for locality of reference.",
       "One-to-many and many-to-many relationships are easier in relational schemas.",
       "Schema flexibility favors documents for rapidly evolving product data.",
-      "Neither model is universally superior — match the model to your query patterns."
+      "Neither model is universally superior — match the model to your query patterns.",
+      "PostgreSQL handles both relational tables and JSONB columns; MongoDB stores BSON documents natively."
     ],
     "body": [
       {
@@ -330,6 +437,24 @@
       {
         "type": "paragraph",
         "text": "Object-oriented code thinks in nested structures; relational tables are flat rows. ORMs bridge this gap but introduce impedance mismatch — awkward joins, N+1 queries, and schema migrations that fight your object model."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Stripe and GitHub run core workloads on PostgreSQL with strict schemas and migrations. Product catalogs and mobile backends often use MongoDB or DynamoDB where documents map cleanly to JSON APIs. Prisma and Drizzle ORMs target PostgreSQL; Mongoose targets MongoDB — the ORM choice often follows the data model.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Airbnb at scale",
+        "text": "Listings, guests, and payments live in normalized PostgreSQL tables joined at query time. Canva stores entire design documents — layers, fonts, assets — as nested BSON so the editor loads one record per canvas open.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Airbnb-style booking: relational joins across tables (PostgreSQL + Prisma)\nconst booking = await prisma.booking.findUnique({\n  where: { id: bookingId },\n  include: { listing: true, guest: true, payments: true },\n});\n\n// Canva-style design doc: nested document (MongoDB)\nconst design = await db.collection(\"designs\").findOne({\n  _id: designId,\n  // layers, fonts, assets embedded — one read for the whole canvas\n});",
+        "caption": "Relational joins vs embedded documents"
       },
       {
         "type": "callout",
@@ -349,6 +474,8 @@
     "relatedConcepts": [
       "relational model",
       "document model",
+      "PostgreSQL",
+      "MongoDB",
       "normalization",
       "impedance mismatch"
     ],
@@ -364,7 +491,8 @@
       "MapReduce expresses batch computation as map and reduce phases over datasets.",
       "Graph query languages (Cypher, SPARQL) traverse relationships declaratively.",
       "Imperative code in application layers duplicates logic that belongs in the data layer.",
-      "Choosing a query language constrains which access patterns are efficient."
+      "Choosing a query language constrains which access patterns are efficient.",
+      "GraphQL and gRPC sit above storage engines — they are API layers, not database query languages."
     ],
     "body": [
       {
@@ -382,6 +510,24 @@
       },
       {
         "type": "callout",
+        "title": "In practice",
+        "text": "PostgreSQL and Snowflake both speak SQL but optimize for different workloads. MongoDB uses its aggregation pipeline ($match, $group) for server-side transforms. Neo4j uses Cypher for graph patterns. In microservices, REST/GraphQL fetch data imperatively in app code — often reimplementing logic the database could handle more efficiently.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Google at scale",
+        "text": "BigQuery and Snowflake let analysts write declarative SQL while the engine chooses partition pruning, join order, and columnar scans. Google's internal Dremel paper inspired the separation of what from how at warehouse scale.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Google BigQuery / Snowflake — declarative OLAP over columnar storage\nconst revenueByRegion = await snowflake.execute(`\n  SELECT d.region, SUM(f.revenue_cents) AS total\n  FROM fact_orders f\n  JOIN dim_date d ON f.order_date = d.date_key\n  WHERE d.year = 2025\n  GROUP BY d.region\n  ORDER BY total DESC\n`);\n// Optimizer reads only region + revenue columns — not full rows",
+        "caption": "Declarative OLAP query"
+      },
+      {
+        "type": "callout",
         "title": "MapReduce",
         "text": "MapReduce brought declarative batch processing to distributed files: map functions extract key-value pairs, shuffle groups by key, reduce aggregates. Modern engines (Spark, Flink) evolved beyond the strict two-phase model.",
         "variant": "info"
@@ -389,6 +535,8 @@
     ],
     "relatedConcepts": [
       "SQL",
+      "PostgreSQL",
+      "MongoDB",
       "declarative query",
       "MapReduce",
       "query optimizer"
@@ -405,7 +553,8 @@
       "Triple-stores represent facts as (subject, predicate, object) for semantic web data.",
       "Graph traversals replace expensive multi-table joins in relational schemas.",
       "Cypher and SPARQL express path queries declaratively.",
-      "Graph databases trade specialized traversal for weaker bulk analytics."
+      "Graph databases trade specialized traversal for weaker bulk analytics.",
+      "Neo4j and Amazon Neptune power fraud detection and knowledge graphs in production."
     ],
     "body": [
       {
@@ -422,6 +571,24 @@
         "text": "In a property graph, vertices represent entities and edges represent relationships, both carrying key-value properties. Finding friends-of-friends or shortest paths becomes a native index traversal rather than a recursive SQL query."
       },
       {
+        "type": "callout",
+        "title": "In practice",
+        "text": "LinkedIn's early social graph used custom graph storage; today Neo4j, Amazon Neptune, and Azure Cosmos DB (Gremlin API) handle relationship-heavy workloads. Banks use graph queries to trace money-laundering rings across accounts — a multi-hop traversal that would require recursive CTEs in PostgreSQL.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "LinkedIn at scale",
+        "text": "People You May Know and connection suggestions traverse multi-hop paths over billions of edges. A property graph makes friends-of-friends a native index walk instead of a four-table SQL join.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// LinkedIn-style graph traversal (Cypher / Neo4j pattern)\nconst mutualConnections = await graph.run(`\n  MATCH (me:User {id: $userId})-[:CONNECTED_TO]-(friend)-[:CONNECTED_TO]-(fof)\n  WHERE fof.id <> $userId AND NOT (me)-[:CONNECTED_TO]-(fof)\n  RETURN DISTINCT fof.id, fof.name LIMIT 50\n`, { userId });\n// Multi-hop in one declarative query — expensive as SQL recursive CTE",
+        "caption": "Graph pattern query (Cypher)"
+      },
+      {
         "type": "list",
         "items": [
           "Cypher (Neo4j): pattern-matching syntax for graph traversal.",
@@ -432,7 +599,8 @@
     ],
     "relatedConcepts": [
       "property graph",
-      "triple-store",
+      "Neo4j",
+      "Neptune",
       "Cypher",
       "SPARQL",
       "graph traversal"
@@ -449,7 +617,8 @@
       "SSTables and LSM-trees batch writes into sorted segments for high write throughput.",
       "B-trees maintain sorted pages on disk for balanced read/write performance.",
       "LSM-trees trade read amplification for write throughput; B-trees do the opposite.",
-      "Compaction in LSM-trees merges segments in the background."
+      "Compaction in LSM-trees merges segments in the background.",
+      "RocksDB backs Cassandra and Kafka Streams state; PostgreSQL and MySQL InnoDB use B-trees."
     ],
     "body": [
       {
@@ -470,11 +639,31 @@
         "title": "Real-world engines",
         "text": "RocksDB and LevelDB use LSM-trees. PostgreSQL and MySQL InnoDB use B-trees. Choosing an engine is choosing a read/write trade-off.",
         "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Cassandra, ScyllaDB, and RocksDB-backed stores favor LSM-trees for high write throughput. PostgreSQL, MySQL InnoDB, and SQL Server use B-tree variants for predictable OLTP reads. Redis keeps everything in memory with hash tables and skip lists — a different trade-off entirely.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Google at scale",
+        "text": "Bigtable and LevelDB pioneered LSM-trees for Google's indexing and analytics pipelines — append-heavy writes with background compaction. Spanner layers B-tree pages on top of a distributed LSM for OLTP with global consistency.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Storage engine trade-off: LSM append vs B-tree in-place update\n// LSM (RocksDB / Cassandra): batch writes to memtable → SSTable segments\nawait rocksdb.put(key, value); // append-only, compaction merges later\n\n// B-tree (PostgreSQL InnoDB): update page in place on disk\nawait db.query(\"UPDATE users SET balance = $1 WHERE id = $2\", [newBal, id]);\n// Predictable reads; random writes cost more on spinning disks",
+        "caption": "LSM append vs B-tree in-place update"
       }
     ],
     "relatedConcepts": [
       "LSM-tree",
       "B-tree",
+      "RocksDB",
+      "PostgreSQL",
       "SSTable",
       "storage engine",
       "compaction"
@@ -491,7 +680,8 @@
       "OLAP runs large aggregation scans over historical data.",
       "Data warehouses use column-oriented storage and star/snowflake schemas.",
       "ETL pipelines copy OLTP data into warehouses for analytics.",
-      "Trying to run analytics on OLTP databases overloads production traffic."
+      "Trying to run analytics on OLTP databases overloads production traffic.",
+      "PostgreSQL powers OLTP; Snowflake, BigQuery, and Redshift power OLAP."
     ],
     "body": [
       {
@@ -506,13 +696,38 @@
       {
         "type": "paragraph",
         "text": "A data warehouse ingests copies of production data via ETL, denormalizes into star schemas (fact tables surrounded by dimension tables), and optimizes for scan-heavy aggregation — not millisecond point lookups."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "A Shopify-scale stack might use PostgreSQL or Aurora for live orders, then pipe data through Airbyte or Fivetran into Snowflake or BigQuery for BI dashboards. Running heavy aggregations directly on the production Postgres would starve checkout queries — exactly the anti-pattern DDIA warns about.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Shopify at scale",
+        "text": "Checkout and inventory run on low-latency OLTP (PostgreSQL/Aurora). Merchant analytics and revenue dashboards query Snowflake star schemas fed by nightly ETL — never the live order database.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Shopify OLTP → OLAP — never run heavy scans on production Postgres\n// Step 1: CDC from Aurora PostgreSQL\nconst changes = debezium.stream(\"shopify.orders\");\n// Step 2: land in Snowflake star schema for BI dashboards\nawait snowflake.merge(\"fact_orders\", changes, { key: \"order_id\" });",
+        "caption": "OLTP → warehouse ETL pipeline"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-google-search",
+        "caption": "OLTP writes to row stores; OLAP reads columnar warehouses — Google-scale search indexing follows the same split."
       }
     ],
     "relatedConcepts": [
       "OLTP",
       "OLAP",
+      "PostgreSQL",
+      "Snowflake",
+      "BigQuery",
       "data warehouse",
-      "star schema",
       "ETL"
     ],
     "media": {}
@@ -527,12 +742,36 @@
       "Column-oriented storage stores each column contiguously on disk.",
       "Column compression is far more effective due to similar values in a column.",
       "Sort order in column storage enables efficient range scans and merges.",
-      "Materialized views and data cubes pre-aggregate common queries."
+      "Materialized views and data cubes pre-aggregate common queries.",
+      "Snowflake, ClickHouse, and Apache Parquet on S3 are column-oriented in production."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "In a row store, all fields of a record sit together — great for fetching a whole user profile. In a column store, all values for a given field sit together — great for SUM(revenue) across millions of rows."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Snowflake and ClickHouse store columns separately for analytics queries that touch few fields across billions of rows. Apache Parquet files on AWS S3 use columnar layout for cheap cold storage. PostgreSQL remains row-oriented — which is why you offload analytics to a warehouse instead of scanning production tables.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Google at scale",
+        "text": "Google's web index and ad analytics read only the columns each query needs — URL, rank, bid price — across petabytes. Columnar Parquet on GCS and BigQuery column stores are the production descendants of this layout.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Google BigQuery / Snowflake — declarative OLAP over columnar storage\nconst revenueByRegion = await snowflake.execute(`\n  SELECT d.region, SUM(f.revenue_cents) AS total\n  FROM fact_orders f\n  JOIN dim_date d ON f.order_date = d.date_key\n  WHERE d.year = 2025\n  GROUP BY d.region\n  ORDER BY total DESC\n`);\n// Optimizer reads only region + revenue columns — not full rows",
+        "caption": "Column-pruned warehouse query"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-google-search",
+        "caption": "Batch indexing and column-oriented storage: read a few fields across billions of rows without touching full records."
       },
       {
         "type": "list",
@@ -545,9 +784,11 @@
     ],
     "relatedConcepts": [
       "column store",
+      "Snowflake",
+      "ClickHouse",
+      "Parquet",
       "column compression",
-      "materialized view",
-      "data cube"
+      "materialized view"
     ],
     "media": {}
   },
@@ -561,7 +802,8 @@
       "Thrift and Protocol Buffers use tagged field numbers for compact binary encoding.",
       "Avro requires a schema for reading — enabling compact encoding without field tags.",
       "Forward and backward compatibility let old and new code coexist during deploys.",
-      "Schema registries manage evolution in production systems."
+      "Schema registries manage evolution in production systems.",
+      "REST APIs use JSON; gRPC uses Protobuf; Kafka ecosystems standardize on Avro with Schema Registry."
     ],
     "body": [
       {
@@ -573,12 +815,36 @@
         "title": "Compatibility modes",
         "text": "Forward compatibility: old code reads new data. Backward compatibility: new code reads old data. Field tags (Protobuf) and union schemas (Avro) enable both.",
         "variant": "tip"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Public REST APIs return JSON with OpenAPI specs. Internal microservices increasingly use gRPC with Protocol Buffers for compact, typed RPC. Kafka pipelines pair Avro schemas with Confluent Schema Registry so producers and consumers evolve independently during rolling deploys on Kubernetes.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Canva at scale",
+        "text": "Design state syncs over WebSockets with compact binary payloads. Internal services use Protocol Buffers so new canvas fields ship without breaking older editor builds — forward compatibility via tagged field numbers.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Canva / gRPC — Protocol Buffers with forward-compatible field tags\n// message Design { string id = 1; repeated Layer layers = 2; string title = 3; }\nconst payload = Design.encode({\n  id: designId,\n  layers: canvasLayers,\n  title: \"Untitled\",\n}).finish();\n// New field tag 4 added in v2 — old clients ignore unknown tags",
+        "caption": "Protocol Buffers encoding"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-canva",
+        "caption": "Real-time collaboration requires compact encoding and schema evolution as the editor adds new layer types."
       }
     ],
     "relatedConcepts": [
       "JSON",
       "Protocol Buffers",
       "Avro",
+      "gRPC",
       "schema evolution",
       "serialization"
     ],
@@ -594,12 +860,36 @@
       "REST and RPC: synchronous request/response between services.",
       "Message queues: asynchronous, buffered delivery with at-least-once semantics.",
       "Event-driven architectures decouple producers and consumers in time.",
-      "The encoding format must be agreed upon across all participants."
+      "The encoding format must be agreed upon across all participants.",
+      "nginx/Envoy reverse proxies front gRPC services; Kafka and SQS carry async events."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "When one process needs to share data with another, the dataflow pattern matters. Writing to a shared database is the oldest integration pattern. RPC calls offer synchronous coupling. Message queues add buffering and decouple availability."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "A typical AWS microservice stack: services call each other via gRPC behind an Envoy or nginx reverse proxy, share state in PostgreSQL, cache hot reads in Redis, and publish domain events to Kafka or AWS SQS. WebSockets and Server-Sent Events (SSE) push real-time updates to browsers — another dataflow mode for live dashboards and notifications.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Airbnb at scale",
+        "text": "A booking spans listings, calendar, payments, and notifications — each a separate service. Synchronous gRPC checks availability; Kafka events notify hosts asynchronously when a reservation confirms.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Airbnb microservices — synchronous gRPC between booking services\nconst listing = await listingsClient.getListing({ id: listingId });\nconst availability = await calendarClient.checkDates({\n  listingId,\n  checkIn,\n  checkOut,\n});\n// REST/GraphQL for browsers; gRPC for internal service-to-service calls",
+        "caption": "Synchronous gRPC between services"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-airbnb",
+        "caption": "Transactions and data integration across services: sync RPC for reads, async events for side effects."
       },
       {
         "type": "list",
@@ -612,10 +902,13 @@
     ],
     "relatedConcepts": [
       "REST",
-      "RPC",
-      "message queue",
-      "event-driven",
-      "data integration"
+      "gRPC",
+      "Kafka",
+      "Redis",
+      "reverse proxy",
+      "WebSocket",
+      "SSE",
+      "message queue"
     ],
     "media": {}
   },
@@ -629,7 +922,8 @@
       "Followers replicate the leader's write log and serve read traffic.",
       "Synchronous replication waits for follower ack before confirming writes.",
       "Asynchronous replication is faster but risks data loss on leader failure.",
-      "New followers bootstrap by copying a snapshot then tailing the log."
+      "New followers bootstrap by copying a snapshot then tailing the log.",
+      "PostgreSQL streaming replication, MySQL primary-replica, and MongoDB replica sets all use this pattern."
     ],
     "body": [
       {
@@ -640,11 +934,36 @@
         "type": "diagram",
         "diagramId": "leader-follower",
         "caption": "Writes flow to the leader; followers replicate the log and serve reads."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "PostgreSQL streaming replication sends the WAL from primary to standbys. Amazon RDS Multi-AZ runs synchronous replication within an AZ pair. MongoDB replica sets elect a primary; secondaries tail the oplog. Read replicas on AWS Aurora offload analytics queries from the writer.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "WhatsApp at scale",
+        "text": "Message history replicates from a primary shard to followers so reads scale globally. All writes funnel through the leader; followers tail the WAL to stay consistent without accepting direct writes.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// WhatsApp-style leader → follower replication via write-ahead log\nasync function replicateWrite(entry: WalEntry) {\n  await leader.appendWal(entry);\n  for (const follower of followers) {\n    follower.streamWal((e) => follower.apply(e)); // async tail of leader log\n  }\n  return leader.confirmWrite(entry.lsn);\n}",
+        "caption": "Write-ahead log replication"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-whatsapp",
+        "caption": "Leader-based replication over unreliable networks: one writer, many read replicas tailing the log."
       }
     ],
     "relatedConcepts": [
       "leader",
       "follower",
+      "PostgreSQL",
+      "MongoDB",
       "replication log",
       "synchronous replication"
     ],
@@ -660,7 +979,8 @@
       "Monotonic reads: users never see time go backward across requests.",
       "Consistent prefix reads: causal order of writes is preserved.",
       "Replication lag is normal — applications must explicitly handle it.",
-      "Sticky sessions route a user to one replica to improve consistency."
+      "Sticky sessions route a user to one replica to improve consistency.",
+      "Session cookies, Redis-backed sessions, and read-after-write routing fix common lag bugs."
     ],
     "body": [
       {
@@ -677,12 +997,36 @@
         "title": "Fixes",
         "text": "Read from leader after writes, use sticky sessions, or wait for follower catch-up before serving reads.",
         "variant": "tip"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "After posting a tweet, Twitter routes your next read to the leader or a caught-up replica. E-commerce apps using PostgreSQL read replicas often force read-your-own-writes by querying the primary after checkout. HAProxy or AWS ALB sticky sessions keep a user on one replica for monotonic reads.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Instagram at scale",
+        "text": "After you post a story, the next feed load must include it — even if replicas lag milliseconds behind. Meta routes post-write reads to the primary or enforces a short read-from-leader window per session.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Facebook / Instagram: route reads to primary after posting\nasync function createPost(userId: string, text: string) {\n  const post = await db.primary.posts.create({ data: { userId, text } });\n  // Sticky session: next reads hit primary or caught-up replica\n  session.set(\"readFromPrimaryUntil\", Date.now() + 5_000);\n  return post;\n}\n\nasync function getFeed(userId: string) {\n  const client = session.get(\"readFromPrimaryUntil\") > Date.now()\n    ? db.primary\n    : db.replica;\n  return client.feed.findMany({ where: { userId } });\n}",
+        "caption": "Read-your-own-writes routing"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-meta-feed",
+        "caption": "Partitioned feed storage with replication lag: writes hit the leader; reads may see stale followers."
       }
     ],
     "relatedConcepts": [
       "replication lag",
       "read-your-own-writes",
       "monotonic reads",
+      "Redis",
       "eventual consistency"
     ],
     "media": {}
@@ -697,18 +1041,44 @@
       "Leaders replicate to each other asynchronously.",
       "Concurrent writes to the same record on different leaders create conflicts.",
       "Conflict resolution: last-write-wins, custom merge, or conflict-free replicated data types.",
-      "Multi-leader suits multi-datacenter deployments with offline tolerance."
+      "Multi-leader suits multi-datacenter deployments with offline tolerance.",
+      "CouchDB, Cassandra multi-DC, and CRDTs in collaborative apps use multi-leader patterns."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "Single-leader replication means cross-datacenter writes traverse WAN latency. Multi-leader allows each site to write locally, then replicate. The cost is write conflicts when two leaders modify the same data concurrently."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "CouchDB replicates bidirectionally between edge nodes and cloud — ideal for offline-first mobile apps. Cassandra's multi-datacenter replication lets each region write locally. Figma-style collaborative editors use CRDTs so concurrent edits merge without a single leader bottleneck.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Canva at scale",
+        "text": "Collaborative design editing lets multiple users write concurrently from different regions. CRDTs and operational transforms merge conflicting layer edits without funneling every keystroke through one global leader.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Canva-style real-time collaboration over WebSocket\nconst wss = new WebSocketServer({ port: 8080 });\n\nwss.on(\"connection\", (ws, req) => {\n  const designId = new URL(req.url!, \"http://x\").searchParams.get(\"designId\");\n  ws.on(\"message\", (raw) => {\n    const op = JSON.parse(raw.toString()) as DesignOperation;\n    // Apply CRDT / OT merge, then broadcast to all peers on this design\n    const merged = collabEngine.apply(designId!, op);\n    broadcast(designId!, { type: \"sync\", state: merged });\n  });\n});",
+        "caption": "Real-time collaboration over WebSocket"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-canva",
+        "caption": "Multi-leader-style concurrent writes: each client edits locally; merge engine reconciles conflicts in real time."
       }
     ],
     "relatedConcepts": [
       "multi-leader",
-      "write conflict",
+      "Cassandra",
+      "CouchDB",
       "CRDT",
+      "write conflict",
       "last-write-wins"
     ],
     "media": {}
@@ -723,7 +1093,8 @@
       "Reads contact R replicas and pick the most recent version by version number.",
       "Quorum condition W + R > N ensures overlap between read and write sets.",
       "Sloppy quorums and hinted handoff maintain availability during partitions.",
-      "Version vectors detect concurrent writes that need merging."
+      "Version vectors detect concurrent writes that need merging.",
+      "Amazon DynamoDB, Cassandra, and Riak follow Dynamo-style quorum design."
     ],
     "body": [
       {
@@ -734,12 +1105,31 @@
         "type": "diagram",
         "diagramId": "quorum-read-write",
         "caption": "With N=3, W=2, R=2: writes and reads overlap on at least one node."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Amazon DynamoDB lets you tune W and R per request — R=2, W=2 with N=3 is a common production setting. Apache Cassandra uses tunable consistency (QUORUM, ONE, ALL). During a partition, sloppy quorums and hinted handoff keep writes flowing to healthy nodes.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Stripe at scale",
+        "text": "Payment session state and idempotency records use Dynamo-style quorum writes so any replica can accept a retry without a single leader bottleneck. Tunable R/W per request trades latency for consistency.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// DynamoDB-style quorum: W + R > N ensures read/write overlap\nconst N = 3, W = 2, R = 2;\nasync function write(key: string, value: VersionedValue) {\n  const nodes = pickNodes(key, N);\n  await Promise.all(nodes.slice(0, W).map((n) => n.put(key, value)));\n}\nasync function read(key: string) {\n  const nodes = pickNodes(key, N);\n  const versions = await Promise.all(nodes.slice(0, R).map((n) => n.get(key)));\n  return versions.sort((a, b) => b.version - a.version)[0];\n}",
+        "caption": "Quorum read and write"
       }
     ],
     "relatedConcepts": [
       "quorum",
+      "DynamoDB",
+      "Cassandra",
       "leaderless",
-      "Dynamo",
       "version vector",
       "sloppy quorum"
     ],
@@ -755,7 +1145,8 @@
       "Hash partitioning distributes keys evenly but loses range-scan efficiency.",
       "Skewed workloads need composite keys or random suffixes to spread hot keys.",
       "Partitioning is almost always combined with replication for fault tolerance.",
-      "The partition function is hard to change after deployment."
+      "The partition function is hard to change after deployment.",
+      "Kafka partitions, MongoDB sharded clusters, and DynamoDB partition keys all shard by key."
     ],
     "body": [
       {
@@ -765,13 +1156,33 @@
       {
         "type": "diagram",
         "diagramId": "hash-partitioning",
-        "caption": "Hash of key mod N distributes records across partitions."
+        "caption": "Each key hashes to one partition index; different keys spread across P0–P3."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Kafka topics split into partitions for parallelism — each partition is an ordered log. MongoDB sharding routes documents by shard key through mongos routers. DynamoDB partitions by primary key hash; a hot partition (e.g., celebrity user ID) can throttle the whole table until you add a random suffix.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Uber at scale",
+        "text": "Trip events partition by ride_id so all state transitions for one trip land on the same Kafka partition — preserving order. Driver location updates hash by geo-cell to spread load across shards.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Kafka / DynamoDB-style partition routing\nfunction partitionForKey(userId: string, partitionCount: number): number {\n  let hash = 0;\n  for (const ch of userId) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;\n  return hash % partitionCount;\n}\n\n// WhatsApp routes messages by chat_id to the same shard for ordering\nconst partition = partitionForKey(chatId, 128);",
+        "caption": "Hash partition routing"
       }
     ],
     "relatedConcepts": [
       "partitioning",
       "sharding",
-      "key range",
+      "Kafka",
+      "MongoDB",
+      "DynamoDB",
       "hash partitioning",
       "hot spot"
     ],
@@ -787,16 +1198,37 @@
       "Partitioned by term: the index itself is partitioned by the indexed value.",
       "Global indexes enable efficient lookups but add coordination overhead.",
       "Secondary index queries may scatter-gather across all partitions.",
-      "Index maintenance on writes adds latency to every insert and update."
+      "Index maintenance on writes adds latency to every insert and update.",
+      "Elasticsearch scatter-gather queries and MongoDB compound indexes illustrate the trade-offs."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "Primary key partitioning is straightforward — route by key hash. Secondary indexes (search by email, filter by date) complicate routing because the indexed value may live on a different partition than the record."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "MongoDB sharded clusters maintain local indexes per shard — a query on an unsharded field must scatter-gather to every shard. Elasticsearch distributes inverted indexes across nodes; a search hits all shards and merges results. PostgreSQL on Citus uses co-location and reference tables to reduce scatter-gather overhead.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Airbnb at scale",
+        "text": "Search by city or neighborhood hits secondary indexes scattered across listing shards. Each shard returns partial results; the router merges and ranks them — scatter-gather is the cost of partitioning by listing_id.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Airbnb search — secondary index scatter-gather across shards\nasync function searchByCity(city: string): Promise<Listing[]> {\n  const shards = await router.allShards();\n  const partial = await Promise.all(\n    shards.map((s) => s.query(\"SELECT * FROM listings WHERE city = $1\", [city]))\n  );\n  return partial.flat().sort((a, b) => b.rating - a.rating).slice(0, 50);\n}",
+        "caption": "Scatter-gather secondary index query"
       }
     ],
     "relatedConcepts": [
       "secondary index",
+      "Elasticsearch",
+      "MongoDB",
       "scatter-gather",
       "global index",
       "local index"
@@ -813,19 +1245,40 @@
       "Consistent hashing minimizes key movement when nodes are added or removed.",
       "Fixed number of partitions with virtual nodes simplifies rebalancing.",
       "Automatic rebalancing risks cascading failures; manual triggers are safer.",
-      "Rebalancing should move minimal data at bounded throughput."
+      "Rebalancing should move minimal data at bounded throughput.",
+      "Cassandra vnodes, Kafka partition reassignment, and Kubernetes StatefulSet scaling all rebalance data."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "Adding a machine should improve capacity, not invalidate your entire partition map. Naive hash mod N remaps almost every key when N changes. Better schemes use fixed partitions or consistent hashing to limit data movement."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Cassandra uses virtual nodes (vnodes) so adding a host only moves a fraction of data. Kafka's kafka-reassign-partitions tool migrates partitions between brokers with throttling. On Kubernetes, scaling a StatefulSet adds pods but your app still needs a safe rebalance plan — automatic resharding without ops oversight has caused production outages.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Netflix at scale",
+        "text": "Adding Cassandra nodes during peak streaming hours uses consistent hashing with vnodes so only a fraction of keys move — avoiding the full remap disaster of hash mod N.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Netflix / Cassandra — consistent hashing limits key movement on rebalance\nfunction hashRing(key: string, nodes: string[]): string {\n  const ring = nodes.flatMap((n) =>\n    Array.from({ length: 128 }, (_, i) => ({ hash: hash(`${n}:${i}`), node: n }))\n  ).sort((a, b) => a.hash - b.hash);\n  const h = hash(key);\n  return ring.find((e) => e.hash >= h)?.node ?? ring[0].node;\n}\n// Adding one node moves only ~1/N of keys — not hash(key) % N",
+        "caption": "Consistent hashing on the ring"
       }
     ],
     "relatedConcepts": [
       "rebalancing",
+      "Cassandra",
+      "Kafka",
+      "Kubernetes",
       "consistent hashing",
-      "virtual node",
-      "fixed partitions"
+      "virtual node"
     ],
     "media": {}
   },
@@ -839,19 +1292,40 @@
       "Gateway: stateless proxy that knows the partition map.",
       "Partition-aware clients cache the routing table and connect directly.",
       "The partition map must update when rebalancing occurs.",
-      "ZooKeeper, gossip protocols, or config services distribute routing metadata."
+      "ZooKeeper, gossip protocols, or config services distribute routing metadata.",
+      "nginx, Envoy, AWS ALB, and MongoDB mongos are production routing layers."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "Given a key, which node owns it? A routing layer answers this question. Centralized gateways are simple but can bottleneck. Smart clients avoid the hop but must handle map updates."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "MongoDB mongos routers sit between apps and shards, caching the chunk map from the config servers. Kafka clients fetch partition leadership metadata from the broker controller. In Kubernetes, an nginx or Envoy ingress acts as a reverse proxy — routing HTTP/gRPC to the right pod. AWS ALB does the same at the cloud edge, with health checks and cross-AZ failover.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Twitter/X at scale",
+        "text": "Timeline and user-data requests route through a gateway that caches the partition map. When a shard rebalances, the routing tier updates so clients always hit the node that owns a given user_id.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Twitter/X routing — gateway caches partition map, forwards by key\nfunction routeRequest(userId: string, partitionMap: Map<number, string>) {\n  const partition = hashPartition(userId, partitionMap.size);\n  const host = partitionMap.get(partition)!;\n  return proxy.forward(host, { userId }); // mongos / Envoy style\n}",
+        "caption": "Gateway partition routing"
       }
     ],
     "relatedConcepts": [
       "request routing",
-      "partition map",
-      "gateway",
-      "ZooKeeper"
+      "nginx",
+      "Envoy",
+      "reverse proxy",
+      "mongos",
+      "partition map"
     ],
     "media": {}
   },
@@ -866,7 +1340,8 @@
       "Consistency: invariants hold (often enforced by application logic, not the DB).",
       "Isolation: concurrent transactions do not interfere.",
       "Durability: committed data survives crashes.",
-      "Single-object vs multi-object transactions have very different costs."
+      "Single-object vs multi-object transactions have very different costs.",
+      "PostgreSQL and MySQL offer full multi-row ACID; MongoDB added multi-document transactions in v4.0."
     ],
     "body": [
       {
@@ -878,10 +1353,30 @@
         "title": "Consistency in ACID",
         "text": "Unlike the other three properties, consistency depends on application-defined invariants (e.g., account balance >= 0). The database provides tools; the application defines the rules.",
         "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "A bank transfer in PostgreSQL wraps debit and credit in BEGIN/COMMIT — both rows update or neither does. Stripe uses idempotency keys with PostgreSQL to make retried API calls safe. MongoDB multi-document transactions work across collections but cost more than single-document atomic writes in DynamoDB.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Stripe at scale",
+        "text": "A payment capture debits the customer, records the charge, and updates the merchant balance in one PostgreSQL transaction — partial failure rolls back all three writes.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Airbnb booking: debit guest + credit host atomically\nawait prisma.$transaction(async (tx) => {\n  const booking = await tx.booking.create({\n    data: { listingId, guestId, checkIn, checkOut },\n  });\n  await tx.payment.create({\n    data: { bookingId: booking.id, amountCents, status: \"CAPTURED\" },\n  });\n  await tx.availability.update({\n    where: { listingId_date: { listingId, date: checkIn } },\n    data: { available: false },\n  });\n});",
+        "caption": "Multi-step booking transaction"
       }
     ],
     "relatedConcepts": [
       "ACID",
+      "PostgreSQL",
+      "MongoDB",
       "atomicity",
       "transaction",
       "durability"
@@ -898,7 +1393,8 @@
       "Snapshot isolation: each transaction sees a consistent point-in-time snapshot.",
       "Repeatable read prevents non-repeatable reads within a transaction.",
       "Write skew: two transactions read overlapping data and write disjoint rows.",
-      "Phantoms: new rows appear in a re-executed range query."
+      "Phantoms: new rows appear in a re-executed range query.",
+      "PostgreSQL defaults to READ COMMITTED; SERIALIZABLE uses SSI for stronger guarantees."
     ],
     "body": [
       {
@@ -909,10 +1405,29 @@
         "type": "diagram",
         "diagramId": "isolation-levels",
         "caption": "Stronger isolation prevents more anomalies but reduces concurrency."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "PostgreSQL's default READ COMMITTED is fine for most web apps. Inventory systems prone to write skew might need SERIALIZABLE or explicit row locks (SELECT FOR UPDATE). MySQL InnoDB uses REPEATABLE READ with next-key locking to reduce phantoms — behavior differs from PostgreSQL, so isolation level names are not portable across databases.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Airbnb at scale",
+        "text": "Double-booking the same listing date is a write-skew anomaly — two guests read available=true concurrently and both commit. Inventory systems need SERIALIZABLE or SELECT FOR UPDATE, not default READ COMMITTED.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// PostgreSQL isolation — pick the weakest level that is safe\nawait db.query(\"BEGIN ISOLATION LEVEL READ COMMITTED\");\nconst row = await db.query(\"SELECT stock FROM inventory WHERE sku = $1\", [sku]);\nif (row.stock < qty) throw new Error(\"insufficient stock\");\nawait db.query(\"UPDATE inventory SET stock = stock - $1 WHERE sku = $2\", [qty, sku]);\nawait db.query(\"COMMIT\");\n// SERIALIZABLE or SELECT FOR UPDATE needed to prevent write skew",
+        "caption": "Choosing an isolation level"
       }
     ],
     "relatedConcepts": [
       "read committed",
+      "PostgreSQL",
       "snapshot isolation",
       "write skew",
       "phantom read"
@@ -929,19 +1444,40 @@
       "Two-phase locking (2PL): readers and writers acquire locks; risk of deadlocks.",
       "Serializable Snapshot Isolation (SSI): optimistic detection of conflicts at commit.",
       "Serializability prevents all anomalies but costs latency and throughput.",
-      "Distributed serializability requires coordination across partitions."
+      "Distributed serializability requires coordination across partitions.",
+      "PostgreSQL SSI, Google Spanner, and CockroachDB target serializable distributed transactions."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "Serializable isolation is the gold standard: the result is identical to some serial execution order. Achieving it without sacrificing all concurrency is one of database engineering's hardest problems."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "PostgreSQL offers SERIALIZABLE via Serializable Snapshot Isolation (SSI) — good for low-contention workloads. Google Spanner and CockroachDB use TrueTime and distributed consensus for serializable transactions across regions — at the cost of higher write latency. Redis single-threaded execution is effectively serial for one key — which is why simple counters work reliably.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Google at scale",
+        "text": "Spanner offers externally serializable transactions globally by combining TrueTime timestamps with Paxos replication. Ad auction bidding and financial ledger rows cannot tolerate write skew across regions.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Google Spanner / PostgreSQL SSI — detect conflicts at commit time\nawait db.query(\"BEGIN ISOLATION LEVEL SERIALIZABLE\");\nconst seats = await db.query(\n  \"SELECT COUNT(*) FROM bookings WHERE flight_id = $1 AND seat_taken = true\", [flightId]\n);\nif (seats.count >= maxSeats) throw new Error(\"flight full\");\nawait db.query(\"INSERT INTO bookings (flight_id, user_id) VALUES ($1, $2)\", [flightId, userId]);\nawait db.query(\"COMMIT\"); // aborts if concurrent txn created a serializability conflict",
+        "caption": "Serializable Snapshot Isolation"
       }
     ],
     "relatedConcepts": [
       "serializability",
-      "two-phase locking",
+      "PostgreSQL",
+      "Spanner",
+      "CockroachDB",
       "SSI",
-      "deadlock"
+      "two-phase locking"
     ],
     "media": {}
   },
@@ -955,18 +1491,39 @@
       "Cloud datacenters have better redundancy than single machines but shared failure domains.",
       "Supercomputers assume reliable components; cloud systems assume failure is routine.",
       "You cannot assume a remote node is alive without evidence.",
-      "Design for the case where any node, link, or rack can fail independently."
+      "Design for the case where any node, link, or rack can fail independently.",
+      "Kubernetes pod crashes, AWS AZ outages, and Redis sentinel failover are everyday partial failures."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "On one machine, a crash stops everything — easy to detect. In a distributed system, one node may crash while others continue. A network link may drop while processes on both ends are healthy. This ambiguity makes distributed failure modes uniquely subtle."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "A Kubernetes cluster might lose one pod while others keep serving traffic — but now load is uneven and downstream caches may be stale. An AWS Availability Zone outage takes out some RDS replicas but not the whole region. Docker containers restart on failure, but that does not replace distributed coordination for data consistency.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Netflix at scale",
+        "text": "Chaos Monkey deliberately kills instances during business hours to prove partial failures are survivable. A single API pod crash must not corrupt shared state — only reduce capacity until Kubernetes reschedules.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Uber microservices — gRPC deadlines detect slow/dead peers\nconst deadline = Date.now() + 3_000;\nconst trip = await tripClient.getTrip(\n  { tripId },\n  { deadline }, // client aborts after 3s — cannot distinguish slow vs dead\n);\n// Envoy retry policy + circuit breaker stops cascading timeouts",
+        "caption": "gRPC deadline on partial failure"
       }
     ],
     "relatedConcepts": [
       "partial failure",
+      "Kubernetes",
+      "AWS",
+      "Docker",
       "fault tolerance",
-      "cloud computing",
       "failure domain"
     ],
     "media": {}
@@ -981,7 +1538,8 @@
       "Timeouts are the only way to detect failure — but choosing the right timeout is hard.",
       "Network partitions split the cluster into islands that cannot communicate.",
       "Synchronous networks (e.g., internal datacenter) are more predictable than the public internet.",
-      "You must design for messages that never arrive or arrive twice."
+      "You must design for messages that never arrive or arrive twice.",
+      "gRPC deadlines, Envoy retries, and circuit breakers handle unreliable networks in microservices."
     ],
     "body": [
       {
@@ -993,13 +1551,38 @@
         "title": "The two generals problem",
         "text": "Two armies must agree to attack simultaneously via messengers who may be captured. Proves that consensus is impossible with unreliable communication.",
         "variant": "warning"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "gRPC clients set deadlines; Envoy or nginx reverse proxies configure retry policies with backoff. Istio circuit breakers stop hammering a failing service. AWS ALB health checks eject unhealthy targets. Mobile clients on flaky networks must use idempotent APIs (Stripe idempotency keys) because TCP reliability does not survive application-level timeouts.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Uber at scale",
+        "text": "Driver matching RPCs run over mobile networks with unpredictable latency. gRPC deadlines abort hung calls after 3 seconds; idempotent retries prevent duplicate trip assignments when packets are lost.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Uber microservices — gRPC deadlines detect slow/dead peers\nconst deadline = Date.now() + 3_000;\nconst trip = await tripClient.getTrip(\n  { tripId },\n  { deadline }, // client aborts after 3s — cannot distinguish slow vs dead\n);\n// Envoy retry policy + circuit breaker stops cascading timeouts",
+        "caption": "gRPC client deadline"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-whatsapp",
+        "caption": "Unreliable networks between mobile clients and regional datacenters: timeouts, retries, and idempotency are mandatory."
       }
     ],
     "relatedConcepts": [
       "network partition",
+      "gRPC",
+      "Envoy",
       "timeout",
       "TCP",
-      "message loss"
+      "circuit breaker"
     ],
     "media": {}
   },
@@ -1013,20 +1596,40 @@
       "Monotonic clocks measure elapsed time and never go backward — good for timeouts.",
       "Clock skew between machines makes event ordering by timestamp unreliable.",
       "Logical clocks (Lamport, vector clocks) track causality without wall-clock time.",
-      "Never use wall-clock timestamps alone for ordering in distributed systems."
+      "Never use wall-clock timestamps alone for ordering in distributed systems.",
+      "OpenTelemetry traces, Kafka event time, and Spanner TrueTime handle time carefully."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "Applications use clocks for timeouts, deadlines, and event ordering. But NTP adjustments can jump time backward, quartz drift causes skew, and leap seconds create surprises. Relying on synchronized wall clocks for correctness is dangerous."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Docker and Kubernetes nodes sync via NTP but can still drift milliseconds apart — enough to break last-write-wins conflict resolution. Use monotonic clocks (System.nanoTime) for timeouts in Java/Go services. Kafka stream processors distinguish event time from processing time. Google Spanner uses GPS-synchronized TrueTime for globally consistent timestamps — expensive, but instructive.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Google at scale",
+        "text": "Spanner's TrueTime API exposes uncertainty bounds on wall-clock time so transactions can order commits globally. Most services should use monotonic clocks for timeouts and event-time for stream windows — not NTP for correctness.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Kafka / Flink — never order events by NTP wall clock alone\nconst start = process.hrtime.bigint(); // monotonic — safe for timeouts\nawait doWork();\nconst elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;\n\n// Event time from producer timestamp; processing time = when consumer sees it\nconst window = tumblingWindow(event.timestamp, Duration.ofMinutes(5));",
+        "caption": "Monotonic vs event time"
       }
     ],
     "relatedConcepts": [
       "NTP",
+      "OpenTelemetry",
+      "Kafka",
       "clock skew",
       "monotonic clock",
-      "Lamport clock",
-      "vector clock"
+      "Lamport clock"
     ],
     "media": {}
   },
@@ -1038,21 +1641,42 @@
     "keyTakeaways": [
       "The majority quorum defines what is true in leaderless systems.",
       "Byzantine faults: nodes that deliberately lie or behave arbitrarily.",
-      "System models (crash-stop vs Byzantine) define what failures to tolerate.",
+      "System models (crash-stop vs Byzantine) assume different failure modes.",
       "Fencing tokens prevent stale leaders from corrupting shared resources.",
-      "Truth is a agreement among nodes — not an absolute property."
+      "Truth is agreement among nodes — not an absolute property.",
+      "etcd lease fencing, ZooKeeper ephemeral nodes, and DynamoDB conditional writes enforce safe decisions."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "A node cannot know global system state — it only knows what it has observed. Decisions based on partial knowledge (is the leader dead? did my write succeed?) are inherently uncertain. Protocols define rules for reaching sufficient agreement to act."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "A stale PostgreSQL primary that was network-partitioned must be fenced before rejoining — otherwise it could accept writes that conflict with the new primary. etcd grants expiring leases so only the current leader holds the lock. DynamoDB conditional writes (attribute_not_exists) prevent lost-update races without a central lock service.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Shopify at scale",
+        "text": "During a network partition, the old primary must not resume writes after a new leader is elected. Fencing tokens from etcd ensure stale nodes cannot corrupt shared inventory or checkout state.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Shopify leader election — fencing token blocks stale primary writes\nconst token = await etcd.getLease().then((l) => l.fencingToken);\nasync function writeToSharedStore(key: string, value: string) {\n  const current = await storage.getFencingToken(key);\n  if (token < current) throw new Error(\"stale leader — fenced\");\n  await storage.put(key, value, { fencingToken: token });\n}",
+        "caption": "Fencing stale leaders"
       }
     ],
     "relatedConcepts": [
       "Byzantine fault",
-      "quorum",
+      "etcd",
+      "ZooKeeper",
       "fencing token",
-      "system model"
+      "DynamoDB",
+      "quorum"
     ],
     "media": {}
   },
@@ -1066,19 +1690,40 @@
       "Causal consistency preserves cause-and-effect ordering.",
       "Linearizability: every operation appears instantaneous at some point between start and end.",
       "Stronger guarantees cost latency and availability during partitions.",
-      "Choose the weakest consistency model that satisfies your application invariants."
+      "Choose the weakest consistency model that satisfies your application invariants.",
+      "DynamoDB tunable consistency, MongoDB read concerns, and Redis replication illustrate the spectrum."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "When data is replicated, reads may not reflect the latest write. Consistency models formalize what clients can expect. The spectrum runs from eventual (replicas converge eventually) to linearizable (behaves like a single copy)."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "DynamoDB offers eventual (default) or strong (R+W>N) reads per request. MongoDB readConcern: majority waits for replication to a quorum. Redis async replication means reads from replicas may be stale — many teams read only from the primary for consistency-sensitive data. Caching in Redis amplifies consistency questions: what TTL is acceptable for stale catalog data?",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Facebook at scale",
+        "text": "News feed tolerates seconds of staleness in Redis cache-aside — a slightly old post order is acceptable. Account balance reads require strong consistency from the primary, not a cached replica.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Facebook feed cache-aside pattern\nasync function getFeed(userId: string): Promise<Post[]> {\n  const cacheKey = `feed:${userId}`;\n  const cached = await redis.get(cacheKey);\n  if (cached) return JSON.parse(cached);\n\n  const posts = await db.posts.findMany({\n    where: { userId },\n    orderBy: { createdAt: \"desc\" },\n    take: 50,\n  });\n  await redis.setex(cacheKey, 300, JSON.stringify(posts));\n  return posts;\n}",
+        "caption": "Cache-aside with tunable staleness"
       }
     ],
     "relatedConcepts": [
       "eventual consistency",
+      "DynamoDB",
+      "MongoDB",
+      "Redis",
       "causal consistency",
-      "linearizability",
-      "consistency model"
+      "linearizability"
     ],
     "media": {}
   },
@@ -1092,7 +1737,8 @@
       "Once a write completes, all subsequent reads see it.",
       "Compare-and-set and distributed locks require linearizability.",
       "Implementing linearizability requires coordination — often a single leader.",
-      "The CAP theorem: during a partition, choose consistency or availability."
+      "The CAP theorem: during a partition, choose consistency or availability.",
+      "etcd, ZooKeeper, and Spanner provide linearizable operations for coordination and storage."
     ],
     "body": [
       {
@@ -1104,13 +1750,33 @@
         "title": "Cost",
         "text": "Linearizability requires consensus on every operation — adding latency and reducing availability during network partitions.",
         "variant": "warning"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Kubernetes uses etcd for linearizable leader election and config storage. ZooKeeper coordinates Kafka brokers (legacy) and Hadoop. Distributed locks (Redisson on Redis, etcd leases) need linearizable compare-and-set. Spanner offers external linearizable reads globally — rare and costly; most apps settle for per-partition ordering in Kafka instead.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "LinkedIn at scale",
+        "text": "Job-posting deduplication and distributed locks for recruiter workflows require linearizable compare-and-set via etcd — only one worker may hold the lock at a time.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// LinkedIn distributed lock — linearizable compare-and-set\nasync function acquireLock(resource: string): Promise<boolean> {\n  const ok = await etcd.put(resource, nodeId, {\n    prevExist: \"false\", // only succeeds if key absent — atomic\n  });\n  return ok;\n}\n// Stale leader cannot steal lock without seeing current holder",
+        "caption": "Linearizable compare-and-set lock"
       }
     ],
     "relatedConcepts": [
       "linearizability",
+      "etcd",
+      "ZooKeeper",
       "CAP theorem",
-      "compare-and-set",
-      "strong consistency"
+      "Spanner",
+      "compare-and-set"
     ],
     "media": {}
   },
@@ -1124,16 +1790,37 @@
       "Sequence numbers assign a total order within one leader.",
       "Total order broadcast delivers the same messages in the same order to all nodes.",
       "Lamport timestamps provide partial ordering without a central sequencer.",
-      "Consistent ordering simplifies replication and conflict resolution."
+      "Consistent ordering simplifies replication and conflict resolution.",
+      "Kafka partition ordering, PostgreSQL LSNs, and Debezium CDC preserve event order."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "If event B depends on event A, all observers must process A before B. Establishing global order in a distributed system requires either a single sequencer (leader) or logical clocks that track causality."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Kafka guarantees order within a partition — so related events (e.g., all updates for user_id=42) must share a partition key. PostgreSQL logical replication streams changes in log sequence number (LSN) order. Debezium CDC publishes database changes to Kafka preserving per-table ordering. Cross-partition causal ordering still requires application-level design.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Uber at scale",
+        "text": "All events for one trip_id share a Kafka partition so pickup → en-route → completed always arrive in causal order. Cross-trip ordering does not matter and stays unordered.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// LinkedIn / Uber-style Kafka consumer with offset tracking\nasync function consumeMessages(groupId: string) {\n  const consumer = kafka.consumer({ groupId });\n  await consumer.subscribe({ topic: \"user-events\" });\n\n  await consumer.run({\n    eachMessage: async ({ partition, message }) => {\n      const event = JSON.parse(message.value!.toString());\n      await processEvent(event); // must be idempotent for at-least-once\n      // offset committed after processing (or in transaction with side effect)\n    },\n  });\n}",
+        "caption": "Kafka consumer with partition ordering"
       }
     ],
     "relatedConcepts": [
       "causality",
+      "Kafka",
+      "Debezium",
       "total order broadcast",
       "Lamport timestamp",
       "sequence number"
@@ -1150,7 +1837,8 @@
       "2PC blocks if the coordinator fails after prepare.",
       "Fault-tolerant consensus (Raft, Paxos, Zab) elects a leader and replicates a log.",
       "Consensus is required for leader election, atomic commit, and membership changes.",
-      "Coordination services (ZooKeeper, etcd) provide consensus as a service."
+      "Coordination services (ZooKeeper, etcd) provide consensus as a service.",
+      "Raft in etcd/Consul, Kafka KRaft, and XA transactions across PostgreSQL show consensus in production."
     ],
     "body": [
       {
@@ -1161,13 +1849,32 @@
         "type": "diagram",
         "diagramId": "two-phase-commit",
         "caption": "Coordinator asks participants to prepare, then commits or aborts."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "etcd and HashiCorp Consul use Raft for leader election and consistent key-value storage — the backbone of Kubernetes control planes. Kafka replaced ZooKeeper with KRaft (internal Raft) for broker metadata. Cross-database 2PC (XA transactions) exists in Java EE but is fragile; the saga pattern with compensating transactions in microservices is more common today.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Google at scale",
+        "text": "Chubby (precursor to etcd) provided distributed consensus for Google's internal infrastructure — leader election, lock service, and membership. Kubernetes today relies on etcd's Raft implementation for the same guarantees.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Microservice SAGA — compensate if payment fails (Airbnb-style)\nasync function bookListing(input: BookingInput) {\n  const hold = await inventoryService.reserve(input); // step 1\n  try {\n    const payment = await paymentService.charge(input); // step 2\n    await notificationService.sendConfirmation(input); // step 3\n    return { hold, payment };\n  } catch (err) {\n    await inventoryService.release(hold.id); // compensating transaction\n    throw err;\n  }\n}",
+        "caption": "SAGA compensating transaction"
       }
     ],
     "relatedConcepts": [
       "consensus",
-      "two-phase commit",
       "Raft",
-      "Paxos",
+      "etcd",
+      "Kafka",
+      "two-phase commit",
       "ZooKeeper"
     ],
     "media": {}
@@ -1182,16 +1889,37 @@
       "stdin/stdout as a uniform interface decouples producers and consumers.",
       "Log analysis with awk, grep, and sort handles surprisingly large datasets.",
       "Immutability of input files enables retry and recomputation.",
-      "The same patterns underpin Hadoop, Spark, and modern data pipelines."
+      "The same patterns underpin Hadoop, Spark, and modern data pipelines.",
+      "grep/awk on logs, DuckDB on Parquet, and Fluent Bit pipelines extend the Unix pattern."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "Long before Hadoop, Unix pipelines processed data by chaining simple programs: extract fields with awk, filter with grep, aggregate with sort. Each tool is stateless, reads stdin, writes stdout — a pattern that scales to terabytes when parallelized."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "SREs still debug production with grep and jq on JSON logs. DuckDB queries Parquet files on S3 like a local Unix tool — no cluster required. Fluent Bit and Vector collect container logs on Kubernetes nodes and pipe them to Elasticsearch or S3. The composable-pipeline idea survived; only the scale and storage changed.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Google at scale",
+        "text": "Google's early MapReduce paper explicitly credits Unix pipelines as inspiration — small composable tools over monolithic programs. SRE log triage still chains grep, awk, and sort before reaching for a cluster.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Google SRE log triage — composable Unix-style pipeline\n// cat access.log | grep '\" 5' | awk '{print $7}' | sort | uniq -c | sort -rn\nconst lines = await readFile(\"access.log\", \"utf8\");\nconst errors = lines.split(\"\\n\")\n  .filter((l) => l.includes('\" 5'))\n  .map((l) => l.split(\" \")[6]);\nconst counts = Object.fromEntries(\n  [...new Set(errors)].map((p) => [p, errors.filter((e) => e === p).length])\n);",
+        "caption": "Unix-style log pipeline"
       }
     ],
     "relatedConcepts": [
       "Unix philosophy",
+      "DuckDB",
+      "Fluent Bit",
       "batch processing",
       "pipeline",
       "immutability"
@@ -1208,7 +1936,8 @@
       "Shuffle sorts and groups intermediate key-value pairs by key.",
       "Reduce functions aggregate all values for each key.",
       "Failed map/reduce tasks are automatically retried on other nodes.",
-      "HDFS stores large immutable files replicated across the cluster."
+      "HDFS stores large immutable files replicated across the cluster.",
+      "Hadoop MapReduce on HDFS is legacy; S3 + Spark replaced it in most cloud stacks."
     ],
     "body": [
       {
@@ -1219,13 +1948,37 @@
         "type": "diagram",
         "diagramId": "mapreduce-pipeline",
         "caption": "Map → Shuffle → Reduce over a distributed filesystem."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Early Twitter and LinkedIn analytics ran on Hadoop MapReduce over HDFS. Today AWS EMR and Databricks run Spark over S3 — same map-shuffle-reduce idea, but in-memory stages avoid writing every intermediate to disk. Immutable Parquet files on S3 replaced HDFS for most new data lakes.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "LinkedIn at scale",
+        "text": "Early member analytics and ad targeting ran on Hadoop MapReduce over HDFS — immutable input files, parallel map tasks, shuffle by key, reduce aggregates. The pattern scaled to petabytes before Spark replaced disk-bound intermediates.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// LinkedIn analytics — Spark batch over immutable Parquet on S3\nconst dailyActive = spark.read.parquet(\"s3://events/dt=2025-06-01/\")\n  .filter(col(\"event\") === \"login\")\n  .groupBy(\"user_id\")\n  .agg(count(\"*\").as(\"logins\"));\ndailyActive.write.mode(\"overwrite\").parquet(\"s3://metrics/dau/\");\n// Lineage graph retries failed stages — no full job restart",
+        "caption": "Spark batch over immutable Parquet"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-google-search",
+        "caption": "Batch indexing pipeline: map-shuffle-reduce over distributed storage — the Google-scale pattern behind web crawls and analytics."
       }
     ],
     "relatedConcepts": [
       "MapReduce",
+      "Spark",
       "HDFS",
+      "S3",
       "shuffle",
-      "reduce",
       "batch job"
     ],
     "media": {}
@@ -1240,19 +1993,39 @@
       "Spark keeps data in memory across stages for faster iteration.",
       "High-level APIs (Spark SQL, DataFrames) decouple logic from execution.",
       "Graph processing (Pregel) uses message-passing between vertices.",
-      "Batch and stream processing are converging into unified engines."
+      "Batch and stream processing are converging into unified engines.",
+      "Apache Spark, Apache Flink, and Snowflake's elastic compute supersede classic MapReduce."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "MapReduce's rigid map-shuffle-reduce cycle forces disk writes between every stage. Modern engines materialize less, push computation to data, and expose declarative APIs — while retaining fault tolerance through lineage graphs."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Databricks runs Apache Spark for ETL and ML training over terabytes in memory. Apache Flink unifies batch and stream processing in one runtime. Snowflake separates storage (S3/Azure) from elastic compute warehouses — you write SQL, not MapReduce jobs. dbt layers transformations on top of Snowflake or BigQuery with version-controlled SQL models.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Netflix at scale",
+        "text": "Recommendation model training runs on Spark over viewing-history Parquet in S3 — iterative in-memory stages replace MapReduce's disk-bound shuffle between every step.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Google BigQuery / Snowflake — declarative OLAP over columnar storage\nconst revenueByRegion = await snowflake.execute(`\n  SELECT d.region, SUM(f.revenue_cents) AS total\n  FROM fact_orders f\n  JOIN dim_date d ON f.order_date = d.date_key\n  WHERE d.year = 2025\n  GROUP BY d.region\n  ORDER BY total DESC\n`);\n// Optimizer reads only region + revenue columns — not full rows",
+        "caption": "Declarative warehouse SQL"
       }
     ],
     "relatedConcepts": [
       "Spark",
-      "iterative processing",
+      "Flink",
+      "Snowflake",
+      "dbt",
       "DataFrame",
-      "Pregel",
       "dataflow engine"
     ],
     "media": {}
@@ -1267,7 +2040,8 @@
       "Partitioned logs (Kafka) retain messages for replay and multiple consumer groups.",
       "Producers append; consumers track their offset in the log.",
       "Backpressure and buffering handle speed mismatches between producers and consumers.",
-      "Exactly-once delivery requires idempotent consumers or transactional writes."
+      "Exactly-once processing semantics require idempotent consumers, transactional commits, or deduplication.",
+      "Kafka, RabbitMQ, AWS SQS/SNS, WebSockets, and SSE cover async and real-time delivery."
     ],
     "body": [
       {
@@ -1278,11 +2052,36 @@
         "type": "diagram",
         "diagramId": "event-stream",
         "caption": "Producers append to a partitioned log; consumer groups read at independent offsets."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Apache Kafka is the default partitioned log for microservices — order events, audit logs, and CDC streams. RabbitMQ and AWS SQS route task queues with at-least-once delivery. For browser real-time updates, WebSockets (bidirectional) and Server-Sent Events (server push over HTTP) complement the async backend. Kafka transactions plus idempotent producers achieve exactly-once processing semantics within a cluster.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "WhatsApp at scale",
+        "text": "Message delivery events append to a partitioned log so multiple consumer groups — push notifications, analytics, moderation — read the same stream at independent offsets without competing for messages.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// LinkedIn / Uber-style Kafka consumer with offset tracking\nasync function consumeMessages(groupId: string) {\n  const consumer = kafka.consumer({ groupId });\n  await consumer.subscribe({ topic: \"user-events\" });\n\n  await consumer.run({\n    eachMessage: async ({ partition, message }) => {\n      const event = JSON.parse(message.value!.toString());\n      await processEvent(event); // must be idempotent for at-least-once\n      // offset committed after processing (or in transaction with side effect)\n    },\n  });\n}",
+        "caption": "Kafka consumer group"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-whatsapp",
+        "caption": "Partitioned event log for message streams: producers append, consumers replay at their own pace."
       }
     ],
     "relatedConcepts": [
-      "message broker",
       "Kafka",
+      "RabbitMQ",
+      "WebSocket",
+      "SSE",
       "partitioned log",
       "consumer group",
       "offset"
@@ -1299,18 +2098,44 @@
       "Event sourcing stores state changes as an immutable log of events.",
       "The log is the system of record; materialized views are derived state.",
       "Dual writes to database and queue risk inconsistency.",
-      "Transactional outbox pattern writes events atomically with state changes."
+      "Transactional outbox pattern writes events atomically with state changes.",
+      "Debezium, Kafka Connect, and the transactional outbox with PostgreSQL are production CDC patterns."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "A database holds current state; a stream holds the history of changes. CDC bridges them by tailing the replication log. Event sourcing inverts the model: the log is primary, and current state is a derived view rebuilt by replay."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Debezium reads PostgreSQL WAL changes and publishes to Kafka — powering search index updates, cache invalidation, and data warehouses without dual writes. The transactional outbox pattern writes events to an outbox table in the same PostgreSQL transaction as the business row, then a relay process publishes to Kafka. EventStoreDB and Marten (.NET) implement full event sourcing for audit-heavy domains.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Shopify at scale",
+        "text": "Order rows and outbox events commit in the same PostgreSQL transaction — a relay publishes OrderPlaced to Kafka for search indexing and warehouse sync without risky dual writes.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Transactional outbox — Airbnb / Shopify event publishing\nawait prisma.$transaction(async (tx) => {\n  const order = await tx.order.create({ data: orderInput });\n  await tx.outboxEvent.create({\n    data: {\n      aggregateId: order.id,\n      type: \"OrderPlaced\",\n      payload: JSON.stringify(order),\n    },\n  });\n});\n// Separate relay process reads outbox → publishes to Kafka",
+        "caption": "Transactional outbox pattern"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-airbnb",
+        "caption": "Database state and event streams stay in sync: CDC and outbox relay derived views without dual-write races."
       }
     ],
     "relatedConcepts": [
       "CDC",
+      "Debezium",
+      "Kafka",
+      "PostgreSQL",
       "event sourcing",
-      "materialized view",
       "transactional outbox"
     ],
     "media": {}
@@ -1325,19 +2150,40 @@
       "Event time (when it happened) vs processing time (when observed) diverge.",
       "Windowing groups events by time ranges for aggregation.",
       "Stream joins combine two streams or a stream with a table.",
-      "Fault tolerance via checkpointing and replay from durable logs."
+      "Fault tolerance via checkpointing and replay from durable logs.",
+      "Apache Flink, Kafka Streams, ksqlDB, and Materialize process streams in production."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "Stream processing applies computations to data in motion. Unlike batch, the input is unbounded. Key challenges: handling out-of-order events, defining time windows, and maintaining state across failures."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Flink powers real-time fraud detection at banks — joining a payment stream against a Redis feature store within millisecond windows. Kafka Streams embeds processing in JVM microservices without a separate cluster. ksqlDB lets analysts write SQL over Kafka topics. Materialize maintains incrementally updated SQL views — like a live data warehouse fed by streams.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Uber at scale",
+        "text": "Surge pricing aggregates ride demand in 5-minute tumbling windows over a geo-partitioned event stream — event time, not processing time, defines when a window closes.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Uber surge pricing — Flink tumbling window on ride stream\nstream\n  .keyBy((event) => event.geoHash)\n  .window(TumblingEventTimeWindows.of(Time.minutes(5)))\n  .aggregate({\n    add: (acc, ride) => ({ count: acc.count + 1, fare: acc.fare + ride.fare }),\n    getResult: (acc) => acc,\n  })\n  .filter((stats) => stats.count > demandThreshold)\n  .map((stats) => ({ geoHash: stats.key, surgeMultiplier: 1.5 }));",
+        "caption": "Flink tumbling window aggregation"
       }
     ],
     "relatedConcepts": [
+      "Flink",
+      "Kafka Streams",
+      "ksqlDB",
+      "Materialize",
       "stream processing",
-      "event time",
       "windowing",
-      "stream join",
       "checkpoint"
     ],
     "media": {}
@@ -1352,19 +2198,46 @@
       "Derive views, indexes, and analytics from an immutable event log.",
       "Batch and stream processing both feed derived data systems.",
       "Unbundling the database separates storage, indexing, querying, and processing.",
-      "Dataflow-oriented design makes integration explicit in the architecture."
+      "Dataflow-oriented design makes integration explicit in the architecture.",
+      "Lambda → Kappa architecture with Kafka; microservices with Postgres + Elasticsearch + Redis + Snowflake."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "The future is not one database to rule them all. Instead, systems specialize: OLTP for transactions, search index for full-text, warehouse for analytics, cache for speed. An event log connects them, and derived data flows keep views consistent."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "A modern e-commerce stack: PostgreSQL for orders, Redis for session cache and rate limiting, Elasticsearch for product search, Kafka for order events, Snowflake for analytics, and S3 for image storage — all synced via CDC and stream processors. Kubernetes and Docker package each service; Envoy or nginx routes traffic at the edge. Authentication flows through OAuth 2.0 / OpenID Connect (Auth0, Keycloak, AWS Cognito).",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Airbnb at scale",
+        "text": "Listings live in PostgreSQL, search in Elasticsearch, sessions in Redis, analytics in Snowflake — all derived from an immutable Kafka event log via CDC. No single database does everything.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Transactional outbox — Airbnb / Shopify event publishing\nawait prisma.$transaction(async (tx) => {\n  const order = await tx.order.create({ data: orderInput });\n  await tx.outboxEvent.create({\n    data: {\n      aggregateId: order.id,\n      type: \"OrderPlaced\",\n      payload: JSON.stringify(order),\n    },\n  });\n});\n// Separate relay process reads outbox → publishes to Kafka",
+        "caption": "CDC outbox to Kafka"
+      },
+      {
+        "type": "diagram",
+        "diagramId": "system-modern-stack",
+        "caption": "Unbundled data stack: specialized stores connected by event log and derived pipelines."
       }
     ],
     "relatedConcepts": [
       "data integration",
-      "unbundling",
-      "derived data",
-      "specialized tools"
+      "PostgreSQL",
+      "Kafka",
+      "Elasticsearch",
+      "Redis",
+      "Snowflake",
+      "unbundling"
     ],
     "media": {}
   },
@@ -1378,19 +2251,39 @@
       "Enforce constraints at the data layer where possible (unique, foreign key, check).",
       "Timeliness and integrity: data must be correct and arrive when needed.",
       "Audit trails and checksums enable trust-but-verify patterns.",
-      "Formal verification and testing at the system boundary catch integration bugs."
+      "Formal verification and testing at the system boundary catch integration bugs.",
+      "Stripe idempotency keys, PostgreSQL constraints, and SAGA patterns enforce correctness end-to-end."
     ],
     "body": [
       {
         "type": "paragraph",
         "text": "Correctness is not accidental. It requires end-to-end reasoning: the database can enforce constraints, but the application must define invariants. Auditing, idempotency, and deterministic replay help verify that derived systems match the source of truth."
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "Stripe's API requires Idempotency-Key headers so network retries never double-charge. PostgreSQL UNIQUE and FOREIGN KEY constraints catch bugs at the database layer. In microservices, the SAGA pattern coordinates multi-service transactions with compensating actions (cancel shipment if payment fails). OpenTelemetry traces verify that an event published to Kafka was processed by every downstream consumer.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Stripe at scale",
+        "text": "Every charge API call accepts an Idempotency-Key header — network retries return the original result instead of double-charging. Correctness is enforced end-to-end, not just at the TCP layer.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Stripe-style idempotency — safe retries over unreliable networks\nasync function chargeCard(req: Request) {\n  const idempotencyKey = req.headers.get(\"Idempotency-Key\");\n  const existing = await redis.get(`idem:${idempotencyKey}`);\n  if (existing) return JSON.parse(existing);\n\n  const result = await paymentService.charge(/* ... */);\n  await redis.setex(`idem:${idempotencyKey}`, 86400, JSON.stringify(result));\n  return result;\n}",
+        "caption": "Idempotent payment retries"
       }
     ],
     "relatedConcepts": [
       "end-to-end argument",
-      "integrity",
-      "constraint",
-      "audit trail",
+      "idempotency",
+      "PostgreSQL",
+      "SAGA",
+      "OpenTelemetry",
       "correctness"
     ],
     "media": {}
@@ -1405,7 +2298,8 @@
       "Privacy requires limiting collection, retention, and correlation of personal data.",
       "Tracking and surveillance capitalism erode user trust.",
       "Engineers have responsibility for how data is used, not just how it is stored.",
-      "Regulation (GDPR) and privacy-by-design are becoming engineering requirements."
+      "Regulation (GDPR) and privacy-by-design are becoming engineering requirements.",
+      "GDPR, AWS data residency, and on-device ML (Apple) reflect engineering responses to privacy."
     ],
     "body": [
       {
@@ -1417,13 +2311,32 @@
         "title": "Privacy by design",
         "text": "Collect minimum data, encrypt at rest and in transit, provide deletion mechanisms, and make data practices transparent to users.",
         "variant": "warning"
+      },
+      {
+        "type": "callout",
+        "title": "In practice",
+        "text": "GDPR requires deletion APIs and data processing agreements — engineering teams implement right-to-erasure in PostgreSQL with soft-delete + purge jobs. AWS offers region-locked storage (data residency) for regulated industries. Snowflake column masking and row access policies enforce authorization at the warehouse layer. Recommendation systems at Netflix and TikTok raise ongoing questions about filter bubbles and engagement optimization vs user wellbeing.",
+        "variant": "info"
+      },
+      {
+        "type": "callout",
+        "title": "Netflix at scale",
+        "text": "Recommendation models trained on viewing history must honor GDPR deletion requests — purge user rows from warehouses and retrain without retained PII. OAuth scopes limit which services access profile data.",
+        "variant": "tip"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "// Netflix / Auth0 — OAuth 2.0 authorization code flow for user identity\nconst authUrl = oauth.authorizeUrl({\n  clientId: process.env.OAUTH_CLIENT_ID!,\n  redirectUri: \"https://app.example/callback\",\n  scope: \"openid profile email\",\n  state: crypto.randomUUID(),\n});\n// Token exchange happens server-side; access token scoped to minimum permissions",
+        "caption": "OAuth 2.0 authorization flow"
       }
     ],
     "relatedConcepts": [
       "privacy",
-      "bias",
-      "predictive analytics",
       "GDPR",
+      "AWS",
+      "Snowflake",
+      "authorization",
       "ethics"
     ],
     "media": {}

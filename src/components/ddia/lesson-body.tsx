@@ -1,5 +1,6 @@
 import type { ContentBlock } from "@/types/content";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CodeBlock } from "@/components/ddia/code-block";
 import { MediaFigure } from "@/components/ddia/media-figure";
 import { TechnicalDiagram } from "@/components/ddia/technical-diagram";
 
@@ -64,6 +65,15 @@ export function LessonBody({ blocks }: LessonBodyProps) {
               <TechnicalDiagram
                 key={index}
                 diagramId={block.diagramId}
+                caption={block.caption}
+              />
+            );
+          case "code":
+            return (
+              <CodeBlock
+                key={index}
+                code={block.code}
+                language={block.language}
                 caption={block.caption}
               />
             );

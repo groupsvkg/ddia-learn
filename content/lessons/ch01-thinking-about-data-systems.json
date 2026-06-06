@@ -7,7 +7,8 @@
     "Data-intensive applications are usually limited by data volume, complexity, or speed — not CPU.",
     "A \"data system\" is any system built from multiple components working together to store, process, or move data.",
     "Reliability, scalability, and maintainability are not features you bolt on — they shape architecture from day one.",
-    "There is no one-size-fits-all tool; good engineers combine specialized components thoughtfully."
+    "There is no one-size-fits-all tool; good engineers combine specialized components thoughtfully.",
+    "Production stacks combine PostgreSQL, Redis, Kafka, Elasticsearch, and object storage (S3) — each for a different job."
   ],
   "body": [
     {
@@ -28,6 +29,29 @@
     {
       "type": "paragraph",
       "text": "We use the term data system broadly: not just a database, but any combination of components that store, process, or move data. A single product might use a relational database for transactions, a search index for full-text queries, a cache for hot reads, and a message queue for async work. Each tool has strengths and weaknesses."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "A typical SaaS backend on AWS might run stateless services in Docker on Kubernetes, store transactional data in PostgreSQL (RDS), cache sessions in Redis (ElastiCache), index products in Elasticsearch, stream domain events through Kafka (MSK), and serve files from S3 — with an nginx or Envoy reverse proxy at the edge.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Airbnb at scale",
+      "text": "Airbnb is a textbook data-intensive app: PostgreSQL for bookings and listings, Elasticsearch for search, Kafka for event-driven sync between services, Redis for caching, and Snowflake for analytics. No single database does everything — the architecture composes specialized tools.",
+      "variant": "tip"
+    },
+    {
+      "type": "diagram",
+      "diagramId": "system-modern-stack",
+      "caption": "Modern products like Airbnb and Canva combine OLTP, cache, search, streams, and a warehouse."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "caption": "Compose specialized data stores — don't force one database to do everything",
+      "code": "// Typical service layer composes multiple backends\ntype DataSystem = {\n  oltp: PostgresClient;      // bookings, users\n  cache: RedisClient;        // sessions, hot reads\n  search: ElasticsearchClient;\n  events: KafkaProducer;     // async integration\n  warehouse: SnowflakeClient;  // analytics only\n};\n\n// Airbnb routes listing search to Elasticsearch,\n// but booking payments always hit PostgreSQL"
     },
     {
       "type": "list",
@@ -58,7 +82,11 @@
     "data-intensive application",
     "reliability",
     "scalability",
-    "maintainability"
+    "maintainability",
+    "PostgreSQL",
+    "Redis",
+    "Kafka",
+    "Kubernetes"
   ],
   "media": {
     "heroImage": "/media/ch01/data-systems-hero.png"

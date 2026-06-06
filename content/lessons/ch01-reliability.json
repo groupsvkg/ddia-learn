@@ -8,7 +8,8 @@
     "Hardware faults (disks, power, network) are common and often correlated in cloud environments.",
     "Software errors (bugs, cascading failures) are often worse because they can affect many users at once.",
     "Human errors cause most outages — good design makes mistakes hard and recovery easy.",
-    "Fault-tolerance accepts that faults happen and builds systems that survive them."
+    "Fault-tolerance accepts that faults happen and builds systems that survive them.",
+    "AWS Multi-AZ RDS, Kubernetes self-healing, and PagerDuty alerting are everyday reliability tooling."
   ],
   "body": [
     {
@@ -57,6 +58,24 @@
       "text": "Studies of large outages consistently find human error near the root: a typo in a config, a migration run against production, a certificate that expired unnoticed. Good systems minimize opportunities for error and provide safety nets — staged rollouts, easy rollbacks, and thorough monitoring."
     },
     {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Amazon RDS Multi-AZ automatically fails over PostgreSQL to a standby on hardware failure. Kubernetes restarts crashed pods and reschedules them onto healthy nodes. Sentry catches software errors before they cascade; PagerDuty and Grafana on-call rotations ensure someone responds. AWS Certificate Manager auto-renews TLS certs — eliminating a common human-error outage vector.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "WhatsApp at scale",
+      "text": "WhatsApp serves billions of users with Erlang servers designed for fault tolerance — a crashed process does not take down the whole node. Messages are persisted and replicated before ack. The engineering goal matches DDIA's definition: tolerate faults, prevent user-visible failures.",
+      "variant": "tip"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "caption": "Circuit breaker — stop cascading failures (Netflix Hystrix pattern)",
+      "code": "class CircuitBreaker {\n  private failures = 0;\n  private open = false;\n\n  async call<T>(fn: () => Promise<T>): Promise<T> {\n    if (this.open) throw new Error(\"Circuit open — fail fast\");\n    try {\n      const result = await fn();\n      this.failures = 0;\n      return result;\n    } catch (err) {\n      this.failures++;\n      if (this.failures >= 5) this.open = true;\n      throw err;\n    }\n  }\n}"
+    },
+    {
       "type": "diagram",
       "diagramId": "fault-tree",
       "caption": "Common fault categories and how fault-tolerance strategies address them."
@@ -72,7 +91,10 @@
     "fault tolerance",
     "hardware fault",
     "cascading failure",
-    "redundancy"
+    "redundancy",
+    "AWS RDS",
+    "Kubernetes",
+    "PostgreSQL"
   ],
   "media": {
     "diagrams": [

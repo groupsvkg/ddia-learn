@@ -8,7 +8,8 @@
     "Simplicity: manage complexity so new engineers can be productive quickly.",
     "Evolvability: make change easy — requirements always change over a system's lifetime.",
     "Good abstractions and clear interfaces reduce the cost of change.",
-    "Technical debt is inevitable; the goal is to keep it manageable."
+    "Technical debt is inevitable; the goal is to keep it manageable.",
+    "Docker, Kubernetes, Terraform, OpenTelemetry, and CI/CD pipelines are the modern maintainability toolkit."
   ],
   "body": [
     {
@@ -23,6 +24,29 @@
     {
       "type": "paragraph",
       "text": "Operations teams need good visibility into system health: metrics, logs, traces, and clear runbooks for common failures. Good operability means routine tasks (deploys, scaling, config changes) are safe and boring — not heroic."
+    },
+    {
+      "type": "callout",
+      "title": "In practice",
+      "text": "Docker containers package services consistently from laptop to production. Kubernetes orchestrates deploys with rolling updates and instant rollbacks. Terraform defines AWS infrastructure as code — reproducible and reviewable in pull requests. OpenTelemetry exports traces to Jaeger or Datadog so on-call engineers debug cross-service failures in minutes, not hours.",
+      "variant": "info"
+    },
+    {
+      "type": "callout",
+      "title": "Canva at scale",
+      "text": "Canva ships features weekly to millions of users by keeping services independently deployable on Kubernetes, using feature flags for safe rollouts, and OpenTelemetry tracing across the design editor, asset pipeline, and collaboration servers. Evolvable architecture lets them swap storage engines without rewriting the editor.",
+      "variant": "tip"
+    },
+    {
+      "type": "diagram",
+      "diagramId": "system-canva",
+      "caption": "Canva pairs WebSocket collaboration with PostgreSQL metadata and object storage for assets."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "caption": "Structured logging + trace IDs for operability",
+      "code": "import { trace } from \"@opentelemetry/api\";\n\nfunction log(level: string, msg: string, meta: Record<string, unknown> = {}) {\n  const span = trace.getActiveSpan();\n  console.log(JSON.stringify({\n    level,\n    msg,\n    traceId: span?.spanContext().traceId,\n    service: \"canva-design-api\",\n    ...meta,\n  }));\n}\n\n// Every log line links to a distributed trace in Datadog/Jaeger"
     },
     {
       "type": "list",
@@ -68,7 +92,11 @@
     "operability",
     "technical debt",
     "abstraction",
-    "evolvability"
+    "evolvability",
+    "Docker",
+    "Kubernetes",
+    "Terraform",
+    "OpenTelemetry"
   ],
   "media": {
     "heroImage": "/media/ch01/complexity-metaphor.png"
