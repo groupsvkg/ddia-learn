@@ -36,6 +36,12 @@ export type ContentBlock =
   | { type: "list"; items: string[] }
   | { type: "callout"; title: string; text: string; variant?: "info" | "warning" | "tip" }
   | { type: "diagram"; diagramId: string; caption?: string }
+  | {
+      type: "mermaid";
+      source: string;
+      kind?: "architecture" | "sequence" | "diagram";
+      caption?: string;
+    }
   | { type: "code"; language: string; code: string; caption?: string }
   | { type: "media"; src: string; alt: string; kind: "image" | "video"; caption?: string };
 

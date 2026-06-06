@@ -44,8 +44,9 @@
         "variant": "tip"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-modern-stack",
+        "type": "mermaid",
+        "source": "flowchart TB\n    Clients[\"Clients<br/>web + mobile\"]\n    CDN[\"CDN + Reverse Proxy<br/>Cloudflare / nginx\"]\n    API[\"API Services<br/>Docker / K8s\"]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    Kafka[[Kafka]]\n    ES[(Elasticsearch)]\n    SF[(Snowflake)]\n    Clients -->|HTTPS| CDN\n    CDN -->|REST/gRPC| API\n    API --> PG\n    API --> Redis\n    API --> Kafka\n    API --> ES\n    Kafka -.->|ETL| SF",
+        "kind": "architecture",
         "caption": "Modern products like Airbnb and Canva combine OLTP, cache, search, streams, and a warehouse."
       },
       {
@@ -171,8 +172,9 @@
         "code": "class CircuitBreaker {\n  private failures = 0;\n  private open = false;\n\n  async call<T>(fn: () => Promise<T>): Promise<T> {\n    if (this.open) throw new Error(\"Circuit open — fail fast\");\n    try {\n      const result = await fn();\n      this.failures = 0;\n      return result;\n    } catch (err) {\n      this.failures++;\n      if (this.failures >= 5) this.open = true;\n      throw err;\n    }\n  }\n}"
       },
       {
-        "type": "diagram",
-        "diagramId": "fault-tree",
+        "type": "mermaid",
+        "source": "flowchart TB\n    SF[System Failure]\n    HW[Hardware]\n    SW[Software]\n    HU[Human]\n    SF --> HW & SW & HU\n    HW --> D1[Disk crash] & D2[Power loss] & D3[Network partition]\n    SW --> S1[Logic bugs] & S2[Memory leaks] & S3[Cascades]\n    HU --> H1[Config typo] & H2[Bad deploy] & H3[Expired cert]",
+        "kind": "diagram",
         "caption": "Common fault categories and how fault-tolerance strategies address them."
       },
       {
@@ -240,8 +242,9 @@
         "text": "Throughput tells you how much work a system handles per unit time. Response time (latency) tells you how long an individual request waits. Both matter, but for interactive applications, tail latency — the slowest 1% or 5% of requests — often determines whether users perceive the system as fast."
       },
       {
-        "type": "diagram",
-        "diagramId": "latency-percentiles",
+        "type": "mermaid",
+        "source": "flowchart LR\n    subgraph percentiles [\"Response time ms\"]\n      P50[\"p50: 45ms\"]\n      P95[\"p95: 120ms\"]\n      P99[\"p99: 480ms\"]\n      MAX[\"max: 2100ms\"]\n    end\n    AVG[\"avg: 80ms\"]\n    note[\"p99 is 6× average — optimize tail latency\"]\n    P50 ~~~ P95 ~~~ P99 ~~~ MAX",
+        "kind": "diagram",
         "caption": "Why average latency hides problems: a few slow requests dominate user perception."
       },
       {
@@ -271,8 +274,9 @@
         "variant": "tip"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-meta-feed",
+        "type": "mermaid",
+        "source": "flowchart TB\n    Post[User posts]\n    DB[(\"Post DB<br/>sharded\")]\n    Fanout[\"Fan-out Service\"]\n    C1[(\"Feed Cache<br/>Redis\")]\n    C2[(\"Feed Cache\")]\n    C3[(\"Feed Cache\")]\n    Post --> DB --> Fanout\n    Fanout --> C1 & C2 & C3",
+        "kind": "architecture",
         "caption": "Meta precomputes follower feeds in Redis — the push/pull hybrid scales the home timeline."
       },
       {
@@ -347,8 +351,9 @@
         "variant": "tip"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-canva",
+        "type": "mermaid",
+        "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n    PG[(\"PostgreSQL<br/>metadata\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    UA <-->|WS ops| WS\n    UB <-->|WS ops| WS\n    WS --> PG\n    WS --> S3\n    WS --> Redis",
+        "kind": "architecture",
         "caption": "Canva pairs WebSocket collaboration with PostgreSQL metadata and object storage for assets."
       },
       {
@@ -716,8 +721,9 @@
         "caption": "OLTP → warehouse ETL pipeline"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-google-search",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Crawler[Crawler]\n    GFS[(\"GFS / S3\")]\n    MR[MapReduce]\n    Index[(\"Index\")]\n    Query[Query svc]\n    User[User]\n    Crawler --> GFS --> MR --> Index\n    User -->|query| Query\n    Query --> Index",
+        "kind": "architecture",
         "caption": "OLTP writes to row stores; OLAP reads columnar warehouses — Google-scale search indexing follows the same split."
       }
     ],
@@ -769,8 +775,9 @@
         "caption": "Column-pruned warehouse query"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-google-search",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Crawler[Crawler]\n    GFS[(\"GFS / S3\")]\n    MR[MapReduce]\n    Index[(\"Index\")]\n    Query[Query svc]\n    User[User]\n    Crawler --> GFS --> MR --> Index\n    User -->|query| Query\n    Query --> Index",
+        "kind": "architecture",
         "caption": "Batch indexing and column-oriented storage: read a few fields across billions of rows without touching full records."
       },
       {
@@ -835,8 +842,9 @@
         "caption": "Protocol Buffers encoding"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-canva",
+        "type": "mermaid",
+        "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n    PG[(\"PostgreSQL<br/>metadata\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    UA <-->|WS ops| WS\n    UB <-->|WS ops| WS\n    WS --> PG\n    WS --> S3\n    WS --> Redis",
+        "kind": "architecture",
         "caption": "Real-time collaboration requires compact encoding and schema evolution as the editor adds new layer types."
       }
     ],
@@ -887,8 +895,9 @@
         "caption": "Synchronous gRPC between services"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-airbnb",
+        "type": "mermaid",
+        "source": "flowchart TB\n    Client[\"Mobile / Web\"]\n    GW[\"API Gateway<br/>Envoy / nginx\"]\n    Listings[Listings svc]\n    Bookings[Bookings svc]\n    Payments[Payments svc]\n    Search[Search svc]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    Kafka[[Kafka]]\n    ES[(Elasticsearch)]\n    Client --> GW\n    GW --> Listings & Bookings & Payments & Search\n    Bookings --> PG\n    Listings --> Redis\n    Bookings --> Kafka\n    Kafka -.-> ES\n    Search --> ES",
+        "kind": "architecture",
         "caption": "Transactions and data integration across services: sync RPC for reads, async events for side effects."
       },
       {
@@ -931,8 +940,9 @@
         "text": "Replication keeps copies of data on multiple machines for fault tolerance and read scaling. The simplest scheme designates one leader that accepts writes and broadcasts changes to follower replicas."
       },
       {
-        "type": "diagram",
-        "diagramId": "leader-follower",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Client[Client]\n    Leader[(Leader<br/>writes)]\n    F1[(Follower 1)]\n    F2[(Follower 2)]\n    Client -->|write| Leader\n    Leader -->|replicate log| F1 & F2\n    Client -->|read| F1\n    Client -->|read| F2",
+        "kind": "diagram",
         "caption": "Writes flow to the leader; followers replicate the log and serve reads."
       },
       {
@@ -954,8 +964,9 @@
         "caption": "Write-ahead log replication"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-whatsapp",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Sender[\"Sender<br/>mobile\"]\n    Server[\"Chat Server<br/>Erlang/BEAM\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Receiver[\"Receiver<br/>mobile\"]\n    Push[\"Push Gateway<br/>APNs / FCM\"]\n    Sender -->|WebSocket SEND| Server\n    Server -->|append seq| Store\n    Server -->|WebSocket PUSH| Receiver\n    Server -.->|offline| Push\n    Push -.->|notify| Receiver",
+        "kind": "architecture",
         "caption": "Leader-based replication over unreliable networks: one writer, many read replicas tailing the log."
       }
     ],
@@ -988,8 +999,9 @@
         "text": "When followers lag seconds behind the leader, users experience anomalies: posting a comment and not seeing it, or seeing newer data followed by older data. These are not failures — they are consequences of eventual consistency."
       },
       {
-        "type": "diagram",
-        "diagramId": "replication-lag",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant C as Client\n    participant L as Leader\n    participant F as Follower\n    C->>L: WRITE x=1\n    L-->>C: ACK (immediate)\n    C->>F: READ x\n    Note over F: lag 2s\n    F-->>C: x=0 stale",
+        "kind": "diagram",
         "caption": "A write reaches the leader immediately but followers may serve stale data for seconds."
       },
       {
@@ -1017,8 +1029,9 @@
         "caption": "Read-your-own-writes routing"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-meta-feed",
+        "type": "mermaid",
+        "source": "flowchart TB\n    Post[User posts]\n    DB[(\"Post DB<br/>sharded\")]\n    Fanout[\"Fan-out Service\"]\n    C1[(\"Feed Cache<br/>Redis\")]\n    C2[(\"Feed Cache\")]\n    C3[(\"Feed Cache\")]\n    Post --> DB --> Fanout\n    Fanout --> C1 & C2 & C3",
+        "kind": "architecture",
         "caption": "Partitioned feed storage with replication lag: writes hit the leader; reads may see stale followers."
       }
     ],
@@ -1068,8 +1081,9 @@
         "caption": "Real-time collaboration over WebSocket"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-canva",
+        "type": "mermaid",
+        "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n    PG[(\"PostgreSQL<br/>metadata\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    UA <-->|WS ops| WS\n    UB <-->|WS ops| WS\n    WS --> PG\n    WS --> S3\n    WS --> Redis",
+        "kind": "architecture",
         "caption": "Multi-leader-style concurrent writes: each client edits locally; merge engine reconciles conflicts in real time."
       }
     ],
@@ -1102,8 +1116,9 @@
         "text": "Leaderless replication (pioneered by Dynamo) removes the single-leader bottleneck. Any node can accept writes. On read, the client queries multiple replicas and reconciles versions. Quorum rules balance consistency against availability."
       },
       {
-        "type": "diagram",
-        "diagramId": "quorum-read-write",
+        "type": "mermaid",
+        "source": "flowchart TB\n    subgraph cluster [\"N=3 replicas\"]\n      N1[(Node 1)]\n      N2[(Node 2)]\n      N3[(Node 3)]\n    end\n    W[\"W=2 write quorum\"]\n    R[\"R=2 read quorum\"]\n    Client[Client] --> W --> N1 & N2\n    Client --> R --> N2 & N3\n    note[\"R + W > N → overlap on at least one node\"]",
+        "kind": "diagram",
         "caption": "With N=3, W=2, R=2: writes and reads overlap on at least one node."
       },
       {
@@ -1154,8 +1169,9 @@
         "text": "A single machine cannot hold all data forever. Partitioning (sharding) divides the key space so each node owns a subset. The partition scheme determines load balance and query efficiency."
       },
       {
-        "type": "diagram",
-        "diagramId": "hash-partitioning",
+        "type": "mermaid",
+        "source": "flowchart LR\n    K1[key: user_A] -->|hash % 4 = 0| P0[P0]\n    K2[key: user_B] -->|hash % 4 = 2| P2[P2]\n    K3[key: user_C] -->|hash % 4 = 1| P1[P1]\n    K4[key: user_D] -->|hash % 4 = 3| P3[P3]",
+        "kind": "diagram",
         "caption": "Each key hashes to one partition index; different keys spread across P0–P3."
       },
       {
@@ -1402,8 +1418,9 @@
         "text": "Serial execution of transactions is safe but slow. Weak isolation levels allow concurrency by permitting certain anomalies. Understanding which anomalies your application can tolerate is essential."
       },
       {
-        "type": "diagram",
-        "diagramId": "isolation-levels",
+        "type": "mermaid",
+        "source": "flowchart TB\n    RC[Read Committed]\n    RR[Repeatable Read]\n    SER[Serializable]\n    RC -->|prevents dirty read| RC\n    RR -->|prevents non-repeatable read| RR\n    SER -->|prevents phantom read| SER\n    note[\"Stronger isolation → less concurrency\"]",
+        "kind": "diagram",
         "caption": "Stronger isolation prevents more anomalies but reduces concurrency."
       },
       {
@@ -1571,8 +1588,9 @@
         "caption": "gRPC client deadline"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-whatsapp",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Sender[\"Sender<br/>mobile\"]\n    Server[\"Chat Server<br/>Erlang/BEAM\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Receiver[\"Receiver<br/>mobile\"]\n    Push[\"Push Gateway<br/>APNs / FCM\"]\n    Sender -->|WebSocket SEND| Server\n    Server -->|append seq| Store\n    Server -->|WebSocket PUSH| Receiver\n    Server -.->|offline| Push\n    Push -.->|notify| Receiver",
+        "kind": "architecture",
         "caption": "Unreliable networks between mobile clients and regional datacenters: timeouts, retries, and idempotency are mandatory."
       }
     ],
@@ -1846,8 +1864,9 @@
         "text": "Getting multiple nodes to agree on a single value — who is leader, whether to commit, what the next log entry is — is the consensus problem. Algorithms like Raft make this practical for production systems."
       },
       {
-        "type": "diagram",
-        "diagramId": "two-phase-commit",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant C as Coordinator\n    participant P1 as Participant 1\n    participant P2 as Participant 2\n    C->>P1: PREPARE\n    C->>P2: PREPARE\n    P1-->>C: READY\n    P2-->>C: READY\n    C->>P1: COMMIT\n    C->>P2: COMMIT",
+        "kind": "diagram",
         "caption": "Coordinator asks participants to prepare, then commits or aborts."
       },
       {
@@ -1945,8 +1964,9 @@
         "text": "MapReduce wraps the Unix pipeline in a fault-tolerant distributed runtime. Map tasks extract data in parallel; shuffle groups by key; reduce tasks aggregate. The runtime handles scheduling, retries, and data locality."
       },
       {
-        "type": "diagram",
-        "diagramId": "mapreduce-pipeline",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Input[(\"Input files<br/>HDFS/S3\")]\n    Map[Map workers]\n    Shuffle[Shuffle by key]\n    Reduce[Reduce workers]\n    Output[(\"Output\")]\n    Input --> Map --> Shuffle --> Reduce --> Output",
+        "kind": "diagram",
         "caption": "Map → Shuffle → Reduce over a distributed filesystem."
       },
       {
@@ -1968,8 +1988,9 @@
         "caption": "Spark batch over immutable Parquet"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-google-search",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Crawler[Crawler]\n    GFS[(\"GFS / S3\")]\n    MR[MapReduce]\n    Index[(\"Index\")]\n    Query[Query svc]\n    User[User]\n    Crawler --> GFS --> MR --> Index\n    User -->|query| Query\n    Query --> Index",
+        "kind": "architecture",
         "caption": "Batch indexing pipeline: map-shuffle-reduce over distributed storage — the Google-scale pattern behind web crawls and analytics."
       }
     ],
@@ -2049,8 +2070,9 @@
         "text": "Unlike request-response, event streams deliver a sequence of records over time. Message brokers decouple producers and consumers. Partitioned logs add durability and replay — consumers can re-read history at their own pace."
       },
       {
-        "type": "diagram",
-        "diagramId": "event-stream",
+        "type": "mermaid",
+        "source": "flowchart LR\n    P1[Producer A]\n    P2[Producer B]\n    Log[[\"Partitioned log<br/>Kafka\"]]\n    G1[\"Consumer group 1\"]\n    G2[\"Consumer group 2\"]\n    P1 & P2 -->|append| Log\n    Log --> G1 & G2",
+        "kind": "diagram",
         "caption": "Producers append to a partitioned log; consumer groups read at independent offsets."
       },
       {
@@ -2072,8 +2094,9 @@
         "caption": "Kafka consumer group"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-whatsapp",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Sender[\"Sender<br/>mobile\"]\n    Server[\"Chat Server<br/>Erlang/BEAM\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Receiver[\"Receiver<br/>mobile\"]\n    Push[\"Push Gateway<br/>APNs / FCM\"]\n    Sender -->|WebSocket SEND| Server\n    Server -->|append seq| Store\n    Server -->|WebSocket PUSH| Receiver\n    Server -.->|offline| Push\n    Push -.->|notify| Receiver",
+        "kind": "architecture",
         "caption": "Partitioned event log for message streams: producers append, consumers replay at their own pace."
       }
     ],
@@ -2125,8 +2148,9 @@
         "caption": "Transactional outbox pattern"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-airbnb",
+        "type": "mermaid",
+        "source": "flowchart TB\n    Client[\"Mobile / Web\"]\n    GW[\"API Gateway<br/>Envoy / nginx\"]\n    Listings[Listings svc]\n    Bookings[Bookings svc]\n    Payments[Payments svc]\n    Search[Search svc]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    Kafka[[Kafka]]\n    ES[(Elasticsearch)]\n    Client --> GW\n    GW --> Listings & Bookings & Payments & Search\n    Bookings --> PG\n    Listings --> Redis\n    Bookings --> Kafka\n    Kafka -.-> ES\n    Search --> ES",
+        "kind": "architecture",
         "caption": "Database state and event streams stay in sync: CDC and outbox relay derived views without dual-write races."
       }
     ],
@@ -2225,8 +2249,9 @@
         "caption": "CDC outbox to Kafka"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-modern-stack",
+        "type": "mermaid",
+        "source": "flowchart TB\n    Clients[\"Clients<br/>web + mobile\"]\n    CDN[\"CDN + Reverse Proxy<br/>Cloudflare / nginx\"]\n    API[\"API Services<br/>Docker / K8s\"]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    Kafka[[Kafka]]\n    ES[(Elasticsearch)]\n    SF[(Snowflake)]\n    Clients -->|HTTPS| CDN\n    CDN -->|REST/gRPC| API\n    API --> PG\n    API --> Redis\n    API --> Kafka\n    API --> ES\n    Kafka -.->|ETL| SF",
+        "kind": "architecture",
         "caption": "Unbundled data stack: specialized stores connected by event log and derived pipelines."
       }
     ],
@@ -2388,8 +2413,9 @@
         "variant": "tip"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-modern-stack",
+        "type": "mermaid",
+        "source": "flowchart TB\n    Clients[\"Clients<br/>web + mobile\"]\n    CDN[\"CDN + Reverse Proxy<br/>Cloudflare / nginx\"]\n    API[\"API Services<br/>Docker / K8s\"]\n    PG[(PostgreSQL)]\n    Redis[(Redis)]\n    Kafka[[Kafka]]\n    ES[(Elasticsearch)]\n    SF[(Snowflake)]\n    Clients -->|HTTPS| CDN\n    CDN -->|REST/gRPC| API\n    API --> PG\n    API --> Redis\n    API --> Kafka\n    API --> ES\n    Kafka -.->|ETL| SF",
+        "kind": "architecture",
         "caption": "Typical SaaS components and how data flows between specialized stores."
       },
       {
@@ -2399,8 +2425,9 @@
         "caption": "Requirements checklist as types"
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-foundations-request",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant C as Client\n    participant CDN as CDN\n    participant API as API\n    participant R as Redis\n    participant DB as Postgres\n    C->>CDN: GET /static\n    CDN-->>C: cached assets\n    C->>API: GET /api/resource\n    API->>R: GET cache key\n    R-->>API: miss\n    API->>DB: SELECT …\n    DB-->>API: rows\n    API->>R: SETEX result\n    API-->>C: 200 JSON",
+        "kind": "sequence",
         "caption": "End-to-end request path: CDN for static assets, API through cache to database."
       }
     ],
@@ -2458,8 +2485,9 @@
         "caption": "Peak QPS from DAU"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-youtube",
+        "type": "mermaid",
+        "source": "flowchart TB\n    subgraph write [\"Write path\"]\n      Creator[Creator]\n      UploadAPI[\"Upload API<br/>resumable\"]\n      S3Raw[(\"Object Store<br/>raw video\")]\n      Kafka[[Kafka]]\n      Transcoder[\"Transcoder<br/>workers\"]\n      S3HLS[(\"Object Store<br/>HLS segments\")]\n      Creator -->|multipart| UploadAPI\n      UploadAPI -->|PUT| S3Raw\n      UploadAPI -->|event| Kafka\n      Kafka --> Transcoder\n      Transcoder -->|segments| S3HLS\n    end\n    subgraph read [\"Read path\"]\n      Viewer[Viewer]\n      MetaAPI[\"Metadata API<br/>REST\"]\n      CDN[\"CDN Edge\"]\n      Origin[(\"Origin / S3\")]\n      Viewer -->|GET /videos| MetaAPI\n      Viewer -->|m3u8 + .ts| CDN\n      CDN -.->|cache miss| Origin\n    end",
+        "kind": "architecture",
         "caption": "Upload bandwidth and transcode queues dominate write path; CDN serves reads."
       }
     ],
@@ -2555,13 +2583,15 @@
         "variant": "tip"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-youtube",
+        "type": "mermaid",
+        "source": "flowchart TB\n    subgraph write [\"Write path\"]\n      Creator[Creator]\n      UploadAPI[\"Upload API<br/>resumable\"]\n      S3Raw[(\"Object Store<br/>raw video\")]\n      Kafka[[Kafka]]\n      Transcoder[\"Transcoder<br/>workers\"]\n      S3HLS[(\"Object Store<br/>HLS segments\")]\n      Creator -->|multipart| UploadAPI\n      UploadAPI -->|PUT| S3Raw\n      UploadAPI -->|event| Kafka\n      Kafka --> Transcoder\n      Transcoder -->|segments| S3HLS\n    end\n    subgraph read [\"Read path\"]\n      Viewer[Viewer]\n      MetaAPI[\"Metadata API<br/>REST\"]\n      CDN[\"CDN Edge\"]\n      Origin[(\"Origin / S3\")]\n      Viewer -->|GET /videos| MetaAPI\n      Viewer -->|m3u8 + .ts| CDN\n      CDN -.->|cache miss| Origin\n    end",
+        "kind": "architecture",
         "caption": "Components and protocols: multipart upload, Kafka transcode jobs, CDN segment delivery."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-youtube-upload",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant Cr as Creator\n    participant Up as Upload API\n    participant S3 as Object Store\n    participant K as Kafka\n    participant W as Transcoder\n    Cr->>Up: POST /uploads (multipart)\n    Up->>S3: PUT raw chunks\n    S3-->>Up: ETag\n    Up->>K: video.uploaded event\n    Up-->>Cr: 201 videoId\n    Note over K,W: async workers\n    K->>W: consume job\n    W->>S3: read raw / write HLS\n    W->>K: video.ready event",
+        "kind": "sequence",
         "caption": "Time-ordered upload flow from creator through object storage to async transcoding."
       }
     ],
@@ -2621,13 +2651,15 @@
         "caption": "Upload job enqueue"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-youtube",
+        "type": "mermaid",
+        "source": "flowchart TB\n    subgraph write [\"Write path\"]\n      Creator[Creator]\n      UploadAPI[\"Upload API<br/>resumable\"]\n      S3Raw[(\"Object Store<br/>raw video\")]\n      Kafka[[Kafka]]\n      Transcoder[\"Transcoder<br/>workers\"]\n      S3HLS[(\"Object Store<br/>HLS segments\")]\n      Creator -->|multipart| UploadAPI\n      UploadAPI -->|PUT| S3Raw\n      UploadAPI -->|event| Kafka\n      Kafka --> Transcoder\n      Transcoder -->|segments| S3HLS\n    end\n    subgraph read [\"Read path\"]\n      Viewer[Viewer]\n      MetaAPI[\"Metadata API<br/>REST\"]\n      CDN[\"CDN Edge\"]\n      Origin[(\"Origin / S3\")]\n      Viewer -->|GET /videos| MetaAPI\n      Viewer -->|m3u8 + .ts| CDN\n      CDN -.->|cache miss| Origin\n    end",
+        "kind": "architecture",
         "caption": "Upload → transcode queue → segmented storage → CDN playback."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-youtube-playback",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant V as Viewer\n    participant API as Metadata API\n    participant CDN as CDN Edge\n    participant O as Origin\n    V->>API: GET /videos/:id\n    API-->>V: manifest URL + title\n    V->>CDN: GET playlist.m3u8\n    CDN-->>V: bitrate ladder\n    V->>CDN: GET segment-004.ts\n    Note over CDN,O: cache miss\n    CDN->>O: fetch segment\n    CDN-->>V: video bytes",
+        "kind": "sequence",
         "caption": "Viewer fetches metadata, then manifest and segments from CDN with origin fallback."
       }
     ],
@@ -2705,13 +2737,15 @@
         "text": "Chat apps are connection-heavy. A user with one WebSocket can receive thousands of messages per day; the hard part is routing each message to the right connection set with minimal latency."
       },
       {
-        "type": "diagram",
-        "diagramId": "system-whatsapp",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Sender[\"Sender<br/>mobile\"]\n    Server[\"Chat Server<br/>Erlang/BEAM\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Receiver[\"Receiver<br/>mobile\"]\n    Push[\"Push Gateway<br/>APNs / FCM\"]\n    Sender -->|WebSocket SEND| Server\n    Server -->|append seq| Store\n    Server -->|WebSocket PUSH| Receiver\n    Server -.->|offline| Push\n    Push -.->|notify| Receiver",
+        "kind": "architecture",
         "caption": "WebSocket routing, durable store, and push gateway for offline receivers."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-whatsapp-message",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant S as Sender\n    participant Srv as Chat Server\n    participant St as Message Store\n    participant R as Receiver\n    participant P as APNs/FCM\n    S->>Srv: SEND msg (WebSocket)\n    Srv->>St: append seq=N\n    St-->>Srv: ACK\n    Srv-->>S: delivered ✓\n    alt receiver online\n      Srv->>R: PUSH msg (WebSocket)\n      R->>Srv: ACK seq=N\n    else receiver offline\n      Srv->>P: notify\n      P->>R: push alert\n    end",
+        "kind": "sequence",
         "caption": "Message send, persist, online delivery, or push notification when offline."
       },
       {
@@ -2770,8 +2804,9 @@
         "caption": "Per-chat sequence and ack"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-whatsapp",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Sender[\"Sender<br/>mobile\"]\n    Server[\"Chat Server<br/>Erlang/BEAM\"]\n    Store[(\"Message Store<br/>replicated\")]\n    Receiver[\"Receiver<br/>mobile\"]\n    Push[\"Push Gateway<br/>APNs / FCM\"]\n    Sender -->|WebSocket SEND| Server\n    Server -->|append seq| Store\n    Server -->|WebSocket PUSH| Receiver\n    Server -.->|offline| Push\n    Push -.->|notify| Receiver",
+        "kind": "architecture",
         "caption": "Online WebSocket delivery; offline path through push + sync."
       }
     ],
@@ -2809,8 +2844,9 @@
         "variant": "tip"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-reservation",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Guest[Guest]\n    Search[\"Search<br/>Elasticsearch\"]\n    API[\"Booking API\"]\n    Inv[(\"Inventory DB<br/>PostgreSQL\")]\n    Stripe[Stripe]\n    Kafka[[Kafka]]\n    Guest -->|browse| Search\n    Guest -->|hold / confirm| API\n    API -->|lock slot| Inv\n    API -->|charge| Stripe\n    API -->|booking.confirmed| Kafka\n    Kafka -.->|index update| Search",
+        "kind": "architecture",
         "caption": "Elasticsearch for search; PostgreSQL inventory as source of truth."
       }
     ],
@@ -2848,8 +2884,9 @@
         "caption": "Atomic inventory decrement"
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-reservation-failure",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant G as Guest\n    participant API as Booking API\n    participant Inv as Inventory DB\n    participant St as Stripe\n    G->>API: POST /confirm\n    API->>St: charge\n    St-->>API: card_declined\n    API->>Inv: release hold (compensate)\n    Inv-->>API: slot available\n    API-->>G: 402 retry payment",
+        "kind": "sequence",
         "caption": "When payment fails, the saga releases the inventory hold before returning an error."
       },
       {
@@ -2889,13 +2926,15 @@
     ],
     "body": [
       {
-        "type": "diagram",
-        "diagramId": "system-reservation",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Guest[Guest]\n    Search[\"Search<br/>Elasticsearch\"]\n    API[\"Booking API\"]\n    Inv[(\"Inventory DB<br/>PostgreSQL\")]\n    Stripe[Stripe]\n    Kafka[[Kafka]]\n    Guest -->|browse| Search\n    Guest -->|hold / confirm| API\n    API -->|lock slot| Inv\n    API -->|charge| Stripe\n    API -->|booking.confirmed| Kafka\n    Kafka -.->|index update| Search",
+        "kind": "architecture",
         "caption": "Labeled service interactions: search, hold, Stripe charge, Kafka events."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-reservation-booking",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant G as Guest\n    participant API as Booking API\n    participant Inv as Inventory DB\n    participant St as Stripe\n    participant K as Kafka\n    G->>API: POST /holds\n    API->>Inv: BEGIN; lock slot\n    Inv-->>API: holdId\n    API-->>G: hold expires 15m\n    G->>API: POST /confirm + Idempotency-Key\n    API->>St: charge\n    St-->>API: paymentId\n    API->>Inv: confirm hold → COMMIT\n    API->>K: booking.confirmed\n    API-->>G: 201 confirmed",
+        "kind": "sequence",
         "caption": "Happy-path sequence from hold through payment to confirmed booking."
       },
       {
@@ -2975,13 +3014,15 @@
     ],
     "body": [
       {
-        "type": "diagram",
-        "diagramId": "system-voting",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Voter[Voter]\n    API[\"Ballot API<br/>idempotent\"]\n    Log[(\"Ballot Log<br/>append-only\")]\n    Agg[\"Aggregator<br/>stream\"]\n    Results[(\"Results<br/>cached\")]\n    Voter -->|POST ballot| API\n    API -->|INSERT| Log\n    API -->|ballot.cast| Agg\n    Agg -->|INCR| Results\n    Voter -.->|GET /results| Results",
+        "kind": "architecture",
         "caption": "Ballot API, append-only log, stream aggregator, and cached results."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-voting-ballot",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant V as Voter\n    participant API as Ballot API\n    participant DB as Ballot Log\n    participant Agg as Aggregator\n    participant C as Results Cache\n    V->>API: POST /ballots + Idempotency-Key\n    API->>DB: INSERT ON CONFLICT DO NOTHING\n    DB-->>API: ballotId\n    API->>Agg: ballot.cast event\n    API-->>V: 201 accepted\n    Note over Agg,C: async tally\n    Agg->>C: INCR choice_count\n    V->>C: GET /results\n    C-->>V: live totals",
+        "kind": "sequence",
         "caption": "Idempotent vote submission and async tally update to results cache."
       },
       {
@@ -3055,18 +3096,21 @@
     ],
     "body": [
       {
-        "type": "diagram",
-        "diagramId": "system-multiplayer",
+        "type": "mermaid",
+        "source": "flowchart TB\n    PA[\"Player A<br/>UDP\"]\n    PB[\"Player B<br/>UDP\"]\n    MM[Matchmaker]\n    GS[\"Game Server<br/>60 Hz tick\"]\n    K8s[\"Agones / K8s\"]\n    Tel[[Kafka telemetry]]\n    PA -->|enqueue| MM\n    PB -->|enqueue| MM\n    MM -->|allocate pod| K8s\n    K8s --> GS\n    PA <-->|UDP input/state| GS\n    PB <-->|UDP input/state| GS\n    GS -.-> Tel",
+        "kind": "architecture",
         "caption": "Matchmaker, Agones/K8s game pods, and UDP state sync."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-multiplayer-match",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant P as Player\n    participant MM as Matchmaker\n    participant K8s as Agones/K8s\n    participant GS as Game Server\n    P->>MM: enqueue(ticket)\n    Note over MM: skill + region bucket\n    MM->>K8s: allocate pod\n    K8s-->>MM: host:port\n    MM-->>P: match found\n    P->>GS: CONNECT UDP\n    GS-->>P: world snapshot",
+        "kind": "sequence",
         "caption": "Queue to matchmaker, pod allocation, then UDP connect to game server."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-multiplayer-tick",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant A as Player A\n    participant S as Game Server\n    participant B as Player B\n    A->>S: INPUT tick=42 (UDP)\n    B->>S: INPUT tick=42 (UDP)\n    Note over S: simulate physics @ 60 Hz\n    S->>A: STATE delta tick=42\n    S->>B: STATE delta tick=42\n    A->>S: ACK tick=42",
+        "kind": "sequence",
         "caption": "Clients send inputs; server simulates and broadcasts state deltas."
       },
       {
@@ -3182,13 +3226,15 @@
     ],
     "body": [
       {
-        "type": "diagram",
-        "diagramId": "system-puzzle",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Player[Player]\n    API[\"Game API<br/>validate\"]\n    Log[(\"Move Log\")]\n    Board[(\"Board DB<br/>versioned\")]\n    Redis[(\"Redis ZSET<br/>leaderboard\")]\n    Timer[Scheduler]\n    Player -->|POST /move| API\n    API -->|append| Log\n    API -->|UPDATE version| Board\n    API -.->|ZADD| Redis\n    Timer -.->|forfeit| API",
+        "kind": "architecture",
         "caption": "Move log, versioned board, and Redis leaderboard aggregation."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-puzzle-turn",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant P as Player\n    participant API as Game API\n    participant B as Board DB\n    participant L as Move Log\n    participant R as Redis\n    P->>API: POST /move v=7\n    API->>B: UPDATE … WHERE version=7\n    B-->>API: 1 row (ok)\n    API->>L: append move event\n    API->>R: ZADD score\n    API-->>P: 200 new board",
+        "kind": "sequence",
         "caption": "Validated move with optimistic locking, event log, and score update."
       },
       {
@@ -3238,18 +3284,21 @@
         "caption": "Saga step with compensation"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-multistep-workflow",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Client[Client]\n    Orch[\"Orchestrator<br/>Temporal\"]\n    Inv[Inventory]\n    Pay[Payments]\n    Ship[Shipping]\n    Client --> Orch\n    Orch -->|reserve| Inv\n    Orch -->|capture| Pay\n    Orch -->|create| Ship\n    Pay -.->|FAILED| Orch\n    Orch -.->|compensate release| Inv",
+        "kind": "architecture",
         "caption": "Orchestrator coordinates inventory, payments, and shipping services."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-workflow-saga",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant C as Client\n    participant O as Orchestrator\n    participant I as Inventory\n    participant P as Payments\n    participant S as Shipping\n    C->>O: start checkout\n    O->>I: reserve stock\n    I-->>O: holdId\n    O->>P: capture payment\n    P-->>O: chargeId\n    O->>S: create shipment\n    S-->>O: trackingId\n    O-->>C: order complete",
+        "kind": "sequence",
         "caption": "Forward saga steps from cart to shipment with durable orchestration."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-workflow-compensate",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant O as Orchestrator\n    participant I as Inventory\n    participant P as Payments\n    O->>I: reserve stock\n    I-->>O: holdId\n    O->>P: capture payment\n    P-->>O: FAILED\n    O->>I: release hold (compensate)\n    I-->>O: stock restored",
+        "kind": "sequence",
         "caption": "Payment failure triggers compensating release of inventory hold."
       },
       {
@@ -3331,8 +3380,9 @@
         "variant": "info"
       },
       {
-        "type": "diagram",
-        "diagramId": "system-multistep-workflow",
+        "type": "mermaid",
+        "source": "flowchart LR\n    Client[Client]\n    Orch[\"Orchestrator<br/>Temporal\"]\n    Inv[Inventory]\n    Pay[Payments]\n    Ship[Shipping]\n    Client --> Orch\n    Orch -->|reserve| Inv\n    Orch -->|capture| Pay\n    Orch -->|create| Ship\n    Pay -.->|FAILED| Orch\n    Orch -.->|compensate release| Inv",
+        "kind": "architecture",
         "caption": "Checkout saga: payment success continues; failure triggers inventory release."
       }
     ],
@@ -3400,13 +3450,15 @@
     ],
     "body": [
       {
-        "type": "diagram",
-        "diagramId": "system-canva",
+        "type": "mermaid",
+        "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n    PG[(\"PostgreSQL<br/>metadata\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    UA <-->|WS ops| WS\n    UB <-->|WS ops| WS\n    WS --> PG\n    WS --> S3\n    WS --> Redis",
+        "kind": "architecture",
         "caption": "WebSocket collab server, Postgres metadata, S3 assets, Redis presence."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-collaboration-edit",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant A as User A\n    participant WS as Collab Server\n    participant B as User B\n    participant DB as Postgres\n    A->>WS: WS connect + auth\n    B->>WS: WS connect + auth\n    A->>WS: OP insert('hello')\n    WS->>DB: persist op\n    WS->>B: BROADCAST op\n    B->>WS: ACK\n    B->>WS: OP cursor move\n    WS->>A: presence update",
+        "kind": "sequence",
         "caption": "Edit operation broadcast and optional persistence to Postgres."
       },
       {
@@ -3446,8 +3498,9 @@
     ],
     "body": [
       {
-        "type": "diagram",
-        "diagramId": "system-canva",
+        "type": "mermaid",
+        "source": "flowchart TB\n    UA[\"User A<br/>browser\"]\n    UB[\"User B<br/>browser\"]\n    WS[\"Collab Server<br/>WebSocket + OT/CRDT\"]\n    PG[(\"PostgreSQL<br/>metadata\")]\n    S3[(\"S3 / GCS<br/>assets\")]\n    Redis[(\"Redis<br/>presence\")]\n    UA <-->|WS ops| WS\n    UB <-->|WS ops| WS\n    WS --> PG\n    WS --> S3\n    WS --> Redis",
+        "kind": "architecture",
         "caption": "Clients ↔ collab server ↔ Postgres metadata + S3 assets + Redis presence."
       },
       {
@@ -3521,13 +3574,15 @@
     ],
     "body": [
       {
-        "type": "diagram",
-        "diagramId": "system-multistep-form",
+        "type": "mermaid",
+        "source": "flowchart LR\n    User[Applicant]\n    API[\"Draft API<br/>autosave\"]\n    PG[(\"Postgres<br/>draft JSON\")]\n    S3[(\"S3<br/>documents\")]\n    Vendor[\"Verify API<br/>async\"]\n    User -->|PATCH /draft| API\n    API --> PG\n    User -->|signed URL PUT| S3\n    User -->|POST /submit| API\n    API --> Vendor\n    Vendor -.->|webhook| API",
+        "kind": "architecture",
         "caption": "Draft API, Postgres, S3 uploads, and async vendor verification."
       },
       {
-        "type": "diagram",
-        "diagramId": "seq-form-autosave",
+        "type": "mermaid",
+        "source": "sequenceDiagram\n    participant U as Applicant\n    participant API as Draft API\n    participant DB as Postgres\n    participant S3 as S3\n    participant V as Verify API\n    U->>API: PATCH /draft step=2\n    API->>DB: UPSERT draft JSON\n    API-->>U: 204 saved\n    U->>S3: PUT doc.pdf (signed URL)\n    U->>API: POST /submit\n    API->>V: start verification\n    API-->>U: 202 pending\n    V->>API: webhook: verified\n    API->>DB: status=APPROVED",
+        "kind": "sequence",
         "caption": "Autosave draft, direct S3 upload, submit, and webhook-driven approval."
       },
       {

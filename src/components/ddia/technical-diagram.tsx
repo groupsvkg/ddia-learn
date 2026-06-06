@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArchEdgeArrow, ArrowDefs, SysBox } from "@/components/ddia/diagram-primitives";
-import { sequenceDiagrams, SEQUENCE_DIAGRAM_IDS } from "@/components/ddia/sequence-diagrams";
 
 type TechnicalDiagramProps = {
   diagramId: string;
@@ -638,7 +637,6 @@ function SystemModernStackDiagram() {
 }
 
 const diagrams: Record<string, () => React.ReactNode> = {
-  ...sequenceDiagrams,
   "fault-tree": FaultTreeDiagram,
   "latency-percentiles": LatencyPercentilesDiagram,
   "leader-follower": LeaderFollowerDiagram,
@@ -687,11 +685,7 @@ export function TechnicalDiagram({ diagramId, caption }: TechnicalDiagramProps) 
     return null;
   }
 
-  const title = SEQUENCE_DIAGRAM_IDS.has(diagramId)
-    ? "Sequence diagram"
-    : SYSTEM_DIAGRAMS.has(diagramId)
-      ? "Architecture diagram"
-      : "Diagram";
+  const title = SYSTEM_DIAGRAMS.has(diagramId) ? "Architecture diagram" : "Diagram";
 
   return (
     <Card className="my-6">

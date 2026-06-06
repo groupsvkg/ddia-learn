@@ -2,6 +2,7 @@ import type { ContentBlock } from "@/types/content";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ddia/code-block";
 import { MediaFigure } from "@/components/ddia/media-figure";
+import { MermaidDiagram } from "@/components/ddia/mermaid-diagram";
 import { TechnicalDiagram } from "@/components/ddia/technical-diagram";
 
 type LessonBodyProps = {
@@ -59,6 +60,15 @@ export function LessonBody({ blocks }: LessonBodyProps) {
                   <p className="text-sm leading-6 text-foreground/90">{block.text}</p>
                 </CardContent>
               </Card>
+            );
+          case "mermaid":
+            return (
+              <MermaidDiagram
+                key={index}
+                source={block.source}
+                kind={block.kind}
+                caption={block.caption}
+              />
             );
           case "diagram":
             return (

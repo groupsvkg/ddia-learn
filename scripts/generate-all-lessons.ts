@@ -1,11 +1,30 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import type { LessonSection } from "../src/types/content";
-import { rw, app, code, sys, TS } from "./lesson-snippets";
+import type { ContentBlock, LessonSection } from "../src/types/content";
+import { rw, app, code, dia, sys, TS } from "./lesson-snippets";
+import { resolveMermaid } from "./mermaid-diagrams";
 import { systemDesignLessons } from "./system-design-lessons";
 
 const root = path.resolve(import.meta.dirname, "..");
 const lessonsDir = path.join(root, "content/lessons");
+
+function toMermaidBlocks(body: ContentBlock[]): ContentBlock[] {
+  return body.map((block) => {
+    if (block.type !== "diagram") return block;
+    const resolved = resolveMermaid(block.diagramId);
+    if (!resolved) return block;
+    return {
+      type: "mermaid",
+      source: resolved.source,
+      kind: resolved.kind,
+      caption: block.caption,
+    };
+  });
+}
+
+function migrateLesson(lesson: LessonSection): LessonSection {
+  return { ...lesson, body: toMermaidBlocks(lesson.body) };
+}
 
 function loadCh01(): Record<string, LessonSection> {
   const files = [
@@ -17,7 +36,7 @@ function loadCh01(): Record<string, LessonSection> {
   const result: Record<string, LessonSection> = {};
   for (const file of files) {
     const lesson = JSON.parse(readFileSync(path.join(lessonsDir, file), "utf8")) as LessonSection;
-    result[lesson.id] = lesson;
+    result[lesson.id] = migrateLesson(lesson);
   }
   return result;
 }
@@ -139,7 +158,7 @@ const newLessons: L[] = [
     "Leader-based replication funnels all writes through one node and copies them to followers.",
     ["One replica is the leader; all writes go to it.", "Followers replicate the leader's write log and serve read traffic.", "Synchronous replication waits for follower ack before confirming writes.", "Asynchronous replication is faster but risks data loss on leader failure.", "New followers bootstrap by copying a snapshot then tailing the log.", "PostgreSQL streaming replication, MySQL primary-replica, and MongoDB replica sets all use this pattern."],
     [{ type: "paragraph", text: "Replication keeps copies of data on multiple machines for fault tolerance and read scaling. The simplest scheme designates one leader that accepts writes and broadcasts changes to follower replicas." },
-     { type: "diagram", diagramId: "leader-follower", caption: "Writes flow to the leader; followers replicate the log and serve reads." },
+     dia("leader-follower", "Writes flow to the leader; followers replicate the log and serve reads."),
      rw("PostgreSQL streaming replication sends the WAL from primary to standbys. Amazon RDS Multi-AZ runs synchronous replication within an AZ pair. MongoDB replica sets elect a primary; secondaries tail the oplog. Read replicas on AWS Aurora offload analytics queries from the writer."),
      app("WhatsApp", "Message history replicates from a primary shard to followers so reads scale globally. All writes funnel through the leader; followers tail the WAL to stay consistent without accepting direct writes."),
      code("Write-ahead log replication", TS.walReplication),
@@ -150,7 +169,7 @@ const newLessons: L[] = [
     "Asynchronous followers may lag behind the leader, creating stale reads and subtle consistency bugs.",
     ["Read-your-own-writes: users must see their own recent changes.", "Monotonic reads: users never see time go backward across requests.", "Consistent prefix reads: causal order of writes is preserved.", "Replication lag is normal — applications must explicitly handle it.", "Sticky sessions route a user to one replica to improve consistency.", "Session cookies, Redis-backed sessions, and read-after-write routing fix common lag bugs."],
     [{ type: "paragraph", text: "When followers lag seconds behind the leader, users experience anomalies: posting a comment and not seeing it, or seeing newer data followed by older data. These are not failures — they are consequences of eventual consistency." },
-     { type: "diagram", diagramId: "replication-lag", caption: "A write reaches the leader immediately but followers may serve stale data for seconds." },
+     dia("replication-lag", "A write reaches the leader immediately but followers may serve stale data for seconds."),
      { type: "callout", title: "Fixes", text: "Read from leader after writes, use sticky sessions, or wait for follower catch-up before serving reads.", variant: "tip" },
      rw("After posting a tweet, Twitter routes your next read to the leader or a caught-up replica. E-commerce apps using PostgreSQL read replicas often force read-your-own-writes by querying the primary after checkout. HAProxy or AWS ALB sticky sessions keep a user on one replica for monotonic reads."),
      app("Instagram", "After you post a story, the next feed load must include it — even if replicas lag milliseconds behind. Meta routes post-write reads to the primary or enforces a short read-from-leader window per session."),
@@ -172,7 +191,7 @@ const newLessons: L[] = [
     "Dynamo-style systems let any replica accept writes and use quorums to detect inconsistency.",
     ["Clients write to multiple replicas in parallel (W replicas).", "Reads contact R replicas and pick the most recent version by version number.", "Quorum condition W + R > N ensures overlap between read and write sets.", "Sloppy quorums and hinted handoff maintain availability during partitions.", "Version vectors detect concurrent writes that need merging.", "Amazon DynamoDB, Cassandra, and Riak follow Dynamo-style quorum design."],
     [{ type: "paragraph", text: "Leaderless replication (pioneered by Dynamo) removes the single-leader bottleneck. Any node can accept writes. On read, the client queries multiple replicas and reconciles versions. Quorum rules balance consistency against availability." },
-     { type: "diagram", diagramId: "quorum-read-write", caption: "With N=3, W=2, R=2: writes and reads overlap on at least one node." },
+     dia("quorum-read-write", "With N=3, W=2, R=2: writes and reads overlap on at least one node."),
      rw("Amazon DynamoDB lets you tune W and R per request — R=2, W=2 with N=3 is a common production setting. Apache Cassandra uses tunable consistency (QUORUM, ONE, ALL). During a partition, sloppy quorums and hinted handoff keep writes flowing to healthy nodes."),
      app("Stripe", "Payment session state and idempotency records use Dynamo-style quorum writes so any replica can accept a retry without a single leader bottleneck. Tunable R/W per request trades latency for consistency."),
      code("Quorum read and write", TS.quorumRead)],
@@ -183,7 +202,7 @@ const newLessons: L[] = [
     "Partitioning splits a dataset across nodes so each machine handles a manageable subset.",
     ["Partitioning by key range assigns contiguous key ranges to nodes — risk of hot spots.", "Hash partitioning distributes keys evenly but loses range-scan efficiency.", "Skewed workloads need composite keys or random suffixes to spread hot keys.", "Partitioning is almost always combined with replication for fault tolerance.", "The partition function is hard to change after deployment.", "Kafka partitions, MongoDB sharded clusters, and DynamoDB partition keys all shard by key."],
     [{ type: "paragraph", text: "A single machine cannot hold all data forever. Partitioning (sharding) divides the key space so each node owns a subset. The partition scheme determines load balance and query efficiency." },
-     { type: "diagram", diagramId: "hash-partitioning", caption: "Each key hashes to one partition index; different keys spread across P0–P3." },
+     dia("hash-partitioning", "Each key hashes to one partition index; different keys spread across P0–P3."),
      rw("Kafka topics split into partitions for parallelism — each partition is an ordered log. MongoDB sharding routes documents by shard key through mongos routers. DynamoDB partitions by primary key hash; a hot partition (e.g., celebrity user ID) can throttle the whole table until you add a random suffix."),
      app("Uber", "Trip events partition by ride_id so all state transitions for one trip land on the same Kafka partition — preserving order. Driver location updates hash by geo-cell to spread load across shards."),
      code("Hash partition routing", TS.hashPartition)],
@@ -231,7 +250,7 @@ const newLessons: L[] = [
     "Most databases default to weak isolation for performance — accepting anomalies most apps never notice.",
     ["Read committed: no dirty reads; each query sees only committed data.", "Snapshot isolation: each transaction sees a consistent point-in-time snapshot.", "Repeatable read prevents non-repeatable reads within a transaction.", "Write skew: two transactions read overlapping data and write disjoint rows.", "Phantoms: new rows appear in a re-executed range query.", "PostgreSQL defaults to READ COMMITTED; SERIALIZABLE uses SSI for stronger guarantees."],
     [{ type: "paragraph", text: "Serial execution of transactions is safe but slow. Weak isolation levels allow concurrency by permitting certain anomalies. Understanding which anomalies your application can tolerate is essential." },
-     { type: "diagram", diagramId: "isolation-levels", caption: "Stronger isolation prevents more anomalies but reduces concurrency." },
+     dia("isolation-levels", "Stronger isolation prevents more anomalies but reduces concurrency."),
      rw("PostgreSQL's default READ COMMITTED is fine for most web apps. Inventory systems prone to write skew might need SERIALIZABLE or explicit row locks (SELECT FOR UPDATE). MySQL InnoDB uses REPEATABLE READ with next-key locking to reduce phantoms — behavior differs from PostgreSQL, so isolation level names are not portable across databases."),
      app("Airbnb", "Double-booking the same listing date is a write-skew anomaly — two guests read available=true concurrently and both commit. Inventory systems need SERIALIZABLE or SELECT FOR UPDATE, not default READ COMMITTED."),
      code("Choosing an isolation level", TS.isolationLevels)],
@@ -318,7 +337,7 @@ const newLessons: L[] = [
     "Consensus protocols let nodes agree on a value despite failures — powering distributed transactions.",
     ["Two-phase commit (2PC) coordinates atomic commit across participants.", "2PC blocks if the coordinator fails after prepare.", "Fault-tolerant consensus (Raft, Paxos, Zab) elects a leader and replicates a log.", "Consensus is required for leader election, atomic commit, and membership changes.", "Coordination services (ZooKeeper, etcd) provide consensus as a service.", "Raft in etcd/Consul, Kafka KRaft, and XA transactions across PostgreSQL show consensus in production."],
     [{ type: "paragraph", text: "Getting multiple nodes to agree on a single value — who is leader, whether to commit, what the next log entry is — is the consensus problem. Algorithms like Raft make this practical for production systems." },
-     { type: "diagram", diagramId: "two-phase-commit", caption: "Coordinator asks participants to prepare, then commits or aborts." },
+     dia("two-phase-commit", "Coordinator asks participants to prepare, then commits or aborts."),
      rw("etcd and HashiCorp Consul use Raft for leader election and consistent key-value storage — the backbone of Kubernetes control planes. Kafka replaced ZooKeeper with KRaft (internal Raft) for broker metadata. Cross-database 2PC (XA transactions) exists in Java EE but is fragile; the saga pattern with compensating transactions in microservices is more common today."),
      app("Google", "Chubby (precursor to etcd) provided distributed consensus for Google's internal infrastructure — leader election, lock service, and membership. Kubernetes today relies on etcd's Raft implementation for the same guarantees."),
      code("SAGA compensating transaction", TS.sagaBooking)],
@@ -338,7 +357,7 @@ const newLessons: L[] = [
     "MapReduce brought Unix-style batch processing to clusters with automatic parallelization and fault tolerance.",
     ["Input files are split across cluster nodes; each runs a map function.", "Shuffle sorts and groups intermediate key-value pairs by key.", "Reduce functions aggregate all values for each key.", "Failed map/reduce tasks are automatically retried on other nodes.", "HDFS stores large immutable files replicated across the cluster.", "Hadoop MapReduce on HDFS is legacy; S3 + Spark replaced it in most cloud stacks."],
     [{ type: "paragraph", text: "MapReduce wraps the Unix pipeline in a fault-tolerant distributed runtime. Map tasks extract data in parallel; shuffle groups by key; reduce tasks aggregate. The runtime handles scheduling, retries, and data locality." },
-     { type: "diagram", diagramId: "mapreduce-pipeline", caption: "Map → Shuffle → Reduce over a distributed filesystem." },
+     dia("mapreduce-pipeline", "Map → Shuffle → Reduce over a distributed filesystem."),
      rw("Early Twitter and LinkedIn analytics ran on Hadoop MapReduce over HDFS. Today AWS EMR and Databricks run Spark over S3 — same map-shuffle-reduce idea, but in-memory stages avoid writing every intermediate to disk. Immutable Parquet files on S3 replaced HDFS for most new data lakes."),
      app("LinkedIn", "Early member analytics and ad targeting ran on Hadoop MapReduce over HDFS — immutable input files, parallel map tasks, shuffle by key, reduce aggregates. The pattern scaled to petabytes before Spark replaced disk-bound intermediates."),
      code("Spark batch over immutable Parquet", TS.sparkBatch),
@@ -359,7 +378,7 @@ const newLessons: L[] = [
     "Event streams deliver records continuously — via message brokers, partitioned logs, or direct sockets.",
     ["Message brokers (RabbitMQ) route messages to consumers with optional persistence.", "Partitioned logs (Kafka) retain messages for replay and multiple consumer groups.", "Producers append; consumers track their offset in the log.", "Backpressure and buffering handle speed mismatches between producers and consumers.", "Exactly-once processing semantics require idempotent consumers, transactional commits, or deduplication.", "Kafka, RabbitMQ, AWS SQS/SNS, WebSockets, and SSE cover async and real-time delivery."],
     [{ type: "paragraph", text: "Unlike request-response, event streams deliver a sequence of records over time. Message brokers decouple producers and consumers. Partitioned logs add durability and replay — consumers can re-read history at their own pace." },
-     { type: "diagram", diagramId: "event-stream", caption: "Producers append to a partitioned log; consumer groups read at independent offsets." },
+     dia("event-stream", "Producers append to a partitioned log; consumer groups read at independent offsets."),
      rw("Apache Kafka is the default partitioned log for microservices — order events, audit logs, and CDC streams. RabbitMQ and AWS SQS route task queues with at-least-once delivery. For browser real-time updates, WebSockets (bidirectional) and Server-Sent Events (server push over HTTP) complement the async backend. Kafka transactions plus idempotent producers achieve exactly-once processing semantics within a cluster."),
      app("WhatsApp", "Message delivery events append to a partitioned log so multiple consumer groups — push notifications, analytics, moderation — read the same stream at independent offsets without competing for messages."),
      code("Kafka consumer group", TS.kafkaConsumer),
@@ -420,7 +439,7 @@ const ch01 = loadCh01();
 const index: Record<string, LessonSection> = { ...ch01 };
 
 for (const lesson of [...newLessons, ...systemDesignLessons]) {
-  index[lesson.id] = { ...lesson, media: lesson.media ?? {} };
+  index[lesson.id] = migrateLesson({ ...lesson, media: lesson.media ?? {} });
 }
 
 writeFileSync(path.join(lessonsDir, "index.json"), JSON.stringify(index, null, 2) + "\n");

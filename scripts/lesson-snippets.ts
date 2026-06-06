@@ -1,4 +1,5 @@
 import type { ContentBlock } from "../src/types/content";
+import { resolveMermaid } from "./mermaid-diagrams";
 
 export function rw(text: string): ContentBlock {
   return { type: "callout", title: "In practice", text, variant: "info" };
@@ -13,11 +14,35 @@ export function code(caption: string, snippet: string): ContentBlock {
 }
 
 export function sys(diagramId: string, caption: string): ContentBlock {
+  const resolved = resolveMermaid(diagramId);
+  if (resolved) {
+    return { type: "mermaid", source: resolved.source, kind: resolved.kind, caption };
+  }
   return { type: "diagram", diagramId, caption };
 }
 
 export function seq(diagramId: string, caption: string): ContentBlock {
+  const resolved = resolveMermaid(diagramId);
+  if (resolved) {
+    return { type: "mermaid", source: resolved.source, kind: resolved.kind, caption };
+  }
   return { type: "diagram", diagramId, caption };
+}
+
+export function dia(diagramId: string, caption: string): ContentBlock {
+  const resolved = resolveMermaid(diagramId);
+  if (resolved) {
+    return { type: "mermaid", source: resolved.source, kind: resolved.kind, caption };
+  }
+  return { type: "diagram", diagramId, caption };
+}
+
+export function mermaid(
+  source: string,
+  caption: string,
+  kind: "architecture" | "sequence" | "diagram" = "diagram",
+): ContentBlock {
+  return { type: "mermaid", source, kind, caption };
 }
 
 export const TS = {
